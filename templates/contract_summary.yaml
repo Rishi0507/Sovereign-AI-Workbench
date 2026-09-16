@@ -1,0 +1,28 @@
+name: contract_summary
+version: 1
+description: Long document to a map-reduce summary with page citations.
+match:
+  route: [document, general]
+  attachments: [pdf]
+  intent_keywords: [summarise, summarize, summary, summarising, summarizing]
+deliverables:
+  - {type: docx, name: summary.docx}
+steps:
+  - id: read
+    title: Read every page
+    tool: read_document
+    default_args: {path: "{attachments[0]}", mode: full}
+    output_type: document
+  - id: summarise
+    title: Summarise section by section, then combine
+    model_task: summarise_document
+    output_schema: schemas/contract_summary.json
+    inputs: [read]
+    output_type: summary
+  - id: render
+    title: Render the summary
+    tool: make_docx
+    default_args: {template: summary, data: "{summarise}", name: summary.docx}
+    inputs: [summarise]
+    output_type: file
+    side_effect: true

@@ -1,0 +1,47 @@
+name: calc_sheet
+version: 1
+description: Engineering calculation with units at every step, as a live-formula spreadsheet and a sheet.
+match:
+  route: [general, reasoning, document, agentic]
+  attachments: [text, pdf]
+  intent_keywords: [calculate, calculation, compute, required thickness, wall thickness]
+deliverables:
+  - {type: xlsx, name: calc-sheet.xlsx}
+  - {type: docx, name: calc-sheet.docx}
+steps:
+  - id: read
+    title: Read the data sheet
+    tool: read_file
+    default_args: {path: "{attachments[0]}"}
+    output_type: document
+  - id: inputs
+    title: Extract the formula and inputs
+    model_task: extract_calc_inputs
+    output_schema: schemas/calc_inputs.json
+    inputs: [read]
+    output_type: calc_inputs
+  - id: calc
+    title: Evaluate with units
+    tool: calculate
+    default_args:
+      expression: "{inputs.expression}"
+      variables: "{inputs.variables}"
+      result_name: "{inputs.result_name}"
+      result_unit: "{inputs.result_unit}"
+      title: "{inputs.title}"
+    inputs: [inputs]
+    output_type: calc_result
+  - id: sheet
+    title: Spreadsheet with live formulas
+    tool: make_xlsx
+    default_args: {kind: calc_sheet, data: {calc: "{calc}"}, name: calc-sheet.xlsx}
+    inputs: [calc]
+    output_type: file
+    side_effect: true
+  - id: note
+    title: Calculation sheet document
+    tool: make_docx
+    default_args: {template: calc_sheet, data: {calc: "{calc}", record: "{calc.records.0}"}, name: calc-sheet.docx}
+    inputs: [calc]
+    output_type: file
+    side_effect: true

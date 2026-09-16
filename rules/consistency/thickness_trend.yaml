@@ -1,0 +1,10 @@
+# Project the thickness at the next inspection from earlier readings (plant graph history).
+name: thickness_trend
+description: Projected thickness at the next inspection stays above the SOP minimum
+type: trend
+applies_to: [inspection_report]
+quantity: wall_thickness
+tag: "{fact.equipment_tag}"
+limit: {source: kb_limit, kind: minimum_thickness}
+horizon: {source: fact, field: next_inspection_date}
+on_fail: mismatch

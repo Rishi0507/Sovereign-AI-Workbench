@@ -1,0 +1,28 @@
+name: board_deck_from_notes
+version: 1
+description: Meeting notes to a short board deck, one idea per slide.
+match:
+  route: [general, document, agentic]
+  attachments: [text]
+  intent_keywords: [deck, slides, presentation, board]
+deliverables:
+  - {type: pptx, name: board-deck.pptx}
+steps:
+  - id: read
+    title: Read the notes
+    tool: read_file
+    default_args: {path: "{attachments[0]}"}
+    output_type: document
+  - id: outline
+    title: Outline the slides
+    model_task: outline_deck
+    output_schema: schemas/deck.json
+    inputs: [read]
+    output_type: deck
+  - id: render
+    title: Render the deck
+    tool: make_pptx
+    default_args: {data: "{outline}", name: board-deck.pptx}
+    inputs: [outline]
+    output_type: file
+    side_effect: true

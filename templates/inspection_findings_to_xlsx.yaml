@@ -1,0 +1,39 @@
+name: inspection_findings_to_xlsx
+version: 1
+description: Inspection report findings to a sourced spreadsheet with the SOP margin as a formula.
+match:
+  route: [document, vision, agentic]
+  attachments: [pdf, image]
+  intent_keywords: [spreadsheet, excel, xlsx, findings table]
+deliverables:
+  - {type: xlsx, name: inspection-findings.xlsx}
+steps:
+  - id: extract
+    title: Read the report and extract findings
+    tool: read_document
+    default_args: {path: "{attachments[0]}", mode: findings}
+    output_schema: schemas/findings.json
+    output_type: findings
+  - id: ground
+    title: Retrieve the thickness limit in force
+    tool: search_kb
+    default_args:
+      queries: ["minimum casing wall thickness acceptance criteria"]
+      top_k: 4
+      as_of: "{report_date}"
+      tags: ["{equipment_tag}"]
+    inputs: [extract]
+    output_type: kb_passages
+  - id: check
+    title: Compare with the limit
+    tool: check_consistency
+    default_args: {facts: "{extract}", against: [asset_register, "{ground}"]}
+    inputs: [extract, ground]
+    output_type: check_results
+  - id: sheet
+    title: Render the findings spreadsheet
+    tool: make_xlsx
+    default_args: {kind: findings, data: {findings: "{extract}", checks: "{check}"}, name: inspection-findings.xlsx}
+    inputs: [extract, check]
+    output_type: file
+    side_effect: true

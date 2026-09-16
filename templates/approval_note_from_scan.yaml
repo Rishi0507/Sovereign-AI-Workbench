@@ -1,0 +1,45 @@
+name: approval_note_from_scan
+version: 3
+description: Scanned inspection report to a cited approval note with consistency findings.
+match:
+  route: [document, vision, agentic]
+  attachments: [pdf, image]
+  intent_keywords: [approval note, approval, note for approval]
+deliverables:
+  - {type: docx, name: approval-note.docx}
+steps:
+  - id: extract
+    title: Read the report and extract findings
+    tool: read_document
+    default_args: {path: "{attachments[0]}", mode: findings}
+    output_schema: schemas/findings.json
+    output_type: findings
+  - id: ground
+    title: Ground in the procedure in force and the tag history
+    tool: search_kb
+    default_args:
+      queries: ["approval note structure and evidence", "minimum casing wall thickness acceptance criteria", "past approval notes {equipment_tag}"]
+      top_k: 8
+      as_of: "{report_date}"
+      tags: ["{equipment_tag}"]
+    inputs: [extract]
+    output_type: kb_passages
+  - id: check
+    title: Cross-check facts against the register, limits and history
+    tool: check_consistency
+    default_args: {facts: "{extract}", against: [asset_register, "{ground}"]}
+    inputs: [extract, ground]
+    output_type: check_results
+  - id: draft
+    title: Draft cited sections
+    model_task: draft_sections
+    output_schema: schemas/approval_note.json
+    inputs: [extract, ground, check]
+    output_type: note
+  - id: render
+    title: Render the approval note
+    tool: make_docx
+    default_args: {template: org/approval_note.dotx, data: "{draft}"}
+    inputs: [draft]
+    output_type: file
+    side_effect: true

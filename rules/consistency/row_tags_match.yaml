@@ -1,0 +1,9 @@
+# Every table row must carry the report equipment tag (catches transposed tags).
+name: row_tags_match
+description: Tag in each reading row matches the report equipment tag
+applies_to: [inspection_report]
+left: fact.measurements[*].tag
+right: {source: fact, field: equipment_tag}
+compare: eq_normalised
+report: failures_only
+on_fail: mismatch
