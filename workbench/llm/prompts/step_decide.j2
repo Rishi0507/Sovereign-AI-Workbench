@@ -1,0 +1,5 @@
+Current step: {{ step.id }}{% if step.title %} ({{ step.title }}){% endif %}.
+Call the tool `{{ step.tool }}` for this step.
+Suggested arguments (placeholders already resolved): {{ args_json }}
+Tool input schema: {{ schema_json }}
+Return one JSON object {"tool": "{{ step.tool }}", "args": {...}} and nothing else.

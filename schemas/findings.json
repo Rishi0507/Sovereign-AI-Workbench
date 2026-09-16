@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Inspection findings",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["document_type", "equipment_tag", "measurements", "tags_mentioned", "remarks", "stamp_present"],
+  "$defs": {
+    "fact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "record", "confidence"],
+      "properties": {
+        "value": {"type": "string", "minLength": 1},
+        "record": {"type": "string", "pattern": "^R-"},
+        "confidence": {"enum": ["high", "medium", "low", "uncertain"]}
+      }
+    },
+    "optfact": {"anyOf": [{"$ref": "#/$defs/fact"}, {"type": "null"}]}
+  },
+  "properties": {
+    "document_type": {"enum": ["inspection_report", "other"]},
+    "equipment_tag": {"$ref": "#/$defs/fact"},
+    "equipment_description": {"type": ["string", "null"]},
+    "report_date": {"$ref": "#/$defs/optfact"},
+    "inspection_date": {"$ref": "#/$defs/optfact"},
+    "next_inspection_date": {"$ref": "#/$defs/optfact"},
+    "calibration_valid_until": {"$ref": "#/$defs/optfact"},
+    "po_number": {"$ref": "#/$defs/optfact"},
+    "vendor": {"$ref": "#/$defs/optfact"},
+    "inspector": {"$ref": "#/$defs/optfact"},
+    "measurements": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["quantity", "tag", "location", "value", "unit", "record", "confidence"],
+        "properties": {
+          "quantity": {"type": "string"},
+          "tag": {"type": "string"},
+          "location": {"type": "string"},
+          "value": {"type": "number"},
+          "unit": {"type": "string"},
+          "record": {"type": "string", "pattern": "^R-"},
+          "confidence": {"enum": ["high", "medium", "low", "uncertain"]}
+        }
+      }
+    },
+    "tags_mentioned": {"type": "array", "items": {"$ref": "#/$defs/fact"}},
+    "remarks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["text", "record"],
+        "properties": {"text": {"type": "string"}, "record": {"type": "string"}}
+      }
+    },
+    "stamp_present": {"type": "boolean"}
+  }
+}

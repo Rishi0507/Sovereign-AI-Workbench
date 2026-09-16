@@ -1,0 +1,5 @@
+# Two fenced blocks in one answer violate the code-block protocol and are rejected before any run.
+steps:
+  - match: {purpose: code.write}
+    times: 1
+    response: {text: "```python\nprint(1)\n```\n```python\nprint(2)\n```"}

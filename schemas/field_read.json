@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Field read",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["value"],
+  "properties": {
+    "value": {"type": "string"},
+    "choice": {"enum": ["A", "B", "neither"]}
+  }
+}

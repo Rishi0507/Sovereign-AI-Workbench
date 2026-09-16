@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Typed plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["steps", "deliverables"],
+  "properties": {
+    "goal": {"type": "string"},
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "action", "args", "inputs", "output_type", "side_effect"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,31}$"},
+          "title": {"type": "string"},
+          "action": {
+            "type": "object",
+            "additionalProperties": false,
+            "minProperties": 1,
+            "maxProperties": 1,
+            "properties": {
+              "tool": {"type": "string"},
+              "model_task": {"type": "string"}
+            }
+          },
+          "args": {"type": "object"},
+          "inputs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["from", "ref"],
+              "properties": {
+                "from": {"enum": ["attachment", "step", "kb_query"]},
+                "ref": {"type": "string"}
+              }
+            }
+          },
+          "output_type": {"type": "string"},
+          "side_effect": {"type": "boolean"}
+        }
+      }
+    },
+    "deliverables": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type"],
+        "properties": {
+          "type": {"enum": ["docx", "xlsx", "pptx", "code", "md"]},
+          "name": {"type": "string"}
+        }
+      }
+    }
+  }
+}

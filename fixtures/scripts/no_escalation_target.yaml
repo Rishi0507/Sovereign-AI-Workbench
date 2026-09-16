@@ -1,0 +1,7 @@
+# The scoring script always fails on the swap-slot model, which is also the strongest model.
+# Expected: no escalation target is left, so the task is handed back with its trace.
+steps:
+  - match: {purpose: step.decide, step: score}
+    times: 4
+    response:
+      parsed: {tool: run_python, args: {script: "raise SystemExit(2)\n"}}

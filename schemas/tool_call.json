@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Tool call",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["tool", "args"],
+  "properties": {
+    "tool": {"type": "string", "pattern": "^[a-z_]{2,40}$"},
+    "args": {"type": "object"},
+    "reason": {"type": "string", "maxLength": 400}
+  }
+}

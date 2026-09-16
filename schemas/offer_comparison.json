@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Offer comparison",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["criteria", "offers", "recommendation"],
+  "properties": {
+    "criteria": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "unit", "better", "weight"],
+        "properties": {
+          "name": {"type": "string"},
+          "unit": {"type": "string"},
+          "better": {"enum": ["lower", "higher"]},
+          "weight": {"type": "number", "minimum": 0, "maximum": 1},
+          "limit": {"type": ["number", "null"]},
+          "limit_kind": {"enum": ["max", "min", null]},
+          "limit_record": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "offers": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["vendor", "document", "values", "deviations"],
+        "properties": {
+          "vendor": {"type": "string"},
+          "document": {"type": "string"},
+          "values": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["value", "record"],
+              "properties": {
+                "value": {"type": "number"},
+                "record": {"type": "string"},
+                "page": {"type": ["integer", "null"]}
+              }
+            }
+          },
+          "deviations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["text", "record"],
+              "properties": {"text": {"type": "string"}, "record": {"type": "string"}}
+            }
+          }
+        }
+      }
+    },
+    "recommendation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["vendor", "rationale"],
+      "properties": {
+        "vendor": {"type": ["string", "null"]},
+        "rationale": {"type": "array", "items": {"type": "string"}}
+      }
+    }
+  }
+}

@@ -1,0 +1,6 @@
+# The model returns invalid JSON for the extract step three times (the retry budget is 2).
+# Expected: retries are exhausted and the step default call runs (TEMPLATE_DEFAULT).
+steps:
+  - match: {purpose: step.decide, step: extract}
+    times: 3
+    response: {text: "I will now read the document."}

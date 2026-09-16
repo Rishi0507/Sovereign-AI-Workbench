@@ -1,0 +1,6 @@
+# The drafting model never produces valid JSON. Expected: the draft step is marked incomplete
+# and the task continues for user review instead of aborting.
+steps:
+  - match: {purpose: draft.sections}
+    times: 3
+    response: {text: "{\"title\": 1}"}

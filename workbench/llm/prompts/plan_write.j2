@@ -1,0 +1,14 @@
+Write a typed plan for the task below. Use only these tools: {{ tools }}.
+Model tasks available: {{ model_tasks }}.
+Rules:
+- Each step has id (lower_snake_case), action {"tool": name} or {"model_task": name}, args, inputs,
+  output_type and side_effect.
+- inputs reference attachments ({"from": "attachment", "ref": "<file>"}), earlier steps
+  ({"from": "step", "ref": "<step id>"}) or knowledge-base queries ({"from": "kb_query", "ref": "<query>"}).
+- A step may only use the output of an earlier step.
+- Steps that write files (make_docx, make_xlsx, make_pptx, write_file) have side_effect true.
+- List the requested deliverables with their type (docx, xlsx, pptx, code, md).
+- At most {{ max_steps }} steps.
+Task: {{ text }}
+Attachments: {{ attachments }}
+Return only the JSON plan.

@@ -1,0 +1,7 @@
+# The model passes an unparseable as_of date twice, so search_kb fails twice.
+# Expected: the template default call runs and succeeds.
+steps:
+  - match: {purpose: step.decide, step: ground}
+    times: 2
+    response:
+      parsed: {tool: search_kb, args: {queries: ["minimum thickness"], top_k: 4, as_of: "not a date"}}

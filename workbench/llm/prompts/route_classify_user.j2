@@ -1,0 +1,7 @@
+Task: {{ text }}
+Attachments:
+{% for a in attachments %}
+- {{ a.name }} (type {{ a.type }}, {{ a.pages }} page(s), scanned={{ a.scanned }}, visual content={{ a.needs_visual }})
+{% else %}
+- none
+{% endfor %}

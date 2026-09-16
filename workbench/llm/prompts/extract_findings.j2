@@ -1,0 +1,9 @@
+Fill the inspection findings schema from the records above.
+- equipment_tag: prefer a vlm_read record for the tag field and copy its confidence.
+- measurements: one entry per table row with quantity "wall_thickness", the row's tag exactly as
+  printed, the location, the measured value as a number, the unit and the record id of the page.
+- tags_mentioned: every equipment tag that appears on the pages.
+- dates: copy dates as printed (dd/mm/yyyy) with the record id.
+- remarks: the remark text as read by the VLM when available.
+- stamp_present: true when a vlm_read record reports the stamp as present.
+Use only records {{ record_ids }}. Return only the JSON object.

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Task profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["task_type", "needs_tools", "complexity", "needs_visual_after_extract", "confidence"],
+  "properties": {
+    "task_type": {"enum": ["general", "document", "vision", "code", "agentic", "reasoning"]},
+    "needs_tools": {"type": "boolean"},
+    "complexity": {"enum": ["low", "medium", "high"]},
+    "needs_visual_after_extract": {"type": "boolean"},
+    "confidence": {"type": "number", "minimum": 0, "maximum": 1}
+  }
+}

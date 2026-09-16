@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Slide deck",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["title", "slides"],
+  "properties": {
+    "title": {"type": "string"},
+    "slides": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["title", "bullets"],
+        "properties": {
+          "title": {"type": "string"},
+          "bullets": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    }
+  }
+}

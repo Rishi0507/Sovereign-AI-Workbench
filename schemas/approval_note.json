@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Approval or recommendation note",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["title", "subject", "summary", "findings", "consistency_findings", "recommendation"],
+  "$defs": {
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text"],
+      "properties": {
+        "text": {"type": "string", "minLength": 1}
+      }
+    }
+  },
+  "properties": {
+    "title": {"type": "string"},
+    "subject": {"type": "string"},
+    "reference": {"type": "string"},
+    "summary": {"type": "array", "items": {"$ref": "#/$defs/claim"}},
+    "findings": {"type": "array", "items": {"$ref": "#/$defs/claim"}},
+    "consistency_findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["rule", "status", "text"],
+        "properties": {
+          "rule": {"type": "string"},
+          "status": {"enum": ["pass", "mismatch", "not_found", "not_checked"]},
+          "text": {"type": "string"},
+          "check": {"type": "string"}
+        }
+      }
+    },
+    "recommendation": {"type": "array", "items": {"$ref": "#/$defs/claim"}},
+    "incomplete": {"type": "array", "items": {"type": "string"}}
+  }
+}

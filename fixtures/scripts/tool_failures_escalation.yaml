@@ -1,0 +1,10 @@
+# The resident coder keeps writing a script that fails, for two full attempts of the code step
+# (four sandbox runs each). Expected: escalation to the swap-slot reasoning model after a tide,
+# which then completes the task through the default heuristic behaviour.
+steps:
+  - match: {model: qwen2.5-coder-7b, purpose: code.write}
+    times: 2
+    response: {text: "```python\nraise SystemExit(3)\n```"}
+  - match: {model: qwen2.5-coder-7b, purpose: code.fix}
+    times: 6
+    response: {text: "```python\nraise SystemExit(3)\n```"}

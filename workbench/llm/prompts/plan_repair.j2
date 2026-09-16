@@ -1,0 +1,6 @@
+The plan compiler rejected your plan with these errors:
+{% for e in errors %}
+- {{ e }}
+{% endfor %}
+Return a corrected JSON plan that fixes every error. Keep the steps that were valid.
+Previous plan: {{ plan_json }}
