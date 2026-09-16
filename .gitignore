@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+.coverage.*
+htmlcov/
+
+# Secrets and local overrides
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+secret*
+
+# Runtime state
+var/
+run/
+bin/
+reports/
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+
+# Generated fixtures (rebuild with `make fixtures`)
+fixtures/ws/
+fixtures/kb/
+fixtures/asset_register.csv
+org_templates/*.docx
+org_templates/*.pptx
+templates/drafts/
+config/models.proposed.yaml
+
+# Go
+go/**/*.test
+go/coverage.out
+
+# Editors and OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db

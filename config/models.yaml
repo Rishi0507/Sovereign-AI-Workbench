@@ -1,0 +1,99 @@
+# Model registry.
+# Adding a model = download weights + add an entry + start its server + shadow evaluation.
+# `quality`, `latency` and `speculative_speedup` are written by `workbench eval --write-registry`
+# as a proposed diff (config/models.proposed.yaml) that an administrator approves.
+# The quality values below are the illustrative seed values from the design document.
+models:
+  - name: qwen3-vl-8b
+    status: active
+    endpoint: http://127.0.0.1:8001/v1
+    weights: Qwen/Qwen3-VL-8B-Instruct-AWQ
+    serves: [general, document, vision, agentic]
+    modalities: [text, image]
+    languages: [en, hi]
+    max_context: 32768
+    tool_parser: hermes
+    protocol: tools
+    pool: resident
+    provenance: {developer: Alibaba, licence: Apache-2.0, origin: CN}
+    quality: {document: 0.86, vision: 0.81, general: 0.84, agentic: 0.72}
+    latency: {step_s: 2.9}
+    speculative: {method: ngram, num_speculative_tokens: 3, prompt_lookup_min: 2, prompt_lookup_max: 5}
+    speculative_speedup: null
+    serve:
+      S: {port: 8001, gpu_memory_utilization: 0.50, max_model_len: 32768}
+      M: {port: 8001, gpu_memory_utilization: 0.40, max_model_len: 32768}
+      L: {port: 8001, gpu_memory_utilization: 0.30, max_model_len: 65536}
+
+  - name: qwen2.5-coder-7b
+    status: active
+    endpoint: http://127.0.0.1:8002/v1
+    weights: Qwen/Qwen2.5-Coder-7B-Instruct-AWQ
+    serves: [code]
+    modalities: [text]
+    languages: [en]
+    max_context: 16384
+    tool_parser: null
+    protocol: code_block
+    pool: resident
+    provenance: {developer: Alibaba, licence: Apache-2.0, origin: CN}
+    quality: {code: 0.78}
+    latency: {step_s: 2.2}
+    speculative: {method: ngram, num_speculative_tokens: 4, prompt_lookup_min: 2, prompt_lookup_max: 5}
+    speculative_speedup: null
+    serve:
+      S: {port: 8002, gpu_memory_utilization: 0.38, max_model_len: 16384}
+      M: {port: 8002, gpu_memory_utilization: 0.20, max_model_len: 32768}
+      L: {port: 8002, gpu_memory_utilization: 0.15, max_model_len: 32768}
+
+  - name: gpt-oss-20b
+    status: active
+    endpoint: http://127.0.0.1:8003/v1
+    weights: openai/gpt-oss-20b
+    serves: [reasoning, general, agentic, code]
+    modalities: [text]
+    languages: [en]
+    max_context: 32768
+    tool_parser: openai
+    protocol: tools
+    pool: swap
+    escalation_for: [code, agentic, document, general]
+    provenance: {developer: OpenAI, licence: Apache-2.0, origin: US}
+    quality: {reasoning: 0.88, general: 0.86, agentic: 0.85, code: 0.83}
+    latency: {step_s: 3.5, wake_s: 20}
+    speculative: {method: "off"}
+    speculative_speedup: null
+    serve:
+      S: {port: 8003, gpu_memory_utilization: 0.60, max_model_len: 32768}
+      M: {port: 8003, gpu_memory_utilization: 0.35, max_model_len: 32768}
+      L: {port: 8003, gpu_memory_utilization: 0.50, max_model_len: 65536}
+
+  - name: granite-3.3-8b
+    status: shadow
+    endpoint: http://127.0.0.1:8004/v1
+    weights: ibm-granite/granite-3.3-8b-instruct
+    serves: [general, document, agentic]
+    modalities: [text]
+    languages: [en]
+    max_context: 32768
+    tool_parser: granite
+    protocol: tools
+    pool: cold
+    provenance: {developer: IBM, licence: Apache-2.0, origin: US}
+    quality: {}
+    latency: {step_s: 2.8}
+    speculative: {method: ngram, num_speculative_tokens: 3, prompt_lookup_min: 2, prompt_lookup_max: 5}
+    speculative_speedup: null
+    serve:
+      S: {port: 8004, gpu_memory_utilization: 0.45, max_model_len: 16384}
+
+routing:
+  thresholds: {low: 0.70, medium: 0.80, high: 0.85}
+  low_confidence_below: 0.60
+  fallback:
+    code: qwen2.5-coder-7b
+    document: qwen3-vl-8b
+    vision: qwen3-vl-8b
+    general: qwen3-vl-8b
+    agentic: qwen3-vl-8b
+    reasoning: gpt-oss-20b

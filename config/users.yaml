@@ -1,0 +1,39 @@
+# DEV ONLY: stand-in for the organization's directory server (LDAPS adapter is a later phase).
+# The API maps the X-User header to one of these entries.
+users:
+  engineer1:
+    name: Plant engineer
+    groups: [plant-a]
+    clearance: Confidential
+    compartments: []
+    roles: [engineer, approver]
+  buyer1:
+    name: Procurement buyer
+    groups: [proc]
+    clearance: Secret
+    compartments: [VENDOR-COMMERCIAL]
+    roles: [buyer, approver]
+  officer1:
+    name: Security officer
+    groups: [plant-a, proc]
+    clearance: Secret
+    compartments: [VENDOR-COMMERCIAL, PROJECT-X]
+    roles: [security_officer, approver]
+  owner1:
+    name: Document owner
+    groups: [plant-a, proc]
+    clearance: Secret
+    compartments: [VENDOR-COMMERCIAL]
+    roles: [document_owner, approver]
+  admin1:
+    name: Administrator
+    groups: [plant-a, proc]
+    clearance: Confidential
+    compartments: []
+    roles: [admin]
+  dev1:
+    name: Internal developer
+    groups: [plant-a]
+    clearance: Restricted
+    compartments: []
+    roles: [developer]

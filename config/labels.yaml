@@ -1,0 +1,15 @@
+# Classification policy (README section 6.5).
+levels: [Unclassified, Restricted, Confidential, Secret]
+default_upload_label: Restricted
+compartments: [PROJECT-X, VENDOR-COMMERCIAL]
+downgrade_roles: [security_officer, document_owner]
+detect_markings: true
+# Marking strings searched (case-insensitive) in page text, highest level wins.
+markings:
+  Secret: ["SECRET", "गुप्त"]
+  Confidential: ["CONFIDENTIAL", "गोपनीय"]
+  Restricted: ["RESTRICTED", "प्रतिबंधित"]
+  Unclassified: ["UNCLASSIFIED"]
+compartment_markings:
+  PROJECT-X: ["PROJECT-X"]
+  VENDOR-COMMERCIAL: ["VENDOR-COMMERCIAL", "VENDOR COMMERCIAL"]

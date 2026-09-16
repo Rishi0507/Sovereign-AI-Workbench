@@ -1,0 +1,7 @@
+# Per-workspace model provenance policy (README section 4.2.2).
+# A workspace without an entry accepts every active model.
+# Keys: developers, licences, origins, models (any subset). Empty or missing key = no restriction.
+workspaces:
+  defence-cell:
+    origins: [IN, US, FR]
+    licences: [Apache-2.0, MIT]

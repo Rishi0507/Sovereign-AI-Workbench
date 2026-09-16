@@ -1,0 +1,6 @@
+# Tidal pool policy (README section 3.0.2). Times are real seconds, scaled by settings.time_scale.
+swap_slot: gpt-oss-20b
+tide:
+  max_wait_s: 90          # oldest swap job waits at most this long
+  max_queue: 3            # or turn the tide as soon as 3 jobs are waiting
+  min_resident_s: 120     # keep resident models awake at least this long between tides

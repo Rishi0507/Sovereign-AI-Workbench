@@ -1,0 +1,5 @@
+# Destinations the application may connect to besides loopback and Unix sockets.
+# Replace the example with your directory server.
+lan_cidrs: ["10.20.0.0/24"]
+allow:
+  - {host: 10.20.0.10, port: 636, proto: tcp, purpose: "directory server (LDAPS)"}

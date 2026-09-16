@@ -1,0 +1,82 @@
+# Sovereign AI Workbench runtime settings.
+# Relative paths resolve against the repository root (or WB_ROOT when set).
+# Any top-level key can be overridden with an environment variable WB_<KEY> (see .env.example).
+
+profile: S                      # hardware profile: S (24 GB), M (48 GB), L (80 GB class)
+
+# Model access
+llm_backend: heuristic          # heuristic | scripted | openai
+scripted_script: null           # fixture script name when llm_backend = scripted
+router_model: qwen2.5-1.5b-instruct
+router_endpoint: http://127.0.0.1:8010/v1
+cache_salt_mode: request        # request (vLLM cache_salt field) | prefix (salt token in system prompt)
+openai_timeout_s: 120
+
+# Host services
+sandbox: sandboxd               # sandboxd | fake
+egress: egressd                 # egressd | fake
+service_transport: auto         # auto | unix | tcp  (auto = unix on POSIX, loopback tcp on Windows)
+sandbox_image: workbench-sandbox:py311
+sandbox_timeout_s: 60
+
+# Storage
+data_dir: var
+workspaces_root: var/workspaces
+db_path: var/workbench.db
+audit_path: var/audit.jsonl
+secret_key_path: var/secret.key
+kb_dir: var/kb
+run_dir: run
+reports_dir: reports
+asset_register: var/reference/asset_register.csv   # export from the asset management system
+kb_source: fixtures/kb                               # default source for `workbench ingest`
+egress_guard: true                                   # install the in-process egress guard at startup
+
+# Agent limits
+max_steps: 20
+max_retries: 2
+max_plan_steps: 12
+max_code_iters: 4
+max_repairs: 2
+record_inline_chars: 1200
+observation_max_chars: 2000
+tokens_per_scanned_page: 1100
+kb_token_budget: 4000
+output_token_reserve: 4096
+per_model_concurrency: 2
+interactive_latency_limit_s: null
+
+# Checks
+number_tolerance: 0.005         # relative tolerance for number provenance
+citation_min_score: 0.12
+party_match_threshold: 0.85
+date_dayfirst: true
+
+# Time
+time_scale: 0.05                # scales simulated wake times and tide waits (0 in tests)
+
+# Per-step planning budgets in seconds (README section 4.9, Profile S estimates)
+step_budgets_s:
+  read_document: 12
+  search_kb: 2
+  graph_lookup: 0.05
+  check_consistency: 1
+  calculate: 0.5
+  run_python: 20
+  make_docx: 2
+  make_xlsx: 2
+  make_pptx: 2
+  list_files: 0.05
+  read_file: 0.2
+  write_file: 0.2
+  recall: 0.05
+  delegate: 45
+  finish: 0
+  model_task: 4
+  tide_switch: 25
+
+# Hardware profiles used by `workbench registry render-serve`
+profiles:
+  S: {kv_cache_fp8: true, all_resident: false}
+  M: {kv_cache_fp8: true, all_resident: true}
+  L: {kv_cache_fp8: true, all_resident: true}

@@ -1,0 +1,18 @@
+# Workspace ceilings and ACL groups.
+workspaces:
+  plant-a:
+    title: Plant A · Mechanical integrity
+    ceiling: {level: Confidential, compartments: []}
+    acl_groups: [plant-a]
+  plant-a-general:
+    title: Plant A · General
+    ceiling: {level: Restricted, compartments: []}
+    acl_groups: [plant-a]
+  proc:
+    title: Procurement
+    ceiling: {level: Secret, compartments: [VENDOR-COMMERCIAL]}
+    acl_groups: [proc]
+  defence-cell:
+    title: Defence cell
+    ceiling: {level: Secret, compartments: [PROJECT-X]}
+    acl_groups: [defence]
