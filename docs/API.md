@@ -90,7 +90,7 @@ Approve or deny a side-effecting step: `{"approve": true, "note": "optional"}`. 
 
 ### `POST /api/tasks/{task_id}/followup`
 
-Ask a follow-up question about a finished task: `{"text": "Which clause sets the warranty period?"}`. Returns the new child task (`201`). The child inherits the parent's label as a floor.
+Continue a conversation: `{"text": "How many words are in it?"}`. Returns the new task (`201`). A follow-up always joins the conversation's first task (even when posted on a later follow-up), reuses its attachments, and starts at the highest classification seen so far in the conversation. The first task's view lists the conversation under `followups`, oldest first; each follow-up carries `followup_of`.
 
 ### `GET /api/routing/{task_id}`
 

@@ -39,6 +39,8 @@ The implementation follows [`design/IMPLEMENTATION_PRD.md`](design/IMPLEMENTATIO
 | D31 | UI | Inter is bundled as a local font |
 | D32 | API | Tasks carry a revision counter for change detection |
 | D33 | UI | Pages update in place instead of being rebuilt |
+| D34 | Agent | Requests for counts add a counting step to any plan |
+| D35 | Agent | Follow-ups continue one conversation |
 
 ---
 
@@ -215,3 +217,12 @@ The implementation follows [`design/IMPLEMENTATION_PRD.md`](design/IMPLEMENTATIO
 **Decision:** The interface keeps a small in-place updater (`fill` in `app.js`): a new render is compared with what is on screen, matching elements are patched (text, attributes, handlers), keyed rows are moved rather than recreated, and only genuinely new elements animate in. Height changes animate, tab bars and panels that own their own state are marked `data-keep`, and text the user is typing is never overwritten.
 **Why:** Replacing whole sections on every poll made the page flicker, collapsed open sections and reset scroll positions. A framework would need a build step and third-party code, which the air-gapped design avoids. The browser tests check that the conversation element survives a whole task run.
 
+### D34. Requests for counts add a counting step
+
+**Decision:** A `document_stats` tool counts pages, words (numbers count as one word, marking lines are skipped), characters and tables in the extracted text and records each result as a citable `calc_result`. When a request asks for such counts ("and also tell me the number of words"), `planning/extras.py` inserts a "Count pages and words" step after the first reading step, including into saved templates, and feeds its result to any later answer step. The counted facts are listed with the task result.
+**Why:** A saved template covers the main intent only; without this, the extra part of a combined request was silently dropped. Counting is arithmetic, so it is done by code, not guessed by a model.
+
+### D35. Follow-ups continue one conversation
+
+**Decision:** A follow-up is a new task whose `followup_of` points at the conversation's first task; follow-ups of follow-ups point there too. It reuses the first task's attachments and takes the conversation's highest classification as its floor. The task page shows the whole conversation, the reply box stays available whenever the last turn has finished, and the sidebar lists each conversation once.
+**Why:** Moving to a new page for every follow-up lost the thread, and follow-ups previously did not inherit the classification of what had already been read.

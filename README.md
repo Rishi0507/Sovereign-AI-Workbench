@@ -221,7 +221,7 @@ The interface is deliberately plain: a sidebar with your recent tasks, one box t
 |---|---|
 | **Home** | Type a request, attach files with the paperclip (or upload new ones), or pick a suggestion. |
 | **Library** | Every generated file grouped by task and day, every decision in a timeline, and everything waiting on you. Search across all of it and filter documents by type. |
-| **Task** | Approve, edit or cancel the plan, allow file-creating steps, follow progress, read answers with numbered sources, download files. **Details** opens the technical record: activity log, evidence, model choice and checks. |
+| **Task** | A conversation: approve, edit or cancel the plan, follow progress, read answers with numbered sources, see counted facts such as page and word totals, download files, and keep asking follow-ups in the box at the bottom. **Details** opens the technical record: activity log, evidence, model choice and checks. |
 | **Review** | Read the draft, click any figure or source number to see where it came from, mark issues as reviewed, fix figures without a source, then approve or request changes. |
 | **Models** | See which models are ready, asleep or being evaluated, and how well each does per kind of work. |
 | **Security** | See that nothing has left the server, run a network test, check the audit log and handle approval requests. |
