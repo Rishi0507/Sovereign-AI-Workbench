@@ -31,6 +31,22 @@ SYSTEM = (
     "Never address the user by a name and never call them Sovereign AI Workbench."
 )
 MARKUP = re.compile(r"[*_`#]+")
+ROUTE_SYSTEM = (
+    "You sort messages for an offline workbench that holds the user's engineering documents. "
+    "Answer with one word. CHAT when the message is small talk, about you, arithmetic, the time, or general "
+    "knowledge. DOCS when answering it needs the user's own reports, contracts, readings or procedures."
+)
+ROUTE_EXAMPLES = [
+    ("what is the capital of France", "CHAT"),
+    ("hi how is the weather today", "CHAT"),
+    ("can you swim", "CHAT"),
+    ("Which pumps are governed by SOP-MECH-014?", "DOCS"),
+    ("summarise the contract", "DOCS"),
+    ("what did the inspector find", "DOCS"),
+]
+GENERAL = ("The message is not about the documents on this machine. Answer it briefly and honestly. You have no "
+           "internet and no knowledge of the outside world, so say plainly when you cannot know something, and "
+           "never invent an answer. Then offer to help with the files.")
 HINTS = {
     "greeting": ("The user is greeting you. Greet them back warmly in your own words, without names or "
                  "the time of day, and ask what they would like to work on."),
@@ -53,12 +69,15 @@ class ConversationalBackend:
         self.name = base.name
         self.model = model
         self.max_tokens = max_tokens
+        self._routes: dict[str, bool] = {}  # one verdict per message, so planning asks the model once
         self.client = chat or OpenAICompatBackend(lambda _m: endpoint, cache_salt_mode="prefix", timeout_s=timeout_s)
 
     def __getattr__(self, item: str) -> Any:
         return getattr(self.base, item)
 
     def chat(self, req: LLMRequest) -> LLMResponse:
+        if req.purpose == "plan.write":
+            return self.base.chat(self.routed(req))
         if req.purpose != "chat.reply":
             return self.base.chat(req)
         fallback = self.base.chat(req)
@@ -75,6 +94,43 @@ class ConversationalBackend:
         value["model"] = self.model
         return LLMResponse(text=json.dumps(value, ensure_ascii=False), parsed=value, usage=resp.usage,
                            spec={"model": self.model}, latency_s=resp.latency_s)
+
+    def routed(self, req: LLMRequest) -> LLMRequest:
+        """Plan a plain reply when the message needs none of the user's documents."""
+        if req.meta.get("force_chat"):
+            return req
+        text = str(req.meta.get("task_text") or last_user(req))
+        if not self.prefers_chat(text, list(req.meta.get("attachments") or [])):
+            return req
+        return req.model_copy(update={"meta": {**req.meta, "force_chat": True}})
+
+    def prefers_chat(self, text: str, attachments: list[str]) -> bool:
+        """True when the message is conversation or general knowledge rather than document work."""
+        if attachments or conversation.intent(text, attachments) or not text.strip():
+            return False
+        if conversation.DOMAIN.search(text):
+            return False
+        if text in self._routes:
+            return self._routes[text]
+        shots: list[ChatMessage] = []
+        for question, answer in ROUTE_EXAMPLES:
+            shots.append(ChatMessage(role="user", content=question))
+            shots.append(ChatMessage(role="assistant", content=answer))
+        ask = LLMRequest(
+            model=self.model, purpose="chat.route", temperature=0.0, max_tokens=4, seed=7,
+            messages=[ChatMessage(role="system", content=ROUTE_SYSTEM), *shots,
+                      ChatMessage(role="user", content=text[:400])])
+        try:
+            answer = self.client.chat(ask).text.strip().upper()
+        except ServiceUnavailable:
+            return False
+        # Any answer that does not ask for the documents is treated as conversation: a small model
+        # sometimes answers the question instead of sorting it, and that is never document work.
+        chat = "DOC" not in answer
+        if len(self._routes) > 500:
+            self._routes.clear()
+        self._routes[text] = chat
+        return chat
 
     def request(self, req: LLMRequest, value: dict[str, Any]) -> LLMRequest:
         meta = req.meta
@@ -93,7 +149,9 @@ class ConversationalBackend:
             hint = (f"The user wants you to {action} a document but did not say which. Ask them to pick one "
                     f"of the buttons below ({offered}) or attach a file with the + button.")
         else:
-            hint = HINTS.get(kind, "Answer briefly and helpfully.")
+            hint = HINTS.get(kind, GENERAL)
+        if kind in {"", "offtopic"}:
+            hint += f" The clock on this machine says {meta.get('local_time') or 'an unknown time'}."
         messages.append(ChatMessage(role="user", content=f"{text}\n\n(Note for you, not from the user: {hint})"))
         # Warmth helps a greeting, precision helps everything else.
         temperature = 0.9 if kind in {"greeting", "thanks"} else 0.5

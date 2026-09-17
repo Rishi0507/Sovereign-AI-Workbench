@@ -210,3 +210,31 @@ def test_small_talk_then_choosing_a_document(page: Any) -> None:
       return next.top - answer.bottom;
     }""")
     assert 0 <= gap <= 40, gap
+
+
+def test_a_document_can_be_read_in_the_library_without_downloading(page: Any) -> None:
+    expect = playwright_api.expect
+    page.goto(page.base + "/")
+    page.get_by_role("button", name="Summarise a contract").click()
+    page.locator("#task-text").press("Enter")
+    page.wait_for_url("**/t/T*")
+    page.get_by_role("button", name="Start").click()
+    expect(page.locator(".ready-card")).to_be_visible(timeout=60_000)
+
+    page.goto(page.base + "/library")
+    tile = page.locator(".tile-open").first
+    expect(tile).to_contain_text("summary.docx")
+    tile.click()
+    expect(page.locator("#modal-title")).to_have_text("summary.docx")
+    expect(page.locator(".doc-preview")).to_contain_text("contract", ignore_case=True)
+    expect(page.locator("#modal").get_by_role("link", name="Download")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.locator("#modal")).to_be_hidden()
+
+
+def test_the_network_chip_stays_out_of_the_way_while_nothing_leaks(page: Any) -> None:
+    playwright_api.expect(page.locator("#net")).to_be_hidden()
+    page.goto(page.base + "/")
+    playwright_api.expect(page.locator("#account-name")).to_have_text("Plant engineer")
+    page.wait_for_timeout(500)
+    playwright_api.expect(page.locator("#net")).to_be_hidden()

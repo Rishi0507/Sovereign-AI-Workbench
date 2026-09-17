@@ -15,6 +15,7 @@ from workbench.core.db import downgrades_table
 from workbench.core.errors import NotFound, PolicyError
 from workbench.core.ids import new_id, sha256_file
 from workbench.core.labels import DowngradeRequest, Label, User
+from workbench.documents import preview as file_preview
 from workbench.documents.readers import CompositeReader
 from workbench.runtime import Runtime
 from workbench.workspace import FileRecord
@@ -101,6 +102,14 @@ async def upload(ws: str, file: UploadFile = File(...), level: str | None = Form
 @router.get("/files/{fid}")
 def file_meta(fid: str, user: User = Depends(current_user), rt: Runtime = Depends(get_rt)) -> dict[str, Any]:
     return file_view(_file(rt, user, fid))
+
+
+@router.get("/files/{fid}/preview")
+def preview(fid: str, user: User = Depends(current_user), rt: Runtime = Depends(get_rt)) -> dict[str, Any]:
+    """The readable content of a file, so it can be checked without downloading it."""
+    rec = _file(rt, user, fid)
+    rt.audit.append({"type": "file.preview", "file": rec.relpath, "workspace": rec.workspace, "by": user.id})
+    return {**file_preview.build(rt.files.open_path(fid), rt.reader), "name": rec.name}
 
 
 @router.get("/files/{fid}/download")

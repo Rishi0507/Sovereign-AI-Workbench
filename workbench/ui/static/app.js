@@ -346,6 +346,47 @@
     calc_result: "Calculation", check_result: "Check", model_output: "Model output", tool_output: "Tool output",
   };
 
+  // Read a stored file without downloading it: text documents are rendered, images shown as they are.
+  async function showFile(file) {
+    const head = (extra) => [
+      h("div", { class: "row wrap file-head" }, labelTag(file.label, file.label_display),
+        Number.isFinite(file.size) ? h("span", { class: "muted small", text: bytes(file.size) }) : null,
+        h("span", { class: "grow" }),
+        h("a", { class: "btn ghost", href: fileUrl(file.id), download: "" }, icon("download"), "Download")),
+      ...[].concat(extra),
+    ];
+    openModal(file.name, head(h("div", { class: "loading" }, spinner())));
+    let doc;
+    try {
+      doc = await api(`/files/${encodeURIComponent(file.id)}/preview`);
+    } catch (e) {
+      openModal(file.name, head(h("p", { class: "muted", text: e.message })));
+      return;
+    }
+    if (doc.kind === "image") {
+      openModal(file.name, head(h("figure", { class: "preview" }, h("img", { src: fileUrl(file.id), alt: file.name }))));
+      return;
+    }
+    if (doc.kind !== "text" || !doc.blocks.length) {
+      openModal(file.name, head(h("p", { class: "muted", text: "This file has no readable preview. Download it to open it." })));
+      return;
+    }
+    const parts = doc.blocks.map((b) => {
+      if (b.kind === "table") {
+        return h("div", { class: "table-wrap" }, h("table", { class: "table" },
+          b.header && b.header.length ? h("thead", {}, h("tr", {}, b.header.map((c) => h("th", { text: c })))) : null,
+          h("tbody", {}, (b.rows || []).map((r) => h("tr", {}, r.map((c) => h("td", { text: c })))))));
+      }
+      if (b.kind === "heading") return h("h3", { class: "doc-h", text: b.text });
+      if (b.kind === "page") return h("p", { class: "doc-page", text: b.text });
+      if (b.kind === "code") return h("pre", { class: "code", text: b.text });
+      if (b.kind === "note") return h("p", { class: "muted small", text: b.text });
+      return h("p", { text: b.text });
+    });
+    if (doc.truncated) parts.push(h("p", { class: "muted small", text: "The preview stops here. Download the file for the rest." }));
+    openModal(file.name, head(h("article", { class: "doc-preview" }, parts)));
+  }
+
   async function showRecord(id) {
     openModal(id, h("div", { class: "loading" }, spinner()));
     let rec;
@@ -507,17 +548,13 @@
       try {
         const snap = await api("/egress");
         shell.egress = snap;
+        // Nothing is shown while the server is quiet: the chip appears only when something is wrong.
         const dot = $("#net-dot");
-        if (snap.status !== "ok") {
-          dot.className = "net-dot off";
-          $("#net-text").textContent = "Monitor offline";
-        } else if (snap.breach || snap.external_connections) {
-          dot.className = "net-dot bad";
-          $("#net-text").textContent = "Data left the server";
-        } else {
-          dot.className = "net-dot ok";
-          $("#net-text").textContent = "Local only";
-        }
+        const wrong = snap.status !== "ok" || snap.breach || snap.external_connections;
+        $("#net").hidden = !wrong;
+        if (!wrong) return;
+        dot.className = snap.status !== "ok" ? "net-dot off" : "net-dot bad";
+        $("#net-text").textContent = snap.status !== "ok" ? "Monitor offline" : "Data left the server";
       } catch { /* retried on the next tick */ }
     };
     tick();
@@ -982,11 +1019,15 @@
         const previews = t.deliverables.filter((d) => /\.svg$/i.test(d.relpath));
         previews.forEach((d) => out.push(h("figure", { class: "preview" },
           h("img", { src: fileUrl(d.final_file_id || d.file_id), alt: shortName(d.relpath), loading: "lazy" }))));
-        out.push(h("div", { class: "files" }, t.deliverables.map((d) => h("a", { class: "file", href: fileUrl(d.final_file_id || d.file_id), title: `Download ${shortName(d.relpath)}` },
-          h("span", { class: `file-ext ext-${d.relpath.split(".").pop().toLowerCase()}`, text: d.relpath.split(".").pop() }),
-          h("div", { class: "file-info" }, h("div", { class: "file-name", text: shortName(d.relpath) }),
-            h("div", { class: "row tight" }, labelTag(d.label), h("span", { class: "muted small", text: d.status === "approved" ? "Final" : "Draft" }))),
-          h("span", { class: "file-dl" }, icon("download"))))));
+        out.push(h("div", { class: "files" }, t.deliverables.map((d) => {
+          const file = { id: d.final_file_id || d.file_id, name: shortName(d.relpath), label: d.label, size: d.size };
+          return h("div", { class: "file" },
+            h("button", { class: "tile-open", type: "button", title: `Open ${file.name}`, onclick: () => showFile(file) },
+              h("span", { class: `file-ext ext-${d.relpath.split(".").pop().toLowerCase()}`, text: d.relpath.split(".").pop() }),
+              h("div", { class: "file-info" }, h("div", { class: "file-name", text: file.name }),
+                h("div", { class: "row tight" }, labelTag(d.label), h("span", { class: "muted small", text: d.status === "approved" ? "Final" : "Draft" })))),
+            h("a", { class: "file-dl", href: fileUrl(file.id), download: "", title: `Download ${file.name}` }, icon("download")));
+        })));
         if (gate) {
           const ds = t.draft_summary || {};
           const open = (ds.unacknowledged || []).length + (ds.orphans || []).length;
@@ -1572,12 +1613,14 @@
 
     function fileTile(t, f) {
       const ext = extOf(f.name);
-      return h("a", { class: "tile", href: fileUrl(f.id), title: `Download ${f.name}`, "data-key": f.id },
-        h("span", { class: `file-ext ext-${ext}`, text: ext }),
-        h("span", { class: "tile-main" }, h("span", { class: "tile-name", text: f.name }),
-          h("span", { class: "tile-meta" }, labelTag(f.label, f.label_display), h("span", { text: bytes(f.size) }))),
-        h("span", { class: `chip ${f.final ? "ok" : ""}`, text: f.final ? "Final" : "Draft" }),
-        h("span", { class: "file-dl" }, icon("download")));
+      return h("div", { class: "tile", "data-key": f.id },
+        h("button", { class: "tile-open", type: "button", title: `Open ${f.name}`, onclick: () => showFile(f) },
+          h("span", { class: `file-ext ext-${ext}`, text: ext }),
+          h("span", { class: "tile-main" }, h("span", { class: "tile-name", text: f.name }),
+            h("span", { class: "tile-meta" }, labelTag(f.label, f.label_display), h("span", { text: bytes(f.size) }))),
+          h("span", { class: `chip ${f.final ? "ok" : ""}`, text: f.final ? "Final" : "Draft" })),
+        h("a", { class: "file-dl", href: fileUrl(f.id), download: "", title: `Download ${f.name}`,
+                 onclick: (e) => e.stopPropagation() }, icon("download")));
     }
 
     function documents() {

@@ -273,7 +273,7 @@ class HeuristicBackend:
         docs = [a for a in atts if a.lower().endswith((".pdf", ".ocr.json"))]
         s = self._step
         route = req.meta.get("route")
-        if conversation.intent(text, atts):
+        if conversation.intent(text, atts) or req.meta.get("force_chat"):
             steps = [s("reply", task="chat_reply", out="reply", title="Reply")]
             return _json({"goal": text, "steps": steps, "deliverables": []})
         if route == "code" or (CODE_WORDS.search(text) and re.search(r"\b(write|fix|debug)\b", text, re.I)):

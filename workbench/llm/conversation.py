@@ -30,6 +30,13 @@ OFFTOPIC = re.compile(r"\b(weather|temperature outside|what time is it|today'?s 
                       r"cricket|football|match|who won|how are you|your name|sing|recipe|movie)\b", re.I)
 DOC_WORDS = re.compile(r"\b(document|report|file|contract|offer|data|sheet|readings|notes|pdf|it|this|that)\b", re.I)
 
+# Anything that sounds like plant or document work is searched, whatever a small router model thinks.
+DOMAIN = re.compile(r"\b(sop|procedure|clause|section|revision|drawing|spec|specification|pump|valve|motor|seal|"
+                    r"bearing|vibration|pressure|flow|thickness|corrosion|inspection|maintenance|asset|register|"
+                    r"report|contract|tender|vendor|offer|quotation|warranty|guarantee|damages|delivery|invoice|"
+                    r"reading|readings|anomaly|anomalies|chart|table|page|word count|approval|note|draft|summary|"
+                    r"[a-z]{1,3}-\d{2,4})\b", re.I)
+
 CAPABILITIES = ("I can draft approval notes from inspection reports, summarise contracts, analyse sensor readings "
                 "with a tested script, compare vendor offers, and answer questions from your procedures, "
                 "with every figure traced to its source.")
