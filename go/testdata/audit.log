@@ -1,0 +1,8 @@
+type=SYSCALL msg=audit(1757930531.120:4401): arch=c000003e syscall=42 success=no exit=-1 a0=3 a1=7ffd a2=10 a3=0 items=0 ppid=1 pid=2211 auid=4294967295 uid=990 gid=990 comm="python3" exe="/usr/bin/python3.11" key="wb_connect"
+type=SOCKADDR msg=audit(1757930531.120:4401): saddr=020001BB010101010000000000000000
+type=PROCTITLE msg=audit(1757930531.120:4401): proctitle=707974686F6E33
+type=SYSCALL msg=audit(1757930532.500:4402): arch=c000003e syscall=42 success=no exit=-101 a0=3 items=0 ppid=90 pid=3300 comm="python" exe="/usr/local/bin/python3.11" key="wb_connect"
+type=SOCKADDR msg=audit(1757930532.500:4402): saddr=0A0001BB00000000260647004700000000000000000011110000000000
+type=SYSCALL msg=audit(1757930533.000:4403): arch=c000003e syscall=42 success=yes exit=0 a0=3 items=0 ppid=1 pid=2211 comm="uvicorn" key="wb_connect"
+type=SOCKADDR msg=audit(1757930533.000:4403): saddr=0200232A7F0000010000000000000000
+type=SYSCALL msg=audit(1757930534.000:4404): arch=c000003e syscall=41 success=yes exit=3 pid=2211 comm="python3"

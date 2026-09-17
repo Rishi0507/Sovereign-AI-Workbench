@@ -1,0 +1,1 @@
+{"nftables": [{"metainfo": {"version": "1.0.9", "json_schema_version": 1}}, {"counter": {"family": "inet", "name": "other", "table": "sovereign", "handle": 1, "packets": 3, "bytes": 180}}]}

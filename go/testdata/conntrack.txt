@@ -1,0 +1,7 @@
+ipv4     2 tcp      6 431999 ESTABLISHED src=10.20.0.55 dst=10.20.0.2 sport=51122 dport=443 src=10.20.0.2 dst=10.20.0.55 sport=443 dport=51122 [ASSURED] mark=0 zone=0 use=2
+ipv4     2 tcp      6 119 ESTABLISHED src=10.20.0.2 dst=10.20.0.10 sport=40100 dport=636 src=10.20.0.10 dst=10.20.0.2 sport=636 dport=40100 [ASSURED] mark=0 zone=0 use=2
+ipv4     2 tcp      6 86399 ESTABLISHED src=127.0.0.1 dst=127.0.0.1 sport=55000 dport=8001 src=127.0.0.1 dst=127.0.0.1 sport=8001 dport=55000 [ASSURED] mark=0 zone=0 use=2
+ipv6     10 tcp      6 60 SYN_SENT src=fd00::2 dst=2606:4700:4700::1111 sport=40222 dport=443 [UNREPLIED] src=2606:4700:4700::1111 dst=fd00::2 sport=443 dport=40222 mark=0 zone=0 use=2
+ipv6     10 udp      17 20 src=::1 dst=::1 sport=5353 dport=5353 [UNREPLIED] src=::1 dst=::1 sport=5353 dport=5353 mark=0 zone=0 use=2
+ipv4     2 tcp      6 60 SYN_SENT src=10.20.0.2 dst=1.1.1.1 sport=40300 dport=443 [UNREPLIED] src=1.1.1.1 dst=10.20.0.2 sport=443 dport=40300 mark=0 zone=0 use=2
+malformed line

@@ -153,7 +153,7 @@ def evaluate(write_registry: bool = typer.Option(False, "--write-registry", help
 
 @app.command(name="render-go-config")
 def render_go_config(
-    out: Path = typer.Option(None, help="Output folder (default: config/go)."),
+    out: Path = typer.Option(None, help="Output folder (default: var/go-config; production: config/go)."),
     run_dir: Path = typer.Option(None, help="Socket folder (default: settings.run_dir)."),
     workspace_root: Path = typer.Option(None, help="Root that job directories must live under."),
     backend: str = typer.Option("auto", help="sandboxd backend: auto, docker or dev."),
@@ -161,7 +161,7 @@ def render_go_config(
 ) -> None:
     """Render config/go/*.json from the YAML configuration (one source of truth)."""
     s = get_settings()
-    out = out or s.config_dir / "go"
+    out = out or s.path(s.data_dir) / "go-config"
     run = (run_dir or s.path(s.run_dir)).resolve()
     ws_root = (workspace_root or s.path(s.workspaces_root)).resolve()
     allow = yaml.safe_load((s.config_dir / "egress_allowlist.yaml").read_text(encoding="utf-8")) or {}

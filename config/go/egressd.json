@@ -1,0 +1,16 @@
+{
+  "socket": "/run/workbench/egressd.sock",
+  "transport": "unix",
+  "mode": "enforced",
+  "lan_cidrs": ["10.20.0.0/24"],
+  "allowlist": [{"cidr": "10.20.0.10/32", "port": 636, "proto": "tcp"}],
+  "nft": {"bin": "nft", "table": "inet sovereign", "counter": "egress_blocked", "poll_s": 2},
+  "conntrack": {"path": "/proc/net/nf_conntrack", "poll_s": 2},
+  "auditlog": {"path": "/var/log/audit/audit.log", "enabled": true},
+  "sandbox_cgroup_markers": ["docker", "wb-"],
+  "sandboxd_socket": "/run/workbench/sandboxd.sock",
+  "probe_job_dir": "/srv/workspaces/_egress_probe",
+  "event_buffer": 1000,
+  "state_file": "/run/workbench/egressd_state.json",
+  "run_dir": "/run/workbench"
+}

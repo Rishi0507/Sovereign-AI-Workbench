@@ -1,0 +1,1 @@
+{"nftables": [{"metainfo": {"version": "1.0.9", "release_name": "Old Doc Yak #3", "json_schema_version": 1}}, {"counter": {"family": "inet", "name": "egress_blocked", "table": "sovereign", "handle": 1, "packets": 17, "bytes": 1020}}]}

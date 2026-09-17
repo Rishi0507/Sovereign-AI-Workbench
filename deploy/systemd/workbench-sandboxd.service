@@ -1,0 +1,33 @@
+[Unit]
+Description=Sovereign AI Workbench sandbox runner (sandboxd)
+Documentation=file:///srv/workbench/docs/DEPLOYMENT.md
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=simple
+User=wb-sandbox
+Group=wb-sandbox
+SupplementaryGroups=docker workbench
+RuntimeDirectory=workbench
+RuntimeDirectoryMode=0770
+WorkingDirectory=/srv/workbench
+ExecStart=/srv/workbench/bin/sandboxd -config /srv/workbench/config/go/sandboxd.json
+Restart=on-failure
+RestartSec=2
+UMask=0007
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/srv/workspaces /run/workbench
+PrivateNetwork=no
+NoNewPrivileges=yes
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+Environment=HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 DO_NOT_TRACK=1
+
+[Install]
+WantedBy=multi-user.target

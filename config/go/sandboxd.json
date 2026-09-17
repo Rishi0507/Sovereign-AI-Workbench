@@ -1,0 +1,18 @@
+{
+  "socket": "/run/workbench/sandboxd.sock",
+  "transport": "unix",
+  "workspace_root": "/srv/workspaces",
+  "backend": "auto",
+  "docker_bin": "docker",
+  "image_allowlist": ["workbench-sandbox:py311"],
+  "runtime_allowlist": ["runc", "runsc"],
+  "max_concurrent": 2,
+  "defaults": {"timeout_s": 60, "cpus": 2, "memory_mb": 2048, "pids": 256, "tmpfs_mb": 256},
+  "limits": {"timeout_s": 300, "cpus": 4, "memory_mb": 4096, "pids": 512},
+  "stdout_tail_bytes": 4000,
+  "traceback_head_lines": 15,
+  "probe_dir": "/srv/workbench/workbench/security/probe",
+  "dev_python": "python3",
+  "egressd_socket": "/run/workbench/egressd.sock",
+  "run_dir": "/run/workbench"
+}

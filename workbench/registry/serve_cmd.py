@@ -46,6 +46,8 @@ def render_script(registry: Registry, profile: str, profile_settings: ProfileSet
         "# Start order (README section 3.0.2): swap slot first, put it to sleep, then residents.",
         "set -euo pipefail",
         "export HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 VLLM_NO_USAGE_STATS=1 DO_NOT_TRACK=1",
+        "# Sleep and wake endpoints are exposed only in vLLM server dev mode; they stay on 127.0.0.1.",
+        "export VLLM_SERVER_DEV_MODE=1",
         "",
     ]
     entries = [m for m in registry.models if m.status == "active" and profile in m.serve]

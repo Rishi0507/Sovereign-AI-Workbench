@@ -1,0 +1,10 @@
+{
+  "bridge": "none",
+  "iptables": false,
+  "ip-forward": false,
+  "icc": false,
+  "userland-proxy": false,
+  "live-restore": true,
+  "no-new-privileges": true,
+  "log-driver": "journald"
+}
