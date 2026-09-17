@@ -57,6 +57,7 @@ testpaths = ["tests"]
 addopts = "-q --disable-socket --allow-unix-socket --allow-hosts=127.0.0.1,localhost,::1"
 markers = [
     "go_integration: runs against the real sandboxd and egressd binaries",
+    "ui: drives the interface in Chrome (needs Playwright and Chrome)",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning:docx.*",

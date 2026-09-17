@@ -17,7 +17,7 @@
       if (key === "class") el.className = value;
       else if (key === "text") el.textContent = value;
       else if (key === "dataset") Object.assign(el.dataset, value);
-      else if (key.startsWith("on") && typeof value === "function") el.addEventListener(key.slice(2), value);
+      else if (key.startsWith("on") && typeof value === "function") listen(el, key.slice(2), value);
       else if (key === "style") {
         // CSSOM writes are allowed by the Content-Security-Policy; style attributes are not.
         String(value).split(";").forEach((decl) => {
@@ -34,9 +34,166 @@
     return el;
   }
 
+  function listen(el, type, fn) {
+    if (!el._on) el._on = {};
+    if (!el._on[type]) el.addEventListener(type, (e) => el._on[type] && el._on[type](e));
+    el._on[type] = fn;
+  }
+
+  const FORM_TAGS = new Set(["INPUT", "TEXTAREA", "SELECT"]);
+  const nodeKey = (n) => (n.nodeType === 1 ? n.getAttribute("data-key") : null);
+  const sameKind = (a, b) => a.nodeType === b.nodeType && a.nodeName === b.nodeName && nodeKey(a) === nodeKey(b);
+
+  function enter(n) {
+    if (n.nodeType !== 1 || !n.isConnected || n.classList.contains("no-enter")) return;
+    n.classList.add("enter");
+    n.addEventListener("animationend", () => n.classList.remove("enter"), { once: true });
+  }
+
+  function patchNode(o, n) {
+    if (o.nodeType !== 1) {
+      if (o.nodeValue !== n.nodeValue) o.nodeValue = n.nodeValue;
+      return;
+    }
+    if (o.hasAttribute("data-keep")) return;
+    const live = o.hasAttribute("data-live");
+    for (const a of Array.from(o.attributes)) {
+      if (a.name === "open" || a.name === "style") continue;
+      if (!n.hasAttribute(a.name)) o.removeAttribute(a.name);
+    }
+    for (const a of Array.from(n.attributes)) {
+      if (a.name === "open" || a.name === "style") continue;
+      if (a.name === "value" && FORM_TAGS.has(o.tagName)) continue;
+      if (o.getAttribute(a.name) !== a.value) o.setAttribute(a.name, a.value);
+    }
+    if (!live && o.style.cssText !== n.style.cssText) o.style.cssText = n.style.cssText;
+    if (o.tagName === "INPUT" && (o.type === "checkbox" || o.type === "radio")) o.checked = n.checked;
+    if (FORM_TAGS.has(o.tagName)) o.disabled = n.disabled;
+    for (const [type, fn] of Object.entries(n._on || {})) listen(o, type, fn);
+    if (o.tagName === "svg" || o.namespaceURI === SVG_NS) {
+      if (o.innerHTML !== n.innerHTML) o.replaceChildren(...n.childNodes);
+      return;
+    }
+    if (o.tagName === "TEXTAREA" || (o.tagName === "SELECT" && o === document.activeElement)) return;
+    patchChildren(o, Array.from(n.childNodes), false);
+  }
+
+  function patchChildren(parent, next, animate) {
+    const old = Array.from(parent.childNodes);
+    const keyed = new Map();
+    old.forEach((o) => { const k = nodeKey(o); if (k) keyed.set(k, o); });
+    const unkeyed = old.filter((o) => !nodeKey(o));
+    const kept = new Set();
+    let u = 0;
+    next.forEach((n, i) => {
+      const k = nodeKey(n);
+      let match = null;
+      if (k) {
+        const o = keyed.get(k);
+        if (o && !kept.has(o) && sameKind(o, n)) match = o;
+      } else if (u < unkeyed.length) {
+        if (sameKind(unkeyed[u], n)) match = unkeyed[u];
+        u += 1;
+      }
+      const ref = parent.childNodes[i] || null;
+      if (match) {
+        kept.add(match);
+        if (match !== ref) parent.insertBefore(match, ref);
+        patchNode(match, n);
+      } else {
+        parent.insertBefore(n, ref);
+        kept.add(n);
+        if (animate) enter(n);
+      }
+    });
+    for (const o of old) if (!kept.has(o)) o.remove();
+  }
+
+  // Replace the children of an element, reusing what is already on screen so nothing jumps.
   function fill(el, ...children) {
-    el.replaceChildren(...children.flat(Infinity).filter((c) => c !== null && c !== undefined && c !== false));
+    const next = children.flat(Infinity).filter((c) => c !== null && c !== undefined && c !== false)
+      .map((c) => (c instanceof Node ? c : document.createTextNode(String(c))));
+    patchChildren(el, next, true);
     return el;
+  }
+
+  // Animate an element's height across a content change.
+  function smoothHeight(el, change) {
+    const from = el.getBoundingClientRect().height;
+    change();
+    const to = el.scrollHeight;
+    if (Math.abs(to - from) < 2 || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    el.style.height = `${from}px`;
+    el.style.overflow = "hidden";
+    void el.offsetHeight;
+    el.classList.add("sizing");
+    el.style.height = `${to}px`;
+    const done = () => { el.classList.remove("sizing"); el.style.height = ""; el.style.overflow = ""; };
+    el.addEventListener("transitionend", done, { once: true });
+    setTimeout(done, 400);
+  }
+
+  // Pill-shaped segmented tabs with a sliding highlight.
+  function tabs(items, active, onChange) {
+    const thumb = h("span", { class: "seg-thumb", "data-live": "" });
+    const seg = h("div", { class: "seg", role: "tablist", "data-keep": "" }, thumb);
+    let current = active;
+    const place = (instant) => {
+      const b = seg.querySelector("button.active");
+      if (!b) return;
+      if (instant) thumb.classList.add("instant");
+      thumb.style.width = `${b.offsetWidth}px`;
+      thumb.style.transform = `translateX(${b.offsetLeft - 3}px)`;
+      if (instant) requestAnimationFrame(() => thumb.classList.remove("instant"));
+    };
+    const select = (key) => {
+      if (key === current) return;
+      const keys = items.map((i) => i[0]);
+      const dir = keys.indexOf(key) > keys.indexOf(current) ? 1 : -1;
+      current = key;
+      $$("button", seg).forEach((b) => { b.classList.toggle("active", b.dataset.tab === key); b.setAttribute("aria-selected", String(b.dataset.tab === key)); });
+      place(false);
+      onChange(key, dir);
+    };
+    items.forEach(([key, label]) => seg.append(h("button", {
+      type: "button", role: "tab", class: key === active ? "active" : "", "aria-selected": String(key === active),
+      dataset: { tab: key }, onclick: () => select(key),
+    }, h("span", { text: label }), h("span", { class: "seg-count", hidden: true }))));
+    seg.setCount = (key, n) => {
+      const c = seg.querySelector(`button[data-tab="${key}"] .seg-count`);
+      if (!c) return;
+      c.hidden = !n;
+      c.textContent = n || "";
+      place(false);
+    };
+    seg.select = select;
+    requestAnimationFrame(() => place(true));
+    if (window.ResizeObserver) new ResizeObserver(() => place(true)).observe(seg);
+    if (document.fonts) document.fonts.ready.then(() => place(true));
+    return seg;
+  }
+
+  // Swap the content of a tab panel with a short directional slide.
+  function swapPanel(el, content, dir) {
+    smoothHeight(el, () => {
+      el.replaceChildren(...[].concat(content).flat(Infinity).filter(Boolean));
+    });
+    el.style.setProperty("--dir", String(dir || 0));
+    el.classList.remove("tab-in");
+    void el.offsetWidth;
+    el.classList.add("tab-in");
+  }
+
+  // Show and hide floating elements with a transition.
+  function reveal(el, show) {
+    clearTimeout(el._hideTimer);
+    if (show) {
+      el.hidden = false;
+      requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add("shown")));
+    } else {
+      el.classList.remove("shown");
+      el._hideTimer = setTimeout(() => { el.hidden = true; }, 220);
+    }
   }
 
   const ICONS = {
@@ -49,6 +206,11 @@
     down: "M10 5v10M6 11l4 4 4-4",
     trash: "M4.5 6h11M8 6V4.5h4V6M6 6l.8 10h6.4L14 6",
     info: "M10 9v5M10 6.2v.2M10 17.5a7.5 7.5 0 100-15 7.5 7.5 0 000 15z",
+    folder: "M3.5 4.5h5l1.5 2h6.5v9h-13zM3.5 8.5h13",
+    clock: "M10 17.5a7.5 7.5 0 100-15 7.5 7.5 0 000 15zM10 6v4l2.5 2",
+    shield: "M10 2.5l6 2.4v4.5c0 3.9-2.6 6.8-6 8.1-3.4-1.3-6-4.2-6-8.1V4.9z",
+    search: "M9 15.5a6.5 6.5 0 100-13 6.5 6.5 0 000 13zM13.8 13.8L17.5 17.5",
+    open: "M11 3.5h5.5V9M16.5 3.5L9.5 10.5M8 5H4.5v10.5H15V12",
     chevron: "M8 5l5 5-5 5",
     dot: "M10 11a1 1 0 100-2 1 1 0 000 2z",
     note: "M6 2.5h5.5l3.5 3.5v11.5H6zM8.5 10h4M8.5 13h4",
@@ -102,7 +264,8 @@
   function toast(message, bad = false) {
     const el = h("div", { class: `toast${bad ? " bad" : ""}`, text: message });
     $("#toasts").append(el);
-    setTimeout(() => el.remove(), bad ? 7000 : 3000);
+    requestAnimationFrame(() => requestAnimationFrame(() => el.classList.add("shown")));
+    setTimeout(() => { el.classList.remove("shown"); setTimeout(() => el.remove(), 300); }, bad ? 7000 : 3000);
   }
 
   function autosize(area) {
@@ -113,6 +276,11 @@
 
   // -------------------------------------------------------------------------------------------
   // API
+
+  const cache = {
+    get(key) { try { return JSON.parse(sessionStorage.getItem(`wb:${key}`) || "null"); } catch { return null; } },
+    set(key, value) { try { sessionStorage.setItem(`wb:${key}`, JSON.stringify(value)); } catch { /* storage unavailable */ } },
+  };
 
   const store = {
     get(key, fallback) { try { return localStorage.getItem(key) || fallback; } catch { return fallback; } },
@@ -157,16 +325,19 @@
   function openLayer(id, title, content) {
     const layer = $(`#${id}`);
     $(`#${id}-title`).textContent = title;
-    fill($(`#${id}-content`), content);
-    layer.hidden = false;
-    $$("[data-close]", layer).forEach((el) => { el.onclick = () => { layer.hidden = true; }; });
+    const box = $(`#${id}-content`);
+    if (layer.hidden || id === "panel") box.replaceChildren(...[].concat(content).flat(Infinity).filter(Boolean));
+    else smoothHeight(box, () => fill(box, content));
+    reveal(layer, true);
+    $$("[data-close]", layer).forEach((el) => { el.onclick = () => closeLayer(id); });
   }
+  const closeLayer = (id) => reveal($(`#${id}`), false);
   const openPanel = (title, content) => openLayer("panel", title, content);
   const openModal = (title, content) => openLayer("modal", title, content);
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Escape") return;
-    if (!$("#modal").hidden) $("#modal").hidden = true;
-    else $("#panel").hidden = true;
+    if (!$("#modal").hidden) closeLayer("modal");
+    else if (!$("#panel").hidden) closeLayer("panel");
   });
 
   const KIND_NAMES = {
@@ -231,10 +402,17 @@
     const accountBtn = $("#account-btn");
     accountBtn.addEventListener("click", (e) => {
       e.stopPropagation();
-      menu.hidden = !menu.hidden;
-      accountBtn.setAttribute("aria-expanded", String(!menu.hidden));
+      const open = menu.hidden || !menu.classList.contains("shown");
+      reveal(menu, open);
+      accountBtn.setAttribute("aria-expanded", String(open));
     });
-    document.addEventListener("click", (e) => { if (!menu.hidden && !menu.contains(e.target)) menu.hidden = true; });
+    document.addEventListener("click", (e) => { if (!menu.hidden && !menu.contains(e.target)) reveal(menu, false); });
+    $$("[data-nav]").forEach((a) => a.classList.toggle("active", a.dataset.nav === page));
+    const cached = cache.get("shell");
+    if (cached && cached.user === USER) {
+      paintIdentity(cached.me);
+      if (cached.tasks) paintRecent(cached.tasks);
+    }
 
     let [users, me, workspaces] = await Promise.all([api("/users"), api("/me").catch(() => null), api("/workspaces").catch(() => null)]);
     shell.users = users;
@@ -252,8 +430,8 @@
       location.href = "/";
     });
     shell.me = me;
-    $("#account-name").textContent = shell.me.name;
-    $("#avatar").textContent = shell.me.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+    paintIdentity(me);
+    cache.set("shell", { ...(cache.get("shell") || {}), user: USER, me });
 
     shell.workspaces = workspaces;
     const wsSel = $("#ws-select");
@@ -275,26 +453,42 @@
     initNetwork();
   }
 
+  function paintIdentity(me) {
+    $("#account-name").textContent = me.name;
+    $("#avatar").textContent = me.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+  }
+
   async function refreshRecent() {
-    const list = $("#recent");
     let tasks = [];
     try { tasks = await api("/tasks"); } catch { return; }
-    const mine = tasks.filter((t) => t.user === USER);
+    const slim = tasks.filter((t) => t.user === USER).slice(0, 40)
+      .map((t) => ({ id: t.id, text: t.text, status: t.status, created_at: t.created_at, user: t.user }));
+    cache.set("shell", { ...(cache.get("shell") || {}), user: USER, tasks: slim });
+    paintRecent(slim);
+  }
+
+  function paintRecent(mine) {
+    const list = $("#recent");
+    const waiting = mine.filter((t) => NEEDS_YOU.has(t.status)).length;
+    const badge = $("#nav-count");
+    badge.hidden = !waiting;
+    badge.textContent = waiting || "";
     const current = document.body.dataset.task;
     const today = new Date().toDateString();
     let group = "";
     fill(list, ...mine.slice(0, 40).map((t) => {
       const day = new Date(t.created_at).toDateString() === today ? "Today" : "Earlier";
-      const heading = day !== group ? h("div", { class: "side-group", text: day }) : null;
+      const heading = day !== group;
       group = day;
       let mark = null;
       if (NEEDS_YOU.has(t.status)) mark = h("span", { class: "flag", title: STATUS[t.status] });
       else if (!TERMINAL.has(t.status)) mark = h("span", { class: "spinner tiny", title: STATUS[t.status] });
       else if (t.status !== "completed") mark = h("span", { class: "flag bad", title: STATUS[t.status] });
-      return [heading, h("a", { href: `/t/${t.id}`, class: t.id === current ? "active" : "", title: t.text },
-        h("span", { class: "recent-title", text: t.text }), mark)];
+      return [heading ? h("div", { class: "side-group", "data-key": `g-${day}`, text: day }) : null,
+        h("a", { href: `/t/${t.id}`, class: t.id === current ? "active" : "", title: t.text, "data-key": t.id },
+          h("span", { class: "recent-title", text: t.text }), mark)];
     }));
-    if (!mine.length) list.append(h("p", { class: "side-empty", text: "Your tasks will appear here." }));
+    if (!mine.length) fill(list, h("p", { class: "side-empty", text: "Your tasks will appear here." }));
   }
 
   function initNetwork() {
@@ -302,10 +496,11 @@
     const pop = $("#net-pop");
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
-      pop.hidden = !pop.hidden;
-      if (!pop.hidden) renderNetPop();
+      const open = pop.hidden || !pop.classList.contains("shown");
+      if (open) renderNetPop();
+      reveal(pop, open);
     });
-    document.addEventListener("click", (e) => { if (!pop.hidden && !pop.contains(e.target)) pop.hidden = true; });
+    document.addEventListener("click", (e) => { if (!pop.hidden && !pop.contains(e.target)) reveal(pop, false); });
     const tick = async () => {
       try {
         const snap = await api("/egress");
@@ -412,8 +607,8 @@
     };
 
     const picker = $("#picker");
-    $("#attach-btn").addEventListener("click", (e) => { e.stopPropagation(); picker.hidden = !picker.hidden; });
-    document.addEventListener("click", (e) => { if (!picker.hidden && !picker.contains(e.target)) picker.hidden = true; });
+    $("#attach-btn").addEventListener("click", (e) => { e.stopPropagation(); reveal(picker, picker.hidden || !picker.classList.contains("shown")); });
+    document.addEventListener("click", (e) => { if (!picker.hidden && !picker.contains(e.target)) reveal(picker, false); });
     $("#upload-input").addEventListener("change", async (e) => {
       const file = e.target.files[0];
       if (!file) return;
@@ -532,13 +727,13 @@
     }
 
     function assistant(...children) {
-      return h("div", { class: "turn assistant" }, h("img", { class: "turn-avatar", src: "/static/mark.svg", alt: "" }),
+      return h("div", { class: "turn assistant", "data-key": "assistant" }, h("img", { class: "turn-avatar", src: "/static/mark.svg", alt: "" }),
         h("div", { class: "turn-body" }, children));
     }
 
     function renderThread(t) {
       const items = [];
-      items.push(h("div", { class: "turn user" }, h("div", { class: "bubble" },
+      items.push(h("div", { class: "turn user", "data-key": "user" }, h("div", { class: "bubble" },
         h("p", { text: t.text }),
         t.attachments.length ? h("div", { class: "row wrap" }, t.attachments.map((a) => h("span", { class: "file-chip", title: a }, icon("file"), shortName(a)))) : null)));
 
@@ -762,30 +957,30 @@
 
     // Details panel: the technical record behind the conversation.
     async function openDetails(t) {
-      const tabs = [["activity", "Activity"], ["evidence", "Evidence"], ["model", "Model choice"], ["checks", "Checks"]];
+      const items = [["activity", "Activity"], ["evidence", "Evidence"], ["model", "Model choice"], ["checks", "Checks"]];
       let tab = "activity";
-      const seg = h("div", { class: "seg" });
-      const holder = h("div", { class: "details-body" });
+      let dir = 0;
+      const holder = h("div", { class: "details-body tab-stage" });
+      const seg = tabs(items, tab, (key, d) => { tab = key; dir = d; render(); });
+      const put = (...content) => swapPanel(holder, content, dir);
       const render = async () => {
-        $$("button", seg).forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
-        fill(holder, h("div", { class: "loading" }, spinner()));
         const task = view.task;
         if (tab === "activity") {
-          fill(holder, h("ol", { class: "log" }, task.trace.map((r) => h("li", { class: r.ok ? "" : "bad" },
+          put(h("ol", { class: "log" }, task.trace.map((r) => h("li", { class: r.ok ? "" : "bad" },
             h("span", { class: "log-k", text: [r.kind, r.step_id].filter(Boolean).join(" · ") }),
             h("span", { class: "log-s", text: r.summary }),
             r.latency_s ? h("span", { class: "log-t", text: `${r.latency_s.toFixed(2)}s` }) : h("span", {})))));
         } else if (tab === "evidence") {
           view.ledger = await api(`/tasks/${task.id}/ledger`).catch(() => []);
-          fill(holder, ...view.ledger.map((r) => h("button", { class: "evidence", type: "button", onclick: () => showRecord(r.id) },
+          put(...view.ledger.map((r) => h("button", { class: "evidence", type: "button", onclick: () => showRecord(r.id) },
             h("span", { class: "row tight" }, h("span", { class: "strong", text: KIND_NAMES[r.kind] || r.kind }), labelTag(r.label),
               r.confidence && r.confidence !== "high" ? h("span", { class: "chip warn", text: r.confidence }) : null, h("span", { class: "grow" }), h("span", { class: "mono tiny muted", text: r.id })),
             h("span", { class: "evidence-sum", text: r.summary }))));
-          if (!view.ledger.length) fill(holder, h("p", { class: "muted", text: "No evidence yet." }));
+          if (!view.ledger.length) put(h("p", { class: "muted", text: "No evidence yet." }));
         } else if (tab === "model") {
           const r = task.route;
-          if (!r) { fill(holder, h("p", { class: "muted", text: "Not decided yet." })); return; }
-          fill(holder, 
+          if (!r) { put(h("p", { class: "muted", text: "Not decided yet." })); return; }
+          put(
             h("p", {}, "Chosen: ", h("strong", { text: r.chosen })),
             h("p", { class: "muted small", text: `The cheapest model scoring at least ${r.threshold.toFixed(2)} for this kind of task is chosen.` }),
             h("table", { class: "table" }, h("tbody", {}, r.candidates.map((c) => h("tr", { class: c.model === r.chosen ? "chosen" : "" },
@@ -795,8 +990,8 @@
             h("details", {}, h("summary", { text: "Decision log" }), h("pre", { class: "code", text: r.log_line })));
         } else {
           const data = await api(`/tasks/${task.id}/checks`).catch(() => ({ checks: [] }));
-          if (!data.checks.length) { fill(holder, h("p", { class: "muted", text: "No checks for this task." })); return; }
-          fill(holder, ...data.checks.map((c) => h("div", { class: `check-row ${c.status}` },
+          if (!data.checks.length) { put(h("p", { class: "muted", text: "No checks for this task." })); return; }
+          put(...data.checks.map((c) => h("div", { class: `check-row ${c.status}` },
             h("span", { class: "check-mark" }, icon(c.status === "pass" ? "check" : c.status === "mismatch" ? "alert" : "info")),
             h("div", {}, h("div", { class: "strong", text: c.description || c.rule }),
               h("div", { class: "small", text: `${c.left_value ?? ""}${c.right_value ? ` vs ${c.right_value}` : ""}` }),
@@ -804,7 +999,6 @@
               c.extra && c.extra.crop ? h("img", { class: "crop", alt: "Scanned region", src: `/api/tasks/${task.id}/evidence/${c.extra.crop}` }) : null))));
         }
       };
-      tabs.forEach(([key, label]) => seg.append(h("button", { type: "button", dataset: { tab: key }, text: label, onclick: () => { tab = key; render(); } })));
       openPanel("Details", [
         h("p", { class: "muted small", text: `${t.id} · ${t.user} · ${fmtTime(t.created_at)}${t.model ? ` · ${t.model}` : ""}` }),
         seg, holder]);
@@ -845,10 +1039,12 @@
       const t = data.task;
       setMarking(t.label, t.label_display);
       fill($("#review-head"), h("a", { class: "back", href: `/t/${id}`, text: "Back to task" }), h("h1", { text: t.text }));
-      const tabs = $("#doc-tabs");
-      tabs.hidden = data.deliverables.length < 2;
-      fill(tabs, ...data.deliverables.map((d, i) => h("button", { type: "button", class: i === current ? "active" : "", text: d.name, onclick: () => { current = i; render(); } })));
-      render();
+      const holder = $("#doc-tabs");
+      holder.hidden = data.deliverables.length < 2;
+      if (!holder.firstChild && data.deliverables.length > 1) {
+        holder.append(tabs(data.deliverables.map((d, i) => [String(i), d.name]), String(current), (key, dir) => { current = Number(key); render(dir); }));
+      }
+      render(0, true);
     };
 
     const decisions = () => new Map(data.figure_decisions.map((f) => [f.figure, f]));
@@ -921,20 +1117,18 @@
     }
 
     function renderSheet(d) {
-      const seg = h("div", { class: "seg" });
-      const holder = h("div", {});
-      const show = (i) => {
-        $$("button", seg).forEach((b, j) => b.classList.toggle("active", i === j));
+      const holder = h("div", { class: "tab-stage", "data-keep": "" });
+      const show = (i, dir) => {
         const s = d.preview.sheets[i];
-        fill(holder, h("div", { class: "sheet" }, h("table", {}, h("tbody", {}, s.rows.map((row, ri) => h("tr", {},
+        swapPanel(holder, h("div", { class: "sheet" }, h("table", {}, h("tbody", {}, s.rows.map((row, ri) => h("tr", {},
           h("td", { class: "rowhead", text: ri + 1 }),
           row.map((c) => {
             const formula = typeof c.v === "string" && c.v.startsWith("=");
             return h("td", { class: formula ? "formula" : c.comment ? "sourced" : "", title: c.comment || (formula ? "Formula" : "") }, c.v === null ? "" : String(c.v));
-          })))))));
+          })))))), dir);
       };
-      d.preview.sheets.forEach((s, i) => seg.append(h("button", { type: "button", text: s.name, onclick: () => show(i) })));
-      show(0);
+      const seg = tabs(d.preview.sheets.map((sh, i) => [String(i), sh.name]), "0", (key, dir) => show(Number(key), dir));
+      show(0, 0);
       return [d.preview.sheets.length > 1 ? seg : null, holder, h("p", { class: "muted small", text: "Blue cells are formulas. Green cells note their source." })];
     }
 
@@ -949,11 +1143,15 @@
       return h("pre", { class: "code tall", text: p.text || "This file cannot be previewed. Download it instead." });
     }
 
-    function render() {
-      $$("#doc-tabs button").forEach((b, i) => b.classList.toggle("active", i === current));
+    let shownKey = "";
+    function render(dir = 0) {
       const d = data.deliverables[current];
       const type = d.preview.type;
-      fill($("#doc-view"), ...[].concat(type === "docx" ? renderDocx(d) : type === "xlsx" ? renderSheet(d) : renderOther(d)));
+      const content = [].concat(type === "docx" ? renderDocx(d) : type === "xlsx" ? renderSheet(d) : renderOther(d));
+      const key = `${current}|${data.task.revision_no}`;
+      if (shownKey.split("|")[0] !== String(current)) swapPanel($("#doc-view"), content, dir);
+      else if (shownKey !== key) fill($("#doc-view"), content);
+      shownKey = key;
       renderSide();
     }
 
@@ -979,9 +1177,11 @@
       if (issues.length) {
         parts.push(h("section", { class: "side-block" }, h("h3", { text: "Issues found" }), issues.map((c) => {
           const acked = data.acknowledged.includes(c.record_id);
-          const box = h("input", { type: "checkbox", checked: acked, disabled: acked || !gate || !data.can_approve || c.status !== "mismatch" });
-          box.addEventListener("change", () => guarded(box, async () => { await api(`/tasks/${id}/checks/${c.record_id}/acknowledge`, { method: "POST" }); await load(); }));
-          return h("div", { class: `issue ${c.status}` },
+          const box = h("input", {
+            type: "checkbox", checked: acked, disabled: acked || !gate || !data.can_approve || c.status !== "mismatch",
+            onchange: (e) => guarded(e.currentTarget, async () => { await api(`/tasks/${id}/checks/${c.record_id}/acknowledge`, { method: "POST" }); await load(); }),
+          });
+          return h("div", { class: `issue ${c.status}`, "data-key": `issue-${c.record_id}` },
             h("div", { class: "strong", text: c.description || c.rule }),
             h("div", { class: "small", text: `${c.left_value ?? ""}${c.right_value ? ` vs ${c.right_value}` : ""}` }),
             c.note ? h("div", { class: "muted small", text: c.note }) : null,
@@ -995,15 +1195,16 @@
         parts.push(h("section", { class: "side-block" }, h("h3", { text: "Figures without a source" }), orphans.map((f) => {
           const key = `${d.file_id}:${f.id}`;
           const done = dec.get(key);
-          const input = h("input", { class: "input", placeholder: "Record id or corrected value" });
-          const act = (action) => async () => {
+          const input = h("input", { class: "input fig-input", placeholder: "Record id or corrected value" });
+          const act = (action) => async (e) => {
+            const value = e.currentTarget.closest(".issue").querySelector(".fig-input").value.trim();
             const body = { action, note: null };
-            if (action === "link") body.record_id = input.value.trim();
-            if (action === "correct") body.value = input.value.trim();
+            if (action === "link") body.record_id = value;
+            if (action === "correct") body.value = value;
             await api(`/tasks/${id}/draft/figures/${encodeURIComponent(key)}`, { method: "POST", json: body });
             await load();
           };
-          return h("div", { class: "issue" },
+          return h("div", { class: "issue", "data-key": `fig-${key}` },
             h("div", { class: "row tight" }, h("strong", { text: f.raw }), done ? h("span", { class: "chip", text: done.action }) : null),
             h("div", { class: "muted small", text: f.context.slice(0, 120) }),
             !done && gate ? [input, h("div", { class: "row tight" }, button("Link", act("link"), "small"), button("Correct", act("correct"), "small"), button("Keep", act("confirm"), "small ghost"))] : null);
@@ -1021,17 +1222,18 @@
 
       if (gate) {
         if (data.can_approve) {
-          const note = h("textarea", { class: "input", rows: 2, placeholder: "Note for changes (optional when approving)" });
-          parts.push(h("section", { class: "side-block" }, note,
+          const note = h("textarea", { class: "input decision-note", rows: 2, placeholder: "Note for changes (optional when approving)" });
+          const noteText = () => $("#review-side .decision-note").value;
+          parts.push(h("section", { class: "side-block", "data-key": "decision" }, note,
             h("div", { class: "row" },
               h("button", { class: "btn primary", type: "button", disabled: blockers.length > 0, title: blockers.join("; "), onclick: (e) => guarded(e.currentTarget, async () => {
-                await api(`/tasks/${id}/draft/decision`, { method: "POST", json: { decision: "approve", acknowledged: data.acknowledged, note: note.value || null } });
+                await api(`/tasks/${id}/draft/decision`, { method: "POST", json: { decision: "approve", acknowledged: data.acknowledged, note: noteText() || null } });
                 toast("Approved");
                 setTimeout(load, 1200);
               }) }, "Approve"),
               button("Request changes", async () => {
-                if (!note.value.trim()) throw new Error("Write a note describing the changes first");
-                await api(`/tasks/${id}/draft/decision`, { method: "POST", json: { decision: "reject", note: note.value } });
+                if (!noteText().trim()) throw new Error("Write a note describing the changes first");
+                await api(`/tasks/${id}/draft/decision`, { method: "POST", json: { decision: "reject", note: noteText() } });
                 location.href = `/t/${id}`;
               }, "ghost"))));
         } else {
@@ -1051,22 +1253,25 @@
 
     function shareControl(x, others) {
       if (!others.length) return null;
-      const select = h("select", { class: "select" }, h("option", { value: "", text: "Share to workspace" }), others.map((w) => h("option", { value: w.id, text: w.title })));
-      select.addEventListener("change", () => {
-        if (!select.value) return;
-        guarded(select, async () => {
-          await api(`/files/${x.final_file_id}/share`, { method: "POST", json: { workspace: select.value } });
-          toast("Shared");
-        }).finally(() => { select.value = ""; });
-      });
-      return select;
+      return h("select", {
+        class: "select",
+        onchange: (e) => {
+          const select = e.currentTarget;
+          if (!select.value) return;
+          guarded(select, async () => {
+            await api(`/files/${x.final_file_id}/share`, { method: "POST", json: { workspace: select.value } });
+            toast("Shared");
+          }).finally(() => { select.value = ""; });
+        },
+      }, h("option", { value: "", text: "Share to workspace" }), others.map((w) => h("option", { value: w.id, text: w.title })));
     }
 
     function downgradeControl(x) {
-      const level = h("select", { class: "select" }, ["Unclassified", "Restricted", "Confidential"].map((l) => h("option", { text: l })));
-      const reason = h("input", { class: "input", placeholder: "Reason for a lower classification" });
-      return h("div", { class: "stack" }, level, reason, button("Request lower classification", async () => {
-        await api(`/files/${x.final_file_id}/downgrade`, { method: "POST", json: { level: level.value, reason: reason.value } });
+      const level = h("select", { class: "select dg-level" }, ["Unclassified", "Restricted", "Confidential"].map((l) => h("option", { text: l })));
+      const reason = h("input", { class: "input dg-reason", placeholder: "Reason for a lower classification" });
+      return h("div", { class: "stack" }, level, reason, button("Request lower classification", async (e) => {
+        const box = e.currentTarget.closest(".stack");
+        await api(`/files/${x.final_file_id}/downgrade`, { method: "POST", json: { level: box.querySelector(".dg-level").value, reason: box.querySelector(".dg-reason").value } });
         toast("Requested. A second authorised person must approve it.");
       }, "small"));
     }
@@ -1093,7 +1298,7 @@
         if (x.status === "shadow") state = ["Being evaluated", "idle"];
         if (x.status === "retired") state = ["Retired", "off"];
         const routes = Object.entries(x.quality);
-        return h("details", { class: "model" },
+        return h("details", { class: "model", "data-key": x.name },
           h("summary", {},
             h("span", { class: `state-dot ${state[1]}` }),
             h("span", { class: "model-main" }, h("span", { class: "strong", text: x.name }), h("span", { class: "muted small", text: x.serves.map((s) => SERVES[s] || s).join(", ") })),
@@ -1118,7 +1323,7 @@
         m.proposed_diff ? h("details", {}, h("summary", { text: "Proposed score changes" }), h("pre", { class: "code", text: m.proposed_diff })) : null);
     };
     await render();
-    setInterval(() => { if (!$$("#model-list details[open]").length) render(); }, 8000);
+    setInterval(render, 8000);
   }
 
   // -------------------------------------------------------------------------------------------
@@ -1211,14 +1416,190 @@
 
   // -------------------------------------------------------------------------------------------
 
-  const PAGES = { home: pageHome, task: pageTask, review: pageReview, models: pageModels, security: pageSecurity };
+  const EXT_GROUP = { docx: "docs", pdf: "docs", md: "docs", xlsx: "sheets", csv: "sheets", pptx: "slides", py: "code", json: "code", svg: "charts", png: "charts" };
+  const extOf = (name) => String(name).split(".").pop().toLowerCase();
+
+  function dayLabel(iso) {
+    const d = new Date(iso);
+    if (isNaN(d)) return "Earlier";
+    const today = new Date();
+    const start = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+    const diff = Math.round((start(today) - start(d)) / 86400000);
+    if (diff === 0) return "Today";
+    if (diff === 1) return "Yesterday";
+    if (diff < 7) return d.toLocaleDateString([], { weekday: "long" });
+    return d.toLocaleDateString([], { day: "numeric", month: "long", year: "numeric" });
+  }
+  const timeOf = (iso) => { const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); };
+
+  function grouped(items, dateOf, render) {
+    const out = [];
+    let current = null;
+    items.forEach((it) => {
+      const label = dayLabel(dateOf(it));
+      if (label !== current) {
+        current = label;
+        out.push(h("h2", { class: "day", "data-key": `day-${label}`, text: label }));
+      }
+      out.push(render(it));
+    });
+    return out;
+  }
+
+  function decisionText(d) {
+    if (d.kind === "plan") {
+      if (d.by === "system") return "Started right away (read-only question)";
+      return { approved: "Plan approved", edited: "Plan edited", rejected: "Plan cancelled" }[d.status] || "Plan decided";
+    }
+    if (d.kind === "action") {
+      const what = d.title || "Step";
+      if (d.note === "approved with the plan") return `${what}: allowed with the plan`;
+      return d.status === "approved" ? `${what}: allowed` : `${what}: not allowed`;
+    }
+    if (d.kind === "deliverable") return d.status === "approved" ? "Final approval given" : "Changes requested";
+    if (d.kind === "template_choice") return `Approach chosen: ${(d.note || "").replace(/_/g, " ")}`;
+    return `${d.kind} ${d.status}`;
+  }
+
+  function emptyState(iconName, title, text) {
+    return h("div", { class: "empty-state", "data-key": `empty-${title}` }, h("span", { class: "empty-icon" }, icon(iconName)),
+      h("strong", { text: title }), h("span", { class: "muted", text }));
+  }
+
+  async function pageLibrary() {
+    const params = new URLSearchParams(location.search);
+    let tab = ["documents", "approvals", "waiting"].includes(params.get("tab")) ? params.get("tab") : "documents";
+    let kind = "all";
+    let query = "";
+    let data = { tasks: [] };
+    let downs = [];
+    const body = $("#lib-body");
+    const seg = tabs([["documents", "Documents"], ["approvals", "Approvals"], ["waiting", "Waiting on you"]], tab, (key, dir) => {
+      tab = key;
+      history.replaceState(null, "", key === "documents" ? "/library" : `/library?tab=${key}`);
+      render(dir);
+    });
+    fill($("#lib-tabs"), seg);
+    const search = $("#lib-search");
+    search.addEventListener("input", () => { query = search.value.trim().toLowerCase(); render(null); });
+
+    const matches = (...texts) => !query || texts.some((t) => String(t || "").toLowerCase().includes(query));
+    const taskLink = (t) => h("a", { class: "task-link", href: `/t/${t.id}`, text: t.text });
+
+    function fileTile(t, f) {
+      const ext = extOf(f.name);
+      return h("a", { class: "tile", href: fileUrl(f.id), title: `Download ${f.name}`, "data-key": f.id },
+        h("span", { class: `file-ext ext-${ext}`, text: ext }),
+        h("span", { class: "tile-main" }, h("span", { class: "tile-name", text: f.name }),
+          h("span", { class: "tile-meta" }, labelTag(f.label, f.label_display), h("span", { text: bytes(f.size) }))),
+        h("span", { class: `chip ${f.final ? "ok" : ""}`, text: f.final ? "Final" : "Draft" }),
+        h("span", { class: "file-dl" }, icon("download")));
+    }
+
+    function documents() {
+      const rows = data.tasks
+        .map((t) => ({ ...t, shown: t.files.filter((f) => (kind === "all" || EXT_GROUP[extOf(f.name)] === kind) && matches(f.name, t.text)) }))
+        .filter((t) => t.shown.length);
+      if (!rows.length) {
+        return emptyState("folder", query || kind !== "all" ? "No matching documents" : "No documents yet",
+          query || kind !== "all" ? "Try another search or filter." : "Files the workbench creates will be collected here.");
+      }
+      return grouped(rows, (t) => t.updated_at, (t) => h("article", { class: "doc-group", "data-key": `doc-${t.id}` },
+        h("header", { class: "doc-head" },
+          h("div", { class: "doc-title" }, taskLink(t),
+            h("span", { class: "muted small", text: `${t.workspace_title} · ${timeOf(t.updated_at)}` })),
+          h("span", { class: `status-pill ${statusTone(t)}` }, h("span", { class: "status-dot" }), statusLabel(t))),
+        h("div", { class: "tiles" }, t.shown.map((f) => fileTile(t, f))),
+        t.status === "awaiting_deliverable" || t.status === "completed"
+          ? h("footer", { class: "doc-foot" }, h("a", { class: "link-btn", href: `/t/${t.id}/review` }, t.status === "completed" ? "View approved draft" : "Review and approve", icon("chevron")))
+          : null));
+    }
+
+    function approvals() {
+      const rows = [];
+      data.tasks.forEach((t) => t.decisions.forEach((d) => rows.push({ ...d, task: t, text: decisionText(d) })));
+      downs.forEach((d) => rows.push({
+        id: d.id, kind: "downgrade", status: d.status === "pending" ? "pending" : d.status, by: d.approver || d.requester,
+        at: d.decided_at || d.requested_at || d.created_at, note: d.reason, task: null, file: d.file,
+        text: d.status === "pending" ? `Lower classification requested for ${d.file.name}`
+          : `Lower classification ${d.status} for ${d.file.name}`,
+      }));
+      const shown = rows.filter((r) => r.at && matches(r.text, r.by, r.note, r.task && r.task.text))
+        .sort((a, b) => String(b.at).localeCompare(String(a.at)));
+      if (!shown.length) return emptyState("shield", query ? "No matching decisions" : "No decisions yet", query ? "Try another search." : "Every approval and rejection will be listed here.");
+      return h("div", { class: "timeline" }, grouped(shown, (r) => r.at, (r) => {
+        const tone = r.status === "rejected" ? "bad" : r.status === "pending" ? "warn" : "good";
+        return h("div", { class: `event ${tone}`, "data-key": `ev-${r.id}` },
+          h("span", { class: "event-icon" }, icon(tone === "bad" ? "cross" : tone === "warn" ? "clock" : "check")),
+          h("div", { class: "event-main" },
+            h("div", { class: "event-title", text: r.text }),
+            h("div", { class: "event-meta" },
+              r.task ? taskLink(r.task) : h("span", { text: r.file ? r.file.name : "" }),
+              h("span", { class: "muted", text: `${r.by === "system" ? "Automatic" : r.by || ""} · ${timeOf(r.at)}` })),
+            r.note && r.note !== "approved with the plan" && r.by !== "system" ? h("div", { class: "event-note", text: r.note }) : null));
+      }));
+    }
+
+    function waiting() {
+      const rows = data.tasks.filter((t) => t.waiting_for && matches(t.text));
+      const pendingDowns = downs.filter((d) => d.status === "pending" && matches(d.file.name));
+      if (!rows.length && !pendingDowns.length) return emptyState("check", "You're all caught up", "Nothing is waiting for a decision.");
+      const what = { plan: "Approve the plan", action: "Allow a step", deliverable: "Review and approve the result", template_choice: "Choose an approach" };
+      return h("div", { class: "cards" },
+        rows.map((t) => h("a", { class: "wait-card", href: t.waiting_for === "deliverable" ? `/t/${t.id}/review` : `/t/${t.id}`, "data-key": `w-${t.id}` },
+          h("span", { class: "wait-icon" }, icon(t.waiting_for === "deliverable" ? "note" : "clock")),
+          h("span", { class: "wait-main" }, h("span", { class: "wait-title", text: t.text }),
+            h("span", { class: "muted small", text: `${what[t.waiting_for] || "Needs a decision"} · ${t.workspace_title} · ${dayLabel(t.updated_at)}` })),
+          h("span", { class: "wait-go" }, icon("chevron")))),
+        pendingDowns.map((d) => h("a", { class: "wait-card", href: "/security", "data-key": `wd-${d.id}` },
+          h("span", { class: "wait-icon" }, icon("shield")),
+          h("span", { class: "wait-main" }, h("span", { class: "wait-title", text: `Lower classification of ${d.file.name}` }),
+            h("span", { class: "muted small", text: `Asked by ${d.requester}: ${d.reason}` })),
+          h("span", { class: "wait-go" }, icon("chevron")))));
+    }
+
+    function filters() {
+      if (tab !== "documents") return [];
+      const counts = {};
+      data.tasks.forEach((t) => t.files.forEach((f) => { const g = EXT_GROUP[extOf(f.name)] || "other"; counts[g] = (counts[g] || 0) + 1; }));
+      const all = data.tasks.reduce((n, t) => n + t.files.length, 0);
+      const opts = [["all", "All", all], ["docs", "Reports", counts.docs], ["sheets", "Spreadsheets", counts.sheets],
+        ["slides", "Slides", counts.slides], ["code", "Scripts and data", counts.code], ["charts", "Charts", counts.charts]];
+      return opts.filter(([k, , n]) => k === "all" || n).map(([k, label, n]) => h("button", {
+        type: "button", class: `filter${kind === k ? " active" : ""}`, "data-key": `f-${k}`,
+        onclick: () => { kind = k; render(null); },
+      }, label, h("span", { class: "filter-n", text: n || 0 })));
+    }
+
+    function render(dir) {
+      seg.setCount("documents", data.tasks.reduce((n, t) => n + t.files.length, 0));
+      seg.setCount("waiting", data.tasks.filter((t) => t.waiting_for).length + downs.filter((d) => d.status === "pending").length);
+      smoothHeight($("#lib-filters"), () => fill($("#lib-filters"), filters()));
+      const content = tab === "documents" ? documents() : tab === "approvals" ? approvals() : waiting();
+      if (dir === undefined || dir === null) smoothHeight(body, () => fill(body, content));
+      else swapPanel(body, content, dir);
+    }
+
+    const load = async () => {
+      const [lib, dg] = await Promise.all([api("/library"), api("/downgrades").catch(() => [])]);
+      data = lib;
+      downs = dg;
+    };
+    await load();
+    render(0);
+    setInterval(async () => { await load().catch(() => {}); render(null); }, 5000);
+  }
+
+  const PAGES = { home: pageHome, task: pageTask, review: pageReview, models: pageModels, security: pageSecurity, library: pageLibrary };
 
   document.addEventListener("DOMContentLoaded", async () => {
     try {
       await initShell();
       const page = PAGES[document.body.dataset.page];
       if (page) await page();
+      document.body.classList.add("ready");
     } catch (e) {
+      document.body.classList.add("ready");
       toast(e.message || String(e), true);
       console.error(e);
     }

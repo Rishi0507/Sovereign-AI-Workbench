@@ -52,6 +52,11 @@ def review(request: Request, task_id: str) -> HTMLResponse:
     return _page(request, "review.html", "review", title="Draft review", task_id=task_id)
 
 
+@router.get("/library", response_class=HTMLResponse)
+def library(request: Request) -> HTMLResponse:
+    return _page(request, "library.html", "library", title="Library")
+
+
 @router.get("/models", response_class=HTMLResponse)
 def models(request: Request) -> HTMLResponse:
     return _page(request, "models.html", "models", title="Models")
