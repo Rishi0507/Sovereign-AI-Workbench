@@ -26,6 +26,8 @@ CANONICAL = {
     "draft an approval note for": "Draft an approval note for this inspection report",
     "analyse": "Write a Python script to parse these pressure readings and flag anomalies",
 }
+OFFTOPIC = re.compile(r"\b(weather|temperature outside|what time is it|today'?s date|tell me a joke|news|"
+                      r"cricket|football|match|who won|how are you|your name|sing|recipe|movie)\b", re.I)
 DOC_WORDS = re.compile(r"\b(document|report|file|contract|offer|data|sheet|readings|notes|pdf|it|this|that)\b", re.I)
 
 CAPABILITIES = ("I can draft approval notes from inspection reports, summarise contracts, analyse sensor readings "
@@ -37,6 +39,8 @@ def intent(text: str, attachments: list[str]) -> str | None:
     """``greeting``, ``thanks``, ``help``, ``vague``, ``needs:<action>`` or None for a real task."""
     if GREETING.search(text):
         return "greeting"
+    if not attachments and OFFTOPIC.search(text) and not DOC_WORDS.search(text):
+        return "offtopic"
     if HELP.search(text):
         return "help"
     if VAGUE.search(text):
@@ -80,6 +84,9 @@ def reply(text: str, kind: str, files: list[dict[str, Any]], history: list[dict[
     if kind == "help":
         return {"text": f"{CAPABILITIES} Attach a file with the + button, or pick one of these.",
                 "suggestions": _starters(files)}
+    if kind == "offtopic":
+        return {"text": "I work only with the documents and procedures on this machine, so I cannot answer that. "
+                        "Tell me what you need from your files.", "suggestions": _starters(files)}
     if kind == "vague":
         if history:
             last = history[-1]["text"]

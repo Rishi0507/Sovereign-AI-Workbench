@@ -790,7 +790,11 @@
       const body = [];
       const gate = t.pending_gate;
       const step = t.plan && t.plan.steps.find((s) => s.status === "running");
-      if (!TERMINAL.has(t.status) && !gate) {
+      const replying = t.plan && t.plan.steps.every((st) => st.model_task === "chat_reply");
+      if (!TERMINAL.has(t.status) && !gate && replying) {
+        // A plain reply has one step, so dots read better than a step counter.
+        body.push(h("div", { class: "typing" }, h("i"), h("i"), h("i")));
+      } else if (!TERMINAL.has(t.status) && !gate) {
         const total = t.plan ? t.plan.steps.length : 0;
         const done = t.plan ? t.plan.steps.filter((s) => ["done", "incomplete", "denied"].includes(s.status)).length : 0;
         let note = STATUS[t.status] || "Working";
@@ -800,8 +804,7 @@
         body.push(h("div", { class: "working" }, h("span", { class: "shimmer", text: note })));
       }
       if (gate && gate.kind === "template_choice") body.push(choiceBlock(t, gate));
-      const replyOnly = t.plan && t.plan.steps.every((st) => st.model_task === "chat_reply");
-      if (t.plan && !replyOnly) body.push(gate && gate.kind === "plan" ? planGate(t, gate) : progress(t));
+      if (t.plan && !replying) body.push(gate && gate.kind === "plan" ? planGate(t, gate) : progress(t));
       if (gate && gate.kind === "action") body.push(actionGate(t, gate));
       body.push(...results(t));
       return body;
@@ -912,7 +915,9 @@
       const r = t.result || {};
       if (r.reply) {
         const idle = !convo().some((x) => !TERMINAL.has(x.status));
-        out.push(h("div", { class: "answer" }, h("p", { text: r.reply.text })));
+        out.push(h("div", { class: "answer", title: r.reply.model ? `Written by ${r.reply.model} on this machine` : "" },
+          h("p", { text: r.reply.text })));
+        if (r.reply.note) out.push(h("p", { class: "muted small", text: r.reply.note }));
         if ((r.reply.suggestions || []).length) {
           out.push(h("div", { class: "suggest-row" }, r.reply.suggestions.map((sg) => h("button", {
             class: "starter", type: "button", disabled: !idle,

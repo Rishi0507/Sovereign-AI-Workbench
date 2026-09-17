@@ -37,13 +37,18 @@ def make_backend(settings: Settings, ledger: Ledger, registry: Registry) -> LLMB
     from workbench.llm.heuristic import HeuristicBackend
 
     heuristic = HeuristicBackend(ledger)
-    if settings.llm_backend == "heuristic":
-        return heuristic
-    if settings.llm_backend == "scripted":
-        from workbench.llm.scripted import ScriptedBackend
+    if settings.llm_backend in {"heuristic", "scripted"}:
+        base: LLMBackend = heuristic
+        if settings.llm_backend == "scripted":
+            from workbench.llm.scripted import ScriptedBackend
 
-        name = settings.scripted_script or "default"
-        return ScriptedBackend.from_file(settings.root / "fixtures" / "scripts" / f"{name}.yaml", heuristic)
+            name = settings.scripted_script or "default"
+            base = ScriptedBackend.from_file(settings.root / "fixtures" / "scripts" / f"{name}.yaml", heuristic)
+        if not settings.chat_model:
+            return base
+        from workbench.llm.chat_model import ConversationalBackend
+
+        return ConversationalBackend(base, settings.chat_model, settings.chat_endpoint, settings.chat_timeout_s)
     from workbench.llm.openai_compat import OpenAICompatBackend
 
     def resolve(model: str) -> str:
@@ -132,7 +137,8 @@ class Runtime:
 
     def health(self) -> dict[str, Any]:
         return {"sandboxd": self.sandbox.health(), "egressd": self.egress.health(),
-                "backend": self.settings.llm_backend, "profile": self.settings.profile,
+                "backend": self.settings.llm_backend, "chat_model": self.settings.chat_model,
+                "profile": self.settings.profile,
                 "registry_version": self.registry.version}
 
     def close(self) -> None:

@@ -21,7 +21,7 @@ def settings_for(tmp: Path, **overrides: Any) -> Settings:
         "run_dir": str(tmp / "run"), "reports_dir": str(tmp / "reports"),
         "asset_register": str(tmp / "var" / "reference" / "asset_register.csv"),
         "sandbox": "sandboxd" if GO_MODE else "fake", "egress": "egressd" if GO_MODE else "fake",
-        "time_scale": 0.0, "llm_backend": "heuristic", "egress_guard": False,
+        "time_scale": 0.0, "llm_backend": "heuristic", "chat_model": None, "egress_guard": False,
     }
     if GO_MODE:
         base["run_dir"] = os.environ.get("WB_RUN_DIR", str(ROOT / "run"))

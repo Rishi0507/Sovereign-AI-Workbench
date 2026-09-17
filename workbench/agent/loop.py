@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager, suppress
@@ -811,7 +812,8 @@ class Orchestrator:
         root = state.meta.get("followup_of")
         if root:
             earlier = [self.rt.tasks.get(str(root)), *self.rt.tasks.followups(str(root))]
-            history = [{"text": t.text, "status": t.status} for t in earlier if t.id != state.id]
+            history = [{"text": t.text, "status": t.status, "reply": reply_text(t.result)}
+                       for t in earlier if t.id != state.id and t.created_at <= state.created_at]
         return {"files": files, "history": history}
 
     def _model_step(self, state: TaskState, step: PlanStep, cancelled: Callable[[], bool]) -> str:
@@ -1111,3 +1113,19 @@ def today_iso(clock: Any) -> str:
 
 def records_of(ledger: Any, ids: list[str]) -> list[LedgerRecord]:
     return [r for r in (ledger.maybe(i) for i in ids) if r is not None]
+
+
+def reply_text(result: dict[str, Any]) -> str:
+    """What the assistant said on a finished turn, in plain words, for the next reply's context."""
+    reply = result.get("reply")
+    if isinstance(reply, dict) and reply.get("text"):
+        return str(reply["text"])
+    answer = result.get("answer")
+    if isinstance(answer, dict):
+        return " ".join(re.sub(r"\s*\[[^\]]*\]", "", str(a.get("text", ""))) for a in answer.get("answer") or [])
+    summary = result.get("summary")
+    if isinstance(summary, dict):
+        return "I summarised the document and prepared a summary file."
+    if result.get("deliverables") or result.get("final"):
+        return "I prepared the requested files for approval."
+    return ""

@@ -11,6 +11,9 @@ router_model: qwen2.5-1.5b-instruct
 router_endpoint: http://127.0.0.1:8010/v1
 cache_salt_mode: request        # request (vLLM cache_salt field) | prefix (salt token in system prompt)
 openai_timeout_s: 120
+chat_model: null                # set to a local instruct model (e.g. qwen2.5-1.5b-instruct) to have it write chat replies
+chat_endpoint: http://127.0.0.1:8010/v1
+chat_timeout_s: 90
 
 # Host services
 sandbox: sandboxd               # sandboxd | fake

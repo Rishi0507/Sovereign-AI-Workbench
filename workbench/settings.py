@@ -49,6 +49,9 @@ class Settings(BaseModel):
     router_endpoint: str = "http://127.0.0.1:8010/v1"
     cache_salt_mode: Literal["request", "prefix"] = "request"
     openai_timeout_s: float = 120.0
+    chat_model: str | None = None
+    chat_endpoint: str = "http://127.0.0.1:8010/v1"
+    chat_timeout_s: float = 90.0
 
     sandbox: Literal["sandboxd", "fake"] = "sandboxd"
     egress: Literal["egressd", "fake"] = "egressd"
