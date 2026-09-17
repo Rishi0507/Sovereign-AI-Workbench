@@ -100,7 +100,7 @@ def test_file_store_upload_share_and_final(rt: Runtime) -> None:
     with pytest.raises(PolicyError):
         rt.files.write_draft("plant-a", "d.md", b"again", Label(level=Level.CONFIDENTIAL), "T1", False)
     final = rt.files.promote_to_final(draft.id, "engineer1")
-    assert final.relpath == "final/d.md" and final.label == draft.label
+    assert final.relpath == "final/T1/d.md" and final.label == draft.label
     with pytest.raises(PolicyError):
         rt.files.promote_to_final(rec.id, "engineer1")
 

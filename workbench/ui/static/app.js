@@ -51,6 +51,11 @@
     info: "M10 9v5M10 6.2v.2M10 17.5a7.5 7.5 0 100-15 7.5 7.5 0 000 15z",
     chevron: "M8 5l5 5-5 5",
     dot: "M10 11a1 1 0 100-2 1 1 0 000 2z",
+    note: "M6 2.5h5.5l3.5 3.5v11.5H6zM8.5 10h4M8.5 13h4",
+    contract: "M5 3h10v14H5zM7.5 6.5h5M7.5 9.5h5M7.5 12.5h2.5",
+    chart: "M3.5 16.5h13M6 13.5V9M10 13.5V5.5M14 13.5V11",
+    calc: "M5 2.5h10v15H5zM7.5 5.5h5v2.5h-5zM7.5 11h.01M10 11h.01M12.5 11h.01M7.5 14h.01M10 14h.01M12.5 14h.01",
+    compare: "M3 6h9M9 3l3 3-3 3M17 14H8M11 11l-3 3 3 3",
   };
 
   function icon(name) {
@@ -228,8 +233,13 @@
     });
     document.addEventListener("click", (e) => { if (!menu.hidden && !menu.contains(e.target)) menu.hidden = true; });
 
-    shell.users = await api("/users");
-    if (!shell.users.some((u) => u.id === USER)) { USER = shell.users[0].id; setUserCookie(USER); }
+    let [users, me, workspaces] = await Promise.all([api("/users"), api("/me").catch(() => null), api("/workspaces").catch(() => null)]);
+    shell.users = users;
+    if (!me || !users.some((u) => u.id === USER)) {
+      USER = users[0].id;
+      setUserCookie(USER);
+      [me, workspaces] = await Promise.all([api("/me"), api("/workspaces")]);
+    }
     const userSel = $("#user-select");
     shell.users.forEach((u) => userSel.append(h("option", { value: u.id, text: u.name })));
     userSel.value = USER;
@@ -238,11 +248,11 @@
       setUserCookie(userSel.value);
       location.href = "/";
     });
-    shell.me = await api("/me");
+    shell.me = me;
     $("#account-name").textContent = shell.me.name;
     $("#avatar").textContent = shell.me.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 
-    shell.workspaces = await api("/workspaces");
+    shell.workspaces = workspaces;
     const wsSel = $("#ws-select");
     shell.workspaces.forEach((w) => wsSel.append(h("option", { value: w.id, text: w.title })));
     const wanted = new URLSearchParams(location.search).get("ws") || store.get("wb_ws", "");
@@ -367,22 +377,22 @@
     const renderStarters = () => {
       const find = (re) => files.find((f) => f.area === "inputs" && re.test(f.name));
       const ideas = [];
-      const add = (label, prompt, paths) => { if (paths.every(Boolean)) ideas.push([label, prompt, paths]); };
-      add("Draft an approval note", "Draft an approval note for this inspection report", [find(/^inspection_P108B/)]);
-      add("Summarise a contract", "Summarise this vendor contract", [find(/contract.*\.pdf$/)]);
-      add("Analyse sensor readings", "Write a Python script to parse these pressure readings and flag anomalies", [find(/pressure.*\.csv$/)]);
-      add("Calculate wall thickness", "Compute the required wall thickness for this pipe per the attached data", [find(/pipe_data/)]);
+      const add = (ico, label, prompt, paths) => { if (paths.every(Boolean)) ideas.push([ico, label, prompt, paths]); };
+      add("note", "Draft an approval note", "Draft an approval note for this inspection report", [find(/^inspection_P108B/)]);
+      add("contract", "Summarise a contract", "Summarise this vendor contract", [find(/contract.*\.pdf$/)]);
+      add("chart", "Analyse sensor readings", "Write a Python script to parse these pressure readings and flag anomalies", [find(/pressure.*\.csv$/)]);
+      add("calc", "Calculate wall thickness", "Compute the required wall thickness for this pipe per the attached data", [find(/pipe_data/)]);
       const offers = files.filter((f) => f.area === "inputs" && /^(offer_|tender)/.test(f.name));
-      if (offers.length >= 2) ideas.push(["Compare vendor offers", "Compare these three vendor offers against the tender conditions and recommend one", offers]);
-      fill($("#starters"), ...ideas.slice(0, 4).map(([label, prompt, paths]) => h("button", {
-        class: "starter", type: "button", text: label,
+      if (offers.length >= 2) ideas.push(["compare", "Compare vendor offers", "Compare these three vendor offers against the tender conditions and recommend one", offers]);
+      fill($("#starters"), ...ideas.slice(0, 4).map(([ico, label, prompt, paths]) => h("button", {
+        class: "starter", type: "button",
         onclick: () => {
           text.value = prompt;
           attached.clear();
           paths.forEach((f) => attached.add(f.path));
           renderAttached(); renderPicker(); syncSend(); text.dispatchEvent(new Event("input")); text.focus();
         },
-      })));
+      }, icon(ico), label)));
     };
     const loadFiles = async () => {
       files = await api(`/workspaces/${ws.id}/files`);
@@ -472,11 +482,19 @@
       }
       return !TERMINAL.has(task.status);
     };
+    // Poll quickly while work runs, slowly while waiting for the user, and at once after a click.
+    let timer = null;
+    let burst = 0;
     const poll = async () => {
+      clearTimeout(timer);
       const again = await load();
-      if (again) setTimeout(poll, view.task && view.task.pending_gate ? 2500 : 900);
+      if (!again) return;
+      const waiting = view.task && view.task.pending_gate;
+      const delay = burst > 0 ? 250 : waiting ? 2000 : 500;
+      burst = Math.max(0, burst - 1);
+      timer = setTimeout(poll, delay);
     };
-    const refresh = () => { view.stamp = ""; return load(); };
+    const refresh = () => { view.stamp = ""; burst = 12; return poll(); };
 
     function renderHead(t) {
       const job = t.job;
@@ -509,7 +527,7 @@
         if (step) note = `${step.title || step.id} (${done + 1} of ${total})`;
         if (t.status === "waiting_tide") note = "Waiting for the reasoning model to load";
         if (t.job && t.job.state === "queued") note = `Waiting in line (position ${t.job.position})`;
-        body.push(h("div", { class: "working" }, spinner(), h("span", { text: note })));
+        body.push(h("div", { class: "working" }, h("span", { class: "shimmer", text: note })));
       }
       if (gate && gate.kind === "template_choice") body.push(choiceBlock(t, gate));
       if (t.plan) body.push(gate && gate.kind === "plan" ? planGate(t, gate) : progress(t));
@@ -538,7 +556,7 @@
       const steps = editing ? editing.steps : plan.steps;
       const list = h("ol", { class: "plan" }, steps.map((s, i) => h("li", {},
         h("span", { class: "plan-text", text: stepSummary(s) }),
-        s.side_effect ? h("span", { class: "chip", text: "asks first" }) : null,
+        s.side_effect ? h("span", { class: "chip", text: "creates a file" }) : null,
         editing ? h("span", { class: "row tight" },
           h("button", { class: "icon-btn", type: "button", "aria-label": "Move up", disabled: i === 0, onclick: () => { [steps[i - 1], steps[i]] = [steps[i], steps[i - 1]]; renderThread(t); } }, icon("up")),
           h("button", { class: "icon-btn", type: "button", "aria-label": "Move down", disabled: i === steps.length - 1, onclick: () => { [steps[i + 1], steps[i]] = [steps[i], steps[i + 1]]; renderThread(t); } }, icon("down")),
@@ -658,7 +676,7 @@
       if (t.deliverables && t.deliverables.length) {
         const gate = t.pending_gate && t.pending_gate.kind === "deliverable";
         out.push(h("div", { class: "files" }, t.deliverables.map((d) => h("div", { class: "file" },
-          h("span", { class: "file-ext", text: d.relpath.split(".").pop() }),
+          h("span", { class: `file-ext ext-${d.relpath.split(".").pop().toLowerCase()}`, text: d.relpath.split(".").pop() }),
           h("div", { class: "file-info" }, h("div", { class: "file-name", text: shortName(d.relpath) }),
             h("div", { class: "row tight" }, labelTag(d.label), d.status === "approved" ? h("span", { class: "muted small", text: "Final" }) : h("span", { class: "muted small", text: "Draft" }))),
           h("a", { class: "icon-btn", href: fileUrl(d.final_file_id || d.file_id), title: "Download", "aria-label": `Download ${shortName(d.relpath)}` }, icon("download"))))));

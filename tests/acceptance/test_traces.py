@@ -48,7 +48,7 @@ def test_trace_a_approval_note(make_runtime: Callable[..., Runtime]) -> None:
     mismatches = sorted(c["rule"] for c in state.checks if c["status"] == "mismatch")
     assert mismatches == ["row_tags_match", "thickness_trend", "thickness_vs_limit"]
     path = final_path(rt, state, ".docx")
-    assert path.as_posix().endswith("final/approval-note.docx")
+    assert path.as_posix().endswith(f"final/{state.id}/approval-note.docx")
     doc = Document(str(path))
     assert doc.sections[0].header.paragraphs[0].text == "CONFIDENTIAL"
     assert doc.sections[0].footer.paragraphs[0].text == "CONFIDENTIAL"
@@ -93,7 +93,7 @@ def test_trace_b_sandbox_fix(make_runtime: Callable[..., Runtime]) -> None:
     code = state.result["code"]
     assert code["result"]["anomalies"] == 6 and code["result"]["column"] == "pressure_bar"
     names = sorted(d.relpath for d in state.deliverables)
-    assert names == ["drafts/anomalies.csv", "drafts/chart.svg", "drafts/parse_pressure_readings.py", "drafts/summary.json"]
+    assert names == [f"drafts/{state.id}/{n}" for n in ("anomalies.csv", "chart.svg", "parse_pressure_readings.py", "summary.json")]
     assert all(d.final_file_id for d in state.deliverables)
 
     before = rt.egress.snapshot()["blocked_connect_sandbox"]

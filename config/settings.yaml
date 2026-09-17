@@ -38,6 +38,8 @@ max_retries: 2
 max_plan_steps: 12
 max_code_iters: 4
 max_repairs: 2
+auto_start_read_only: true          # plans that only read and answer start without a plan approval
+plan_approval_covers_drafts: true   # approving a plan also allows its steps to create new drafts
 record_inline_chars: 1200
 observation_max_chars: 2000
 tokens_per_scanned_page: 1100

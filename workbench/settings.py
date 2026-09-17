@@ -73,6 +73,8 @@ class Settings(BaseModel):
     max_plan_steps: int = 12
     max_code_iters: int = 4
     max_repairs: int = 2
+    auto_start_read_only: bool = True
+    plan_approval_covers_drafts: bool = True
     record_inline_chars: int = 1200
     observation_max_chars: int = 2000
     tokens_per_scanned_page: int = 1100

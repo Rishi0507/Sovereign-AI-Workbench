@@ -199,7 +199,8 @@ class FileStore:
     def write_draft(self, workspace: str, name: str, data: bytes, label: Label, task_id: str,
                     overwrite_ok: bool) -> FileRecord:
         clean_relpath(name)
-        rel = f"drafts/{name}"
+        # each task writes into its own folder, so drafts of different tasks never collide
+        rel = f"drafts/{task_id}/{name}"
         path = self.resolve(workspace, rel, must_exist=False)
         if path.exists() and not overwrite_ok:
             raise PolicyError(f"{rel} exists; overwriting needs approval")

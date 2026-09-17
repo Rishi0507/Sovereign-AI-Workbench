@@ -119,6 +119,16 @@ class Orchestrator:
         state.gates.append(gate)
         return gate
 
+    def _decided_gate(self, state: TaskState, kind: str, payload: dict[str, Any], by: str, note: str,
+                      step_id: str | None = None) -> None:
+        """Record a gate that policy decided without waiting for a person (audited like any other)."""
+        gate = Gate(id=new_id("G"), kind=kind, payload=payload, step_id=step_id,  # type: ignore[arg-type]
+                    status="approved", decided_by=by, decided_at=self._now(), note=note)
+        state.gates.append(gate)
+        self.rt.tasks.save(state)
+        self.rt.audit.append({"type": f"gate.{kind}", "task": state.id, "gate": gate.id, "decision": "approved",
+                              "by": by, "note": note, "step": step_id})
+
     def _close_gate(self, task_id: str, gate_id: str, status: str, by: str, note: str | None) -> TaskState:
         state = self.rt.tasks.get(task_id)
         gate = state.gate(gate_id)
@@ -418,6 +428,14 @@ class Orchestrator:
         state.plan_history = history
         self.rt.tasks.save(state)
         self._release(state)
+        if self.s.auto_start_read_only and plan.valid and self._read_only(plan):
+            state.plan = plan
+            self._decided_gate(state, "plan", {"plan": plan.model_dump(mode="json"), "errors": []}, "system",
+                               "read-only plan: started without a plan approval")
+            self.rt.ledger.add(state.id, "plan", summary=f"read-only plan: {' -> '.join(s.id for s in plan.steps)}",
+                               body=plan.to_typed(), label=Label.lowest(), produced_by="system")
+            self.rt.tasks.save(state)
+            return
         while True:
             gate = self._new_gate(state, "plan", {"plan": plan.model_dump(mode="json"), "errors": plan.errors})
             self._status(state, "awaiting_plan", "plan has problems" if plan.errors else "waiting for plan approval")
@@ -700,10 +718,36 @@ class Orchestrator:
                 self.rt.tasks.save(state)
         return "done"
 
+    def _read_only(self, plan: Any) -> bool:
+        """True when no step has a side effect and the plan produces no file."""
+        if plan.deliverables:
+            return False
+        for s in plan.steps:
+            spec = self.rt.tools.get(s.tool or "") if s.tool else None
+            mt = MODEL_TASKS.get(s.model_task or "") if s.model_task else None
+            if s.side_effect or (spec is not None and spec.side_effect) or (mt is not None and mt.side_effect):
+                return False
+        return True
+
+    def _covered_by_plan(self, state: TaskState) -> str | None:
+        """The person who approved the plan, when that approval also covers creating new drafts.
+
+        Only the first pass qualifies: a revision re-renders files that already exist, and an
+        overwrite always asks again."""
+        if not self.s.plan_approval_covers_drafts or state.revisions:
+            return None
+        approved = [g for g in state.gates if g.kind == "plan" and g.status == "approved"]
+        by = approved[-1].decided_by if approved else None
+        return by if by and by not in {"auto", "system"} else None
+
     def _action_gate(self, state: TaskState, step: PlanStep, tool: str, args: dict[str, Any],
                      cancelled: Callable[[], bool]) -> bool:
         self._release(state)
         payload = {"tool": tool, "step": step.id, "args": _short(args), "title": step.title}
+        planner = self._covered_by_plan(state)
+        if planner:
+            self._decided_gate(state, "action", payload, planner, "approved with the plan", step.id)
+            return True
         gate = self._new_gate(state, "action", payload, step.id)
         self._status(state, "awaiting_action", f"approve {tool} for step {step.id}")
         decision: ActionDecision = self.approvals.approve_action(state.id, gate.id, payload, cancelled)
