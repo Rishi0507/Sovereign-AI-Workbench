@@ -587,6 +587,15 @@ details[open]::details-content { block-size: auto; opacity: 1; }
 .tile-meta { display: flex; gap: 8px; align-items: center; font-size: 12px; color: var(--muted); white-space: nowrap; }
 .chip.ok { background: var(--ok-soft); color: var(--ok); }
 .tile:hover .file-dl { color: var(--accent); background: var(--accent-soft); }
+.tile-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 11px; background: none; border: 0; padding: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.doc-preview { display: flex; flex-direction: column; gap: 10px; line-height: 1.6; }
+.doc-preview p { margin: 0; }
+.doc-h { margin: 8px 0 0; font-size: 15px; font-weight: 650; }
+.doc-page { margin: 12px 0 0; font-size: 11.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); border-top: 1px solid var(--line); padding-top: 12px; }
+.doc-preview .table-wrap { overflow-x: auto; }
+.doc-preview .table { width: 100%; }
+.file-head { padding-bottom: 12px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+a.file-dl:hover { color: var(--accent); background: var(--accent-soft); }
 .doc-foot { display: flex; justify-content: flex-end; }
 .doc-foot .link-btn { display: inline-flex; align-items: center; gap: 2px; font-size: 13.5px; font-weight: 550; color: var(--accent); }
 .doc-foot svg { width: 15px; height: 15px; transition: transform .2s var(--ease); }

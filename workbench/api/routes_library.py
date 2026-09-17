@@ -50,12 +50,14 @@ def library(workspace: str | None = None, user: User = Depends(current_user),
         if not rt.policy.can_read(user, ws, label):
             continue
         pending = state.pending_gate()
+        # Only a person who can actually decide is told that something is waiting.
+        can_decide = state.user == user.id or "approver" in user.roles
         tasks.append({
             "id": state.id, "text": state.text, "workspace": state.workspace, "workspace_title": ws.title,
             "user": state.user, "status": state.status, "created_at": state.created_at,
             "updated_at": state.updated_at, "label_display": label.display(),
             "label": label.model_dump(mode="json"), "files": _files(rt, state),
             "decisions": [_decision(g) for g in state.gates if g.status != "pending"],
-            "waiting_for": pending.kind if pending else None,
+            "waiting_for": pending.kind if pending and can_decide else None,
         })
     return {"tasks": tasks}

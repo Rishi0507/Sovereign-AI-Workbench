@@ -380,7 +380,8 @@ class Orchestrator:
                          messages=[*base, ChatMessage(role="user", content=prompt)],
                          meta={"task_text": state.text, "attachments": state.attachments, "route": route.profile.task_type,
                                "complexity": route.profile.complexity, "columns": self._columns(state),
-                               "parent_id": state.parent_id, "meta": state.meta})
+                               "parent_id": state.parent_id, "meta": state.meta,
+                               "force_chat": state.meta.get("force_chat")})
         with self._slot(state, cancelled):
             self._count_step(state)
             value, resp, _attempts = self._structured(state, req, load_schema("typed_plan"), None)
@@ -409,6 +410,11 @@ class Orchestrator:
         self._status(state, "planning")
         route = self.route_decision(state)
         use_templates = not state.meta.get("templates_disabled")
+        # A message that needs none of the user's documents is answered, not planned as document work.
+        prefers_chat = getattr(self.rt.backend, "prefers_chat", None)
+        if use_templates and prefers_chat is not None and prefers_chat(state.text, list(state.attachments)):
+            state.meta["force_chat"] = True
+            use_templates = False
         matches = self.rt.templates.match(route.profile.task_type, state.text, state.attachments) if use_templates else []
         history: list[dict[str, Any]] = []
         if len(matches) > 1:
@@ -814,7 +820,11 @@ class Orchestrator:
             earlier = [self.rt.tasks.get(str(root)), *self.rt.tasks.followups(str(root))]
             history = [{"text": t.text, "status": t.status, "reply": reply_text(t.result)}
                        for t in earlier if t.id != state.id and t.created_at <= state.created_at]
-        return {"files": files, "history": history}
+        now = self.rt.clock.now().astimezone()
+        part = ("night" if now.hour < 5 else "morning" if now.hour < 12
+                else "afternoon" if now.hour < 17 else "evening")
+        local = f"{now:%A %d %B %Y, %H:%M} ({part})"
+        return {"files": files, "history": history, "local_time": local}
 
     def _model_step(self, state: TaskState, step: PlanStep, cancelled: Callable[[], bool]) -> str:
         mt = MODEL_TASKS[step.model_task or ""]

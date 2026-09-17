@@ -20,9 +20,11 @@ class Base:
 
     def __init__(self) -> None:
         self.purposes: list[str] = []
+        self.seen: list[LLMRequest] = []
 
     def chat(self, req: LLMRequest) -> LLMResponse:
         self.purposes.append(req.purpose)
+        self.seen.append(req)
         value = {"text": "Hello! Fixed reply.", "suggestions": SUGGESTIONS}
         return LLMResponse(text=json.dumps(value), parsed=value)
 
@@ -113,3 +115,28 @@ def test_questions_outside_the_workbench_are_not_searched() -> None:
     assert conversation.intent("does this match the tender conditions", []) is None
     text = conversation.reply("how are you?", "offtopic", [], [])["text"]
     assert "documents and procedures on this machine" in text
+
+
+def test_a_message_that_needs_no_documents_is_planned_as_a_reply() -> None:
+    def handler(req: httpx.Request) -> httpx.Response:
+        body = json.loads(req.content)
+        answer = "CHAT" if "12 times 8" in body["messages"][-1]["content"] else "DOCS"
+        return httpx.Response(200, json={"choices": [{"message": {"content": answer}}]})
+
+    be, base = backend(handler)
+    plan = request("plan.write", task_text="what is 12 times 8")
+    be.chat(plan)
+    assert plan.meta.get("force_chat") is None  # the request itself is not mutated
+    assert base.seen[-1].meta["force_chat"] is True
+
+    be.chat(request("plan.write", task_text="what did the inspector find"))
+    assert "force_chat" not in base.seen[-1].meta
+
+
+def test_a_message_naming_plant_work_is_never_sent_to_the_router() -> None:
+    def handler(req: httpx.Request) -> httpx.Response:
+        raise AssertionError("router called")
+
+    be, base = backend(handler)
+    be.chat(request("plan.write", task_text="Which pumps are governed by SOP-MECH-014?"))
+    assert "force_chat" not in base.seen[-1].meta
