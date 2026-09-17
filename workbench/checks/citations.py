@@ -37,7 +37,7 @@ class ClaimCheck(BaseModel):
 
 def _record_text(rec: LedgerRecord) -> str:
     base = rec.body if isinstance(rec.body, str) else json.dumps(rec.body, ensure_ascii=False)
-    extra = " ".join(tv.raw for tv in rec.fields.values())
+    extra = " ".join(tv.raw for name, tv in rec.fields.items() if name != "source_key")
     return f"{rec.summary}\n{base}\n{extra}"
 
 

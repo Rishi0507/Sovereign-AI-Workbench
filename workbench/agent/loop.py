@@ -1008,11 +1008,20 @@ class Orchestrator:
                 model=str(state.model), language=",".join(langs), approved=approved, data=dumps(data)))
 
 
-def _short(value: Any, limit: int = 600) -> Any:
-    text = json.dumps(value, ensure_ascii=False, default=str)
-    if len(text) <= limit:
-        return value
-    return {"_truncated": text[:limit] + "..."}
+def _short(value: Any, depth: int = 0) -> Any:
+    """A readable preview of tool arguments for the trace and the approval card."""
+    if isinstance(value, str):
+        return value if len(value) <= 120 else value[:117] + "..."
+    if isinstance(value, dict):
+        if depth >= 2:
+            return f"{{{len(value)} field(s)}}"
+        return {k: _short(v, depth + 1) for k, v in list(value.items())[:12]}
+    if isinstance(value, list):
+        if depth >= 2:
+            return f"[{len(value)} item(s)]"
+        items = [_short(v, depth + 1) for v in value[:5]]
+        return items + ([f"... {len(value) - 5} more"] if len(value) > 5 else [])
+    return value
 
 
 def today_iso(clock: Any) -> str:
