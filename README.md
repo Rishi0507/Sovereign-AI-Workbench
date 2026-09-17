@@ -145,9 +145,11 @@ The five scenarios from the design run end to end with `workbench demo`. The tab
 
 In every run the egress test passed and the external connection counter stayed at zero.
 
+A task reads like a conversation: the request, the plan to approve, the steps as they finish, the issues found and the files produced.
+
 ![Task view](docs/images/task.png)
 
-The review screen shows the draft as paper, underlines every figure by its provenance (source reading, computed, unsourced), lists the consistency findings that must be acknowledged, and verifies each citation against the record it cites.
+The review screen shows the draft as paper and underlines every figure by where it came from (a source, a calculation, or no source). The issues must be marked as reviewed before **Approve** unlocks, and each citation is checked against the record it cites.
 
 ![Review view](docs/images/review.png)
 
@@ -200,7 +202,7 @@ python scripts/dev.py fixtures   # synthetic reports, contract, offers, KB, asse
 workbench serve                   # http://127.0.0.1:8080
 ```
 
-Open <http://127.0.0.1:8080>, pick a suggestion such as *Draft an approval note for this inspection report*, attach `inspection_P108B.pdf` and press **Start**.
+Open <http://127.0.0.1:8080> and click **Draft an approval note**. The request and the matching scanned report are filled in; press Enter, then **Start** on the plan.
 
 ### 4. Run everything headless
 
@@ -213,15 +215,17 @@ workbench eval                   # writes reports/eval.md and reports/eval.json
 
 ## Using the workbench
 
+The interface is deliberately plain: a sidebar with your recent tasks, one box to type in, and a conversation for each task.
+
 | Screen | What you do there |
 |---|---|
-| **Workspace** | Start a task, attach files, browse inputs, drafts and final files with their classification, follow running tasks. |
-| **Task** | Read the routing decision, approve or edit the plan, approve side-effecting actions, follow the live trace, inspect every evidence record in the side panel. |
-| **Review** | Read the draft, click any figure to see its source, acknowledge consistency findings, correct or link unsourced figures, then approve or send back with a note. |
-| **Models** | See the registry, per-capability quality, the tidal pool state and the `vllm serve` command each model runs with. |
-| **Security** | Live egress counters, a one-click egress test, blocked attempts, the audit chain, downgrade requests, template drafts and the supersession impact report. |
+| **Home** | Type a request, attach files with the paperclip (or upload new ones), or pick a suggestion. |
+| **Task** | Approve, edit or cancel the plan, allow file-creating steps, follow progress, read answers with numbered sources, download files. **Details** opens the technical record: activity log, evidence, model choice and checks. |
+| **Review** | Read the draft, click any figure or source number to see where it came from, mark issues as reviewed, fix figures without a source, then approve or request changes. |
+| **Models** | See which models are ready, asleep or being evaluated, and how well each does per kind of work. |
+| **Security** | See that nothing has left the server, run a network test, check the audit log and handle approval requests. |
 
-The top bar always shows the classification of what you are looking at and the live egress status. The UI follows the system light or dark theme.
+The account menu (bottom left) switches the signed-in user in development and links to Models and Security. The top bar shows the classification of the open task and the network status. The interface follows the system light or dark theme and works on phone screens.
 
 ![Dark theme](docs/images/home-dark.png)
 
