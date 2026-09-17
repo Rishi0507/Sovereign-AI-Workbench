@@ -164,7 +164,7 @@ $EDITOR /srv/workbench/config/workspaces.yaml /srv/workbench/config/labels.yaml
 cp /srv/workbench/.env.example /srv/workbench/.env      # optional overrides, never committed
 
 # Ownership
-install -d -o wb-app -g workbench -m 0770 /srv/workbench/var /srv/workbench/reports /srv/workbench/templates/drafts
+install -d -o wb-app -g workbench -m 0770 /srv/workbench/var /srv/workbench/reports
 chown -R wb-app:workbench /srv/workspaces
 chmod 0770 /srv/workspaces
 install -d -o wb-app -g workbench -m 0770 /srv/workspaces/_jobs /srv/workspaces/_egress_probe

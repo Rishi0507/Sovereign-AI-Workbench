@@ -41,6 +41,8 @@ The implementation follows [`design/IMPLEMENTATION_PRD.md`](design/IMPLEMENTATIO
 | D33 | UI | Pages update in place instead of being rebuilt |
 | D34 | Agent | Requests for counts add a counting step to any plan |
 | D35 | Agent | Follow-ups continue one conversation |
+| D36 | Agent | Small talk and vague requests get a reply, not a search |
+| D37 | Files | Approved templates live with the runtime data |
 
 ---
 
@@ -226,3 +228,13 @@ The implementation follows [`design/IMPLEMENTATION_PRD.md`](design/IMPLEMENTATIO
 
 **Decision:** A follow-up is a new task whose `followup_of` points at the conversation's first task; follow-ups of follow-ups point there too. It reuses the first task's attachments and takes the conversation's highest classification as its floor. The task page shows the whole conversation, the reply box stays available whenever the last turn has finished, and the sidebar lists each conversation once.
 **Why:** Moving to a new page for every follow-up lost the thread, and follow-ups previously did not inherit the classification of what had already been read.
+
+### D36. Small talk and vague requests get a reply
+
+**Decision:** A `chat_reply` model task answers greetings, thanks, questions about the workbench, one-word nudges such as "continue", and requests that need a document none was given for ("summarise any document"). The reply asks what is needed and offers up to four next steps, each naming real workspace files the user may read; choosing one sends it as the next message with that file attached. A request that names an input file ("summarise the vendor contract") gets that file attached automatically. The offline backend implements the reply with rules in `workbench/llm/conversation.py`; a real model receives the files and the conversation so far in `chat_reply.j2`.
+**Why:** Treating every message as a search produced answers such as a random procedure sentence in reply to "hello". A reply that asks for the missing input is what a person would do.
+
+### D37. Approved templates live with the runtime data
+
+**Decision:** Built-in templates stay in `templates/`. Drafts saved from tasks go to `var/templates/drafts` and approved templates to `var/templates`; the library loads both.
+**Why:** Promoting a plan from the interface used to write into the source tree, so a server's own templates showed up as uncommitted code changes and changed the test fixtures.

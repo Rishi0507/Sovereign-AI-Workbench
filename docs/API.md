@@ -47,7 +47,7 @@ Create a task and queue it.
 }
 ```
 
-`meta` accepts only `report_date`, `equipment_tag` and `templates_disabled` (plan without templates). Returns `201` with the task view. A read-only question (no side effects, no file) starts without a plan gate when `auto_start_read_only` is on.
+`meta` accepts only `report_date`, `equipment_tag` and `templates_disabled` (plan without templates). When `attachments` is empty, input files the text names ("summarise the vendor contract") are attached, provided the caller may read them. Returns `201` with the task view. A read-only question (no side effects, no file) starts without a plan gate when `auto_start_read_only` is on.
 
 ### `GET /api/tasks`
 
@@ -90,7 +90,7 @@ Approve or deny a side-effecting step: `{"approve": true, "note": "optional"}`. 
 
 ### `POST /api/tasks/{task_id}/followup`
 
-Continue a conversation: `{"text": "How many words are in it?"}`. Returns the new task (`201`). A follow-up always joins the conversation's first task (even when posted on a later follow-up), reuses its attachments, and starts at the highest classification seen so far in the conversation. The first task's view lists the conversation under `followups`, oldest first; each follow-up carries `followup_of`.
+Continue a conversation: `{"text": "How many words are in it?", "attachments": ["inputs/x.pdf"]}` (`attachments` is optional). Returns the new task (`201`). A follow-up always joins the conversation's first task (even when posted on a later follow-up), reuses its attachments unless others are given, and starts at the highest classification seen so far in the conversation. The first task's view lists the conversation under `followups`, oldest first; each follow-up carries `followup_of`.
 
 ### `GET /api/routing/{task_id}`
 
@@ -164,8 +164,8 @@ Approval returns `409` with the blockers while mismatches are unacknowledged or 
 | `GET /api/jobs` | Running and queued jobs in your workspaces. |
 | `DELETE /api/jobs/{job_id}` | Cancel a job you own. |
 | `GET /api/templates` | Active templates and drafts awaiting review. |
-| `POST /api/templates/drafts` | Save a finished task's plan as a template draft: `{"task_id": "...", "name": "optional"}`. |
-| `POST /api/templates/drafts/{name}/approve` | Admin or document owner. Adds the template. |
+| `POST /api/templates/drafts` | Save a finished task's plan as a template draft (stored in `var/templates/drafts`): `{"task_id": "...", "name": "optional"}`. |
+| `POST /api/templates/drafts/{name}/approve` | Admin or document owner. Adds the template to `var/templates`, next to the built-in ones. |
 
 ## Security and audit
 
