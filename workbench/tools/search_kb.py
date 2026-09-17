@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
+from workbench.core.errors import ToolError
 from workbench.core.models import Anchor, TypedValue
 from workbench.core.normalise import find_quantities, norm_date, norm_tag
 from workbench.tools.registry import ToolContext, ToolResult, ToolSpec, obj
@@ -16,7 +17,8 @@ SEARCH_SCHEMA = obj({
     "tags": {"type": "array", "items": {"type": "string"}},
     "doc": {"type": ["string", "null"]},
 }, ["queries"])
-GRAPH_SCHEMA = obj({"tag": {"type": "string", "minLength": 2}, "as_of": {"type": ["string", "null"]}}, ["tag"])
+GRAPH_SCHEMA = obj({"tag": {"type": "string", "minLength": 2}, "doc": {"type": "string", "minLength": 2},
+                    "as_of": {"type": ["string", "null"]}})
 
 
 def _as_of(value: Any, ctx: ToolContext) -> date:
@@ -130,8 +132,41 @@ def search_kb(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
     )
 
 
+def _governed(doc: str, as_of: date, ctx: ToolContext) -> ToolResult:
+    rt = ctx.rt
+    found = rt.kb.governed_equipment(doc, as_of, rt.policy.user(ctx.user), rt.policy.workspace(ctx.workspace),
+                                     rt.policy)
+    if found is None:
+        return ToolResult(ok=True, summary=f"{doc}: no revision in force on {as_of.isoformat()} that you may read",
+                          records=[], body={"records": [], "doc": doc, "classes": {}})
+    chunk, classes = found
+    existing = _existing(ctx, "graph_fact")
+    ids = []
+    for cls, tags in classes.items():
+        key = f"governs {doc} {chunk.revision} {cls}"
+        if key in existing:
+            ids.append(existing[key])
+            continue
+        listed = ", ".join(tags) if tags else "no registered equipment"
+        text = f"Equipment governed by {doc} Rev {chunk.revision} (class {cls.replace('_', ' ')}): {listed}."
+        rec = rt.ledger.add(
+            ctx.task_id, "graph_fact", summary=text, body=text, label=chunk.label,
+            anchor=Anchor(doc=doc, revision=chunk.revision), confidence="high", produced_by=ctx.call_id,
+            fields={**{f"tag[{i}]": TypedValue(kind="tag", raw=t, normalised=norm_tag(t)) for i, t in enumerate(tags)},
+                    "source_key": _key_field(key)},
+        )
+        ids.append(rec.id)
+    total = sum(len(t) for t in classes.values())
+    return ToolResult(ok=True, summary=f"{doc} Rev {chunk.revision} governs {total} tag(s) in {len(classes)} class(es)",
+                      records=ids, body={"records": ids, "doc": doc, "revision": chunk.revision, "classes": classes})
+
+
 def graph_lookup(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
     rt = ctx.rt
+    if args.get("doc"):
+        return _governed(str(args["doc"]), _as_of(args.get("as_of"), ctx), ctx)
+    if not args.get("tag"):
+        raise ToolError("graph_lookup needs a tag or a doc")
     ceiling = rt.policy.retrieval_ceiling(rt.policy.user(ctx.user), rt.policy.workspace(ctx.workspace))
     as_of = _as_of(args.get("as_of"), ctx)
     rows = rt.kb.graph.neighbours(str(args["tag"]), as_of=as_of, ceiling=ceiling)
@@ -145,6 +180,6 @@ def graph_lookup(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
 SPECS = [
     ToolSpec(name="search_kb", description="Hybrid, graph-expanded, revision-aware search of the knowledge base.",
              input_schema=SEARCH_SCHEMA, handler=search_kb, output_type="kb_passages", budget_key="search_kb"),
-    ToolSpec(name="graph_lookup", description="Neighbours of an equipment tag in the plant graph.",
+    ToolSpec(name="graph_lookup", description="Neighbours of an equipment tag, or the equipment a document governs, in the plant graph.",
              input_schema=GRAPH_SCHEMA, handler=graph_lookup, output_type="graph_facts", budget_key="graph_lookup"),
 ]
