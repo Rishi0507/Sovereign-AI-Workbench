@@ -254,6 +254,11 @@ The same model also sorts each new message before planning: one that needs none 
 document work goes to the documents without asking the model, and any router answer that does not clearly say
 otherwise is treated as document work, so a wrong sort cannot silence a real question.
 
+This is a deviation from the PRD rule "no GPU, no model weights". It is opt-in and off by default: `chat_model`
+is empty in `config/settings.yaml`, the tests pin it off, no weights live in the repository, and
+`python scripts/dev.py chat-model` is the only thing that downloads them, once, when a person asks for it. At run
+time the model is reached on loopback only, so the offline rule still holds.
+
 **Why:** The rules gave the same sentence to every greeting, which reads like a script rather than an assistant.
 A 1.5B model on a CPU is good enough for conversation and far too weak for planning or for figures that must be
 traced, so only the conversation was given to it. Code: `workbench/llm/chat_model.py`.
