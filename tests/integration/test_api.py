@@ -21,6 +21,16 @@ OWNER = {"X-User": "owner1"}
 
 @pytest.fixture()
 def api(make_runtime: Callable[..., Runtime]) -> Iterator[tuple[TestClient, Runtime]]:
+    # Every gate is exercised explicitly here; the shortcuts have their own tests below.
+    rt = make_runtime(approvals=QueueApprove(poll_s=0.05), plan_approval_covers_drafts=False)
+    rt.jobs.start()
+    app = create_app(rt, install_guard=False)
+    with TestClient(app) as client:
+        yield client, rt
+
+
+@pytest.fixture()
+def api_default(make_runtime: Callable[..., Runtime]) -> Iterator[tuple[TestClient, Runtime]]:
     rt = make_runtime(approvals=QueueApprove(poll_s=0.05))
     rt.jobs.start()
     app = create_app(rt, install_guard=False)
@@ -95,7 +105,7 @@ def test_trace_a_through_the_api(api: tuple[TestClient, Runtime]) -> None:
     done = wait_for(client, task_id, lambda t: t["status"] == "completed")
     final_id = done["deliverables"][0]["final_file_id"]
     meta = client.get(f"/api/files/{final_id}", headers=ENG).json()
-    assert meta["path"] == "final/approval-note.docx" and meta["label_display"] == "Confidential"
+    assert meta["path"] == f"final/{task_id}/approval-note.docx" and meta["label_display"] == "Confidential"
     download = client.get(f"/api/files/{final_id}/download", headers=ENG)
     assert download.status_code == 200 and download.content[:2] == b"PK"
 
@@ -299,3 +309,34 @@ def test_ui_pages_have_no_external_urls(api: tuple[TestClient, Runtime]) -> None
     tpl_dir = rt.settings.root / "workbench" / "ui" / "templates"
     for tpl in tpl_dir.glob("*.html"):
         assert not re.search(r"""(src|href)=["']https?://""", tpl.read_text(encoding="utf-8")), tpl.name
+
+
+def test_plan_approval_covers_new_drafts(api_default: tuple[TestClient, Runtime]) -> None:
+    client, _rt = api_default
+    resp = client.post("/api/tasks", headers=ENG, json={"workspace": "plant-a", "text": "Summarise this vendor contract",
+                                                         "attachments": ["inputs/vendor_contract.pdf"]})
+    task_id = resp.json()["id"]
+    wait_for(client, task_id, gate_is("plan"))
+    client.post(f"/api/tasks/{task_id}/plan/decision", headers=ENG, json={"decision": "approve"})
+    task = wait_for(client, task_id, gate_is("deliverable"))
+    action = next(g for g in task["gates"] if g["kind"] == "action")
+    assert action["status"] == "approved" and action["decided_by"] == "engineer1"
+    assert action["note"] == "approved with the plan"
+    assert all(d["relpath"].startswith(f"drafts/{task_id}/") for d in task["deliverables"])
+    # A revision overwrites the draft, so it asks again.
+    client.post(f"/api/tasks/{task_id}/draft/decision", headers=ENG,
+                json={"decision": "reject", "note": "Add the payment terms."})
+    task = wait_for(client, task_id, gate_is("action"))
+    assert task["pending_gate"]["payload"]["tool"] == "make_docx"
+
+
+def test_read_only_question_starts_without_a_plan_approval(api_default: tuple[TestClient, Runtime]) -> None:
+    client, rt = api_default
+    resp = client.post("/api/tasks", headers=ENG, json={"workspace": "plant-a",
+                                                         "text": "Which pumps are governed by SOP-MECH-014?"})
+    task_id = resp.json()["id"]
+    task = wait_for(client, task_id, lambda t: t["status"] == "completed")
+    plan_gate = next(g for g in task["gates"] if g["kind"] == "plan")
+    assert plan_gate["decided_by"] == "system" and "read-only" in plan_gate["note"]
+    assert "P-108B" in task["result"]["answer"]["answer"][0]["text"]
+    assert any(e.event["type"] == "gate.plan" and e.event["by"] == "system" for e in rt.audit.entries())
