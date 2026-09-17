@@ -340,3 +340,16 @@ def test_read_only_question_starts_without_a_plan_approval(api_default: tuple[Te
     assert plan_gate["decided_by"] == "system" and "read-only" in plan_gate["note"]
     assert "P-108B" in task["result"]["answer"]["answer"][0]["text"]
     assert any(e.event["type"] == "gate.plan" and e.event["by"] == "system" for e in rt.audit.entries())
+
+
+def test_library_lists_files_and_decisions(api: tuple[TestClient, Runtime]) -> None:
+    client, _rt = api
+    draft = run_to_draft(client, "Draft an approval note for this inspection report", ["inputs/inspection_P108B.pdf"])
+    lib = client.get("/api/library", headers=ENG).json()
+    entry = next(t for t in lib["tasks"] if t["id"] == draft["id"])
+    assert entry["waiting_for"] == "deliverable"
+    assert [f["name"] for f in entry["files"]] == ["approval-note.docx"] and not entry["files"][0]["final"]
+    kinds = [(d["kind"], d["status"], d["by"]) for d in entry["decisions"]]
+    assert ("plan", "approved", "engineer1") in kinds and ("action", "approved", "engineer1") in kinds
+    # A user without access to the workspace sees nothing of it.
+    assert all(t["workspace"] != "plant-a" for t in client.get("/api/library", headers={"X-User": "buyer1"}).json()["tasks"])
