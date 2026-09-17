@@ -278,8 +278,8 @@
   // API
 
   const cache = {
-    get(key) { try { return JSON.parse(sessionStorage.getItem(`wb:${key}`) || "null"); } catch { return null; } },
-    set(key, value) { try { sessionStorage.setItem(`wb:${key}`, JSON.stringify(value)); } catch { /* storage unavailable */ } },
+    get(key) { try { return JSON.parse(sessionStorage.getItem(`wb2:${key}`) || "null"); } catch { return null; } },
+    set(key, value) { try { sessionStorage.setItem(`wb2:${key}`, JSON.stringify(value)); } catch { /* storage unavailable */ } },
   };
 
   const store = {
@@ -408,11 +408,13 @@
     });
     document.addEventListener("click", (e) => { if (!menu.hidden && !menu.contains(e.target)) reveal(menu, false); });
     $$("[data-nav]").forEach((a) => a.classList.toggle("active", a.dataset.nav === page));
-    const cached = cache.get("shell");
-    if (cached && cached.user === USER) {
-      paintIdentity(cached.me);
-      if (cached.tasks) paintRecent(cached.tasks);
-    }
+    // Paint what this tab saw last so the sidebar does not pop in; a bad copy is simply ignored.
+    try {
+      const saved = cache.get("identity");
+      if (saved && saved.user === USER && saved.me && typeof saved.me.name === "string") paintIdentity(saved.me);
+      const recent = cache.get("recent");
+      if (recent && recent.user === USER && Array.isArray(recent.tasks)) paintRecent(recent.tasks);
+    } catch { /* the live data below replaces it anyway */ }
 
     let [users, me, workspaces] = await Promise.all([api("/users"), api("/me").catch(() => null), api("/workspaces").catch(() => null)]);
     shell.users = users;
@@ -431,7 +433,7 @@
     });
     shell.me = me;
     paintIdentity(me);
-    cache.set("shell", { ...(cache.get("shell") || {}), user: USER, me });
+    cache.set("identity", { user: USER, me: { name: me.name } });
 
     shell.workspaces = workspaces;
     const wsSel = $("#ws-select");
@@ -463,7 +465,7 @@
     try { tasks = await api("/tasks"); } catch { return; }
     const slim = tasks.filter((t) => t.user === USER).slice(0, 40)
       .map((t) => ({ id: t.id, text: t.text, status: t.status, created_at: t.created_at, user: t.user }));
-    cache.set("shell", { ...(cache.get("shell") || {}), user: USER, tasks: slim });
+    cache.set("recent", { user: USER, tasks: slim });
     paintRecent(slim);
   }
 

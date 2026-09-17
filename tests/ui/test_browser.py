@@ -122,3 +122,23 @@ def test_library_tabs_slide_and_filter(page: Any) -> None:
     expect(page.locator(".empty-state")).to_contain_text("No documents yet")
     page.locator("#lib-search").fill("nothing matches this")
     expect(page.locator(".empty-state")).to_contain_text("No matching documents")
+
+
+def test_damaged_tab_storage_does_not_break_pages(page: Any) -> None:
+    expect = playwright_api.expect
+    page.goto(page.base + "/")
+    expect(page.locator("#account-name")).to_have_text("Plant engineer")
+    page.evaluate("""() => {
+      sessionStorage.setItem('wb2:identity', JSON.stringify({ user: 'engineer1' }));
+      sessionStorage.setItem('wb2:recent', JSON.stringify({ user: 'engineer1', tasks: 'broken' }));
+      sessionStorage.setItem('wb:shell', JSON.stringify({ user: 'engineer1', tasks: [] }));
+    }""")
+    page.get_by_role("button", name="Summarise a contract").click()
+    page.locator("#task-text").press("Enter")
+    page.wait_for_url("**/t/T*")
+    expect(page.locator(".status-pill")).to_have_text("Needs your approval", timeout=15_000)
+    expect(page.locator("#account-name")).to_have_text("Plant engineer")
+    expect(page.locator("#toasts")).to_have_text("")
+    page.goto(page.base + "/library")
+    expect(page.locator(".wait-card")).to_have_count(0)
+    expect(page.locator("#lib-tabs .seg")).to_be_visible()
