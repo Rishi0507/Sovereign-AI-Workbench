@@ -33,6 +33,9 @@ The implementation follows [`design/IMPLEMENTATION_PRD.md`](design/IMPLEMENTATIO
 | D25 | Deployment | The application runs under systemd, not compose |
 | D26 | Adapters | No optional GPU adapters are shipped |
 | D27 | Tooling | Wider strict typing, conditional race detector |
+| D28 | Agent | Read-only questions start without a plan approval |
+| D29 | Agent | Approving a plan covers its new drafts |
+| D30 | Files | Drafts and final files live in a folder per task |
 
 ---
 
@@ -176,3 +179,20 @@ The implementation follows [`design/IMPLEMENTATION_PRD.md`](design/IMPLEMENTATIO
 
 **Decision:** `mypy --strict` covers `core`, `planning`, `checks` and `router` (the PRD asks only for `core`). `go test -race` runs where cgo and a C compiler exist; on Windows without a C toolchain the task prints a note and runs without `-race`.
 **Why:** The deterministic decision code benefits most from strict types. The race detector requires cgo.
+
+### D28. Read-only questions start without a plan approval
+
+**PRD:** Every plan passes a plan gate.
+**Decision:** With `auto_start_read_only: true` (the default), a valid plan that has no side-effecting step and no deliverable starts immediately. The plan gate is still recorded, with `decided_by: system` and the note "read-only plan: started without a plan approval", and audited like any other decision.
+**Why:** Asking a question and then having to approve "read, search, answer" made simple questions feel slow while protecting nothing: such a plan can only read what the user may already read. Plans that create files still wait for a person. Code: `workbench/agent/loop.py::_plan`.
+
+### D29. Approving a plan covers its new drafts
+
+**PRD:** Side-effecting steps pass an action gate.
+**Decision:** With `plan_approval_covers_drafts: true` (the default), when a person approves a plan, the file-creating steps listed in it run on the first pass without a second prompt. Each is recorded as an approved action gate with the approver's id and the note "approved with the plan". During a revision, which overwrites existing drafts, the action gate appears again. Deliverable review is unchanged: nothing reaches `final/` without it.
+**Why:** The plan view already lists these steps and marks them "creates a file", so the second prompt repeated a decision the user had just made. The design only requires a click for overwrites and for moving to `final/` (design 2.1), and both still need one. The API tests switch the setting off to keep exercising the explicit gate. Code: `workbench/agent/loop.py::_action_gate`.
+
+### D30. A folder per task for drafts and final files
+
+**Decision:** `drafts/<task id>/` and `final/<task id>/` replace the flat `drafts/` and `final/` folders.
+**Why:** With flat folders, two tasks rendering `approval-note.docx` overwrote each other's drafts. Per-task folders make every first render a new file, which is also what makes D29 safe. Code: `workbench/workspace.py::write_draft`.

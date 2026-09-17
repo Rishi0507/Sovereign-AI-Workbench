@@ -118,7 +118,7 @@ sequenceDiagram
     loop Every plan step
         O->>M: Decide tool arguments (records quoted, never obeyed)
         M-->>O: JSON tool call, schema-checked
-        alt Side effect
+        alt Side effect not covered by the plan approval
             O-->>UI: Action gate
             E->>UI: Approve action
         end

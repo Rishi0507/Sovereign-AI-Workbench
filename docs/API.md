@@ -47,7 +47,7 @@ Create a task and queue it.
 }
 ```
 
-`meta` accepts only `report_date`, `equipment_tag` and `templates_disabled` (plan without templates). Returns `201` with the task view.
+`meta` accepts only `report_date`, `equipment_tag` and `templates_disabled` (plan without templates). Returns `201` with the task view. A read-only question (no side effects, no file) starts without a plan gate when `auto_start_read_only` is on.
 
 ### `GET /api/tasks`
 
@@ -86,7 +86,7 @@ Answer a template-choice gate: `{"template": "approval_note_from_scan"}`.
 
 ### `POST /api/tasks/{task_id}/actions/{gate_id}/decision`
 
-Approve or deny a side-effecting step: `{"approve": true, "note": "optional"}`. A denied action is recorded and the loop continues without it.
+Approve or deny a side-effecting step: `{"approve": true, "note": "optional"}`. A denied action is recorded and the loop continues without it. With `plan_approval_covers_drafts` (the default), this gate only appears for steps the plan approval does not cover, such as re-rendering a file during a revision; covered steps show up in `gates` with `decided_by` set to the plan approver and the note "approved with the plan".
 
 ### `POST /api/tasks/{task_id}/followup`
 

@@ -75,7 +75,7 @@ The fixture `inspection_P101A_injected.pdf` carries an inspector remark aimed at
 1. **The plan is fixed first.** The plan is compiled from the user's request and a template before any document text is read, and the engineer approves it. Injected text cannot add steps.
 2. **Data is quoted.** Document text reaches a model only inside `<record>` blocks, escaped so that it cannot close its own block. The system prompt states that only the request and the plan are instructions.
 3. **Arguments are checked.** The step prompt shows the plan's arguments, not values resolved from documents. A tool call must match the step's tool and its schema.
-4. **Side effects are gated.** Every side-effecting tool needs an action approval showing the exact arguments.
+4. **Side effects are gated.** A side-effecting step runs only if a person approved it: either explicitly, or by approving the plan that lists it (first pass only; overwrites always ask). Injected text cannot add such a step, because the plan is fixed before any document is read.
 5. **The same holds for the vision model.** VLM prompts also receive OCR text only as quoted records.
 6. **Nothing can leave anyway.** There is no tool that sends mail or opens a network connection.
 

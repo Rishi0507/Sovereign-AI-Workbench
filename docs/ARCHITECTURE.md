@@ -189,6 +189,8 @@ flowchart TD
 
 **Revisions.** When a reviewer sends a draft back, the note becomes a `user_input` record and the loop re-runs from the drafting step, keeping the evidence it already has.
 
+**When a gate is skipped.** Two settings shorten the path without removing control. With `auto_start_read_only`, a plan that has no side effects and produces no file (a question) starts at once; its plan gate is recorded as decided by `system`. With `plan_approval_covers_drafts`, the person who approves a plan also approves its file-creating steps on the first pass, recorded as "approved with the plan"; a revision overwrites files and therefore asks again. The deliverable review is never skipped.
+
 **Incomplete drafts.** If the drafting model still produces an invalid note after its retries, the renderer writes a skeleton with an explicit "incomplete" list instead of inventing content.
 
 ## 5. Routing
@@ -449,7 +451,7 @@ In **enforced** mode `egressd` refuses to start unless the nftables table exists
 |---|---|
 | `var/workbench.db` (SQLite, SQLAlchemy Core) | Ledger records, task states, gates, files and labels, downgrade requests, plant graph, model outcomes. |
 | `var/audit.jsonl` | Hash-chained audit log; `workbench audit verify` recomputes the chain. |
-| `var/workspaces/<ws>/{inputs,drafts,final}` | Files. Each file's label is stored in a `.label.json` sidecar and in the database. |
+| `var/workspaces/<ws>/inputs`, `drafts/<task>`, `final/<task>` | Files. Drafts and final files sit in a folder per task. Each file's label is stored in a `.label.json` sidecar and in the database. |
 | `var/workspaces/_jobs/<task>/` | Sandbox job folders: the script, its inputs and whatever it wrote. |
 | `var/evidence/<task>/` | Crops of critical fields for the review page. |
 | `var/kb/` | Chunks (JSONL) and the vector store. |
