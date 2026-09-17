@@ -62,7 +62,10 @@ flowchart LR
         H[heuristic<br/>deterministic rules<br/>over ledger records]
         S[scripted<br/>YAML responses,<br/>heuristic fallback]
         O[openai<br/>vLLM or any<br/>OpenAI-compatible server<br/>on loopback]
+        C[WB_CHAT_MODEL<br/>small instruct model<br/>writes chat replies]
     end
+    H --> C
+    S --> C
     subgraph SBX["WB_SANDBOX"]
         FS[fake<br/>subprocess in-process]
         GS[sandboxd<br/>dev or docker backend]
@@ -75,6 +78,14 @@ flowchart LR
 
 - **heuristic** is the default. It implements every model purpose (routing, planning, extraction, drafting, summarising, answering, code) with rules over the records the orchestrator passes it, so the agent loop, checks and UI behave as they would with real models. It deliberately fails the first plan for Trace E and the first script for Trace B, so the repair and fix loops run.
 - **scripted** replays `fixtures/scripts/<name>.yaml` (`WB_SCRIPTED_SCRIPT=<name>`) to drive failure paths, and falls back to the heuristic backend for unmatched calls.
+- **chat model** is optional and independent of the choice above. Setting `WB_CHAT_MODEL` (for example
+  `qwen2.5-1.5b-instruct`) sends only `chat.reply` requests to an instruct model on `WB_CHAT_ENDPOINT`, so
+  greetings and follow-up questions read naturally while plans, tools, documents and checks stay deterministic.
+  The suggestion buttons are still built from the workspace files the user may read, so the model cannot invent
+  a file or a path, and if the model server is unreachable the deterministic reply is used and marked in the UI.
+  `python scripts/dev.py chat-model` downloads llama.cpp and Qwen2.5-1.5B-Instruct once into `models/`
+  (or `WB_MODELS_DIR`) and serves them on `127.0.0.1:8010`. On a two-core laptop a reply takes about three to
+  six seconds.
 - **openai** talks to the endpoints in `config/models.yaml`. The OpenAI-compatible client refuses endpoints that are neither loopback nor on the egress allowlist.
 
 To run the real daemons locally:

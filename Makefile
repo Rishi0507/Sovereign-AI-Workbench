@@ -1,7 +1,7 @@
 # Thin wrapper around scripts/dev.py so the same targets work on Linux, macOS and Windows.
 PYTHON ?= python
 
-.PHONY: setup fixtures test lint demo serve eval render-serve go-build go-test go-lint go-integration clean
+.PHONY: setup fixtures test lint demo serve chat-model eval render-serve go-build go-test go-lint go-integration clean
 
 setup:
 	$(PYTHON) scripts/dev.py setup
@@ -20,6 +20,9 @@ demo:
 
 serve:
 	$(PYTHON) scripts/dev.py serve
+
+chat-model:
+	$(PYTHON) scripts/dev.py chat-model
 
 eval:
 	$(PYTHON) scripts/dev.py eval

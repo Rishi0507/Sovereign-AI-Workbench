@@ -171,7 +171,7 @@ Approval returns `409` with the blockers while mismatches are unacknowledged or 
 
 | Endpoint | Purpose |
 |---|---|
-| `GET /api/health` | `ok` or `degraded`, with the state of `sandboxd`, `egressd` and the in-process egress guard. |
+| `GET /api/health` | `ok` or `degraded`, with the state of `sandboxd`, `egressd` and the in-process egress guard, the model backend and the chat model (`chat_model` is `null` when replies come from the rules). |
 | `GET /api/me`, `GET /api/users` | The current user; the development user list. |
 | `GET /api/egress` | Counters: external connections, blocked packets, blocked connects from the host and the sandbox, monitor mode, breach flag. |
 | `POST /api/egress/test` | Run the three-part egress test (host raw IP, host DNS, sandbox socket). |

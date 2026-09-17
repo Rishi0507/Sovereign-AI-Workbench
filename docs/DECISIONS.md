@@ -238,3 +238,17 @@ The implementation follows [`design/IMPLEMENTATION_PRD.md`](design/IMPLEMENTATIO
 
 **Decision:** Built-in templates stay in `templates/`. Drafts saved from tasks go to `var/templates/drafts` and approved templates to `var/templates`; the library loads both.
 **Why:** Promoting a plan from the interface used to write into the source tree, so a server's own templates showed up as uncommitted code changes and changed the test fixtures.
+
+### D38. A local model writes the conversational replies
+
+**Decision:** `WB_CHAT_MODEL` names a small instruct model on `WB_CHAT_ENDPOINT` (loopback). `ConversationalBackend`
+sends it only `chat.reply` requests, with a short instruction, the kind of message it is answering, and the earlier
+turns when the message depends on them. Everything else, including plans, extraction, drafting, summaries and
+checks, stays with the deterministic backend. The reply text comes from the model; the suggestion buttons keep
+coming from the workspace files the user may read. Questions about the outside world, such as the weather, are
+answered with a plain statement that the workbench cannot know them rather than with a document search. If the
+model server is unreachable, the deterministic reply is used and the interface says so.
+
+**Why:** The rules gave the same sentence to every greeting, which reads like a script rather than an assistant.
+A 1.5B model on a CPU is good enough for conversation and far too weak for planning or for figures that must be
+traced, so only the conversation was given to it. Code: `workbench/llm/chat_model.py`.

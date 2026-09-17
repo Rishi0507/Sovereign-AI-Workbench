@@ -25,6 +25,7 @@ secret*
 
 # Runtime state
 var/
+models/
 run/
 bin/
 reports/

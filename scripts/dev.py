@@ -2,7 +2,7 @@
 
 Usage: python scripts/dev.py <task>
 
-Tasks: setup, fixtures, test, lint, demo, serve, eval, render-serve,
+Tasks: setup, fixtures, test, lint, demo, serve, chat-model, eval, render-serve,
        go-build, go-test, go-lint, go-integration, clean
 """
 
@@ -10,11 +10,13 @@ from __future__ import annotations
 
 import json
 import os
+import platform
 import shutil
 import subprocess
 import sys
 import tempfile
 import time
+import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -79,6 +81,51 @@ def task_demo() -> None:
 
 def task_serve() -> None:
     workbench("serve")
+
+
+LLAMA_BUILD = "b11026"
+CHAT_MODEL_URL = ("https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/"
+                  "qwen2.5-1.5b-instruct-q4_k_m.gguf")
+
+
+def llama_asset() -> str:
+    machine = platform.machine().lower()
+    arch = "arm64" if machine in {"arm64", "aarch64"} else "x64"
+    if os.name == "nt":
+        return f"llama-{LLAMA_BUILD}-bin-win-cpu-{arch}.zip"
+    system = "macos" if sys.platform == "darwin" else "ubuntu"
+    return f"llama-{LLAMA_BUILD}-bin-{system}-{arch}.tar.gz"
+
+
+def download(url: str, dest: Path) -> None:
+    print(f"downloading {url}", flush=True)
+    part = dest.with_suffix(dest.suffix + ".part")
+    with urllib.request.urlopen(url) as resp, part.open("wb") as out:
+        shutil.copyfileobj(resp, out, 1 << 20)
+    part.replace(dest)
+
+
+def task_chat_model() -> None:
+    """Fetch llama.cpp and Qwen2.5-1.5B-Instruct once, then serve it on 127.0.0.1:8010."""
+    home = Path(os.environ.get("WB_MODELS_DIR", ROOT / "models"))
+    server_dir = home / f"llama.cpp-{LLAMA_BUILD}"
+    model = home / "qwen2.5-1.5b-instruct-q4_k_m.gguf"
+    home.mkdir(parents=True, exist_ok=True)
+    found = list(server_dir.rglob(f"llama-server{EXE}")) if server_dir.is_dir() else []
+    if not found:
+        archive = home / llama_asset()
+        download(f"https://github.com/ggml-org/llama.cpp/releases/download/{LLAMA_BUILD}/{archive.name}", archive)
+        shutil.unpack_archive(archive, server_dir)
+        archive.unlink()
+        found = list(server_dir.rglob(f"llama-server{EXE}"))
+    if not model.is_file():
+        download(CHAT_MODEL_URL, model)
+    server = found[0]
+    if os.name != "nt":
+        server.chmod(0o755)
+    threads = str(max(1, os.cpu_count() or 1))
+    run([str(server), "--model", str(model), "--alias", "qwen2.5-1.5b-instruct", "--host", "127.0.0.1",
+         "--port", "8010", "--ctx-size", "4096", "--threads", threads, "--parallel", "1"], cwd=server.parent)
 
 
 def task_eval() -> None:

@@ -204,7 +204,20 @@ workbench serve                   # http://127.0.0.1:8080
 
 Open <http://127.0.0.1:8080> and click **Draft an approval note**. The request and the matching scanned report are filled in; press Enter, then **Start** on the plan.
 
-### 4. Run everything headless
+### 4. Optional: let a real model write the replies
+
+Greetings and follow-up questions can be written by a small instruct model that runs on this machine. In a
+second terminal:
+
+```bash
+python scripts/dev.py chat-model   # downloads llama.cpp and Qwen2.5-1.5B-Instruct once, then serves them
+```
+
+Then set `WB_CHAT_MODEL=qwen2.5-1.5b-instruct` in `.env` and restart `workbench serve`. Plans, documents,
+figures and checks stay deterministic; only the conversation goes to the model, and nothing leaves the machine.
+Without this the replies come from rules, which is the default.
+
+### 5. Run everything headless
 
 ```bash
 workbench demo                   # Traces A to E with automatic approvals
@@ -267,7 +280,7 @@ All configuration lives in plain files under [`config/`](config), and every top-
 | `rules/consistency/*.yaml` | Consistency rules applied to every deliverable. |
 | `schemas/*.json` | JSON Schemas for every structured model output. |
 
-The workbench needs no API keys. To use real models, start vLLM on loopback with the commands from `workbench registry render-serve` and set `WB_LLM_BACKEND=openai`.
+The workbench needs no API keys. To use real models, start vLLM on loopback with the commands from `workbench registry render-serve` and set `WB_LLM_BACKEND=openai`. To keep the deterministic pipeline but let a local model write the conversational replies, set `WB_CHAT_MODEL` (and `WB_CHAT_ENDPOINT` if it is not on `127.0.0.1:8010`).
 
 ## Repository layout
 
@@ -321,7 +334,7 @@ The layer is complete, but a laptop has no GPU, no container runtime and no fire
 
 | Stand-in | Replaces | Where |
 |---|---|---|
-| `HeuristicBackend` | The LLM and VLM calls. It is deterministic, reads only the records it is given, and deliberately fails the first Trace E plan and the first Trace B script so the repair paths run. | `workbench/llm/heuristic.py` |
+| `HeuristicBackend` | The LLM and VLM calls, unless a real model is configured. Setting `WB_CHAT_MODEL` gives the conversational replies to a small local instruct model (`python scripts/dev.py chat-model`); plans, documents and checks stay with the rules below. It is deterministic, reads only the records it is given, and deliberately fails the first Trace E plan and the first Trace B script so the repair paths run. | `workbench/llm/heuristic.py` |
 | OCR sidecars (`*.ocr.json`) | PaddleOCR output for scanned fixtures. Text PDFs are read for real with PyMuPDF. | `workbench/documents/readers.py` |
 | `FakeSandbox`, `FakeEgressd` | The Go daemons, when `WB_SANDBOX=fake` / `WB_EGRESS=fake`. | `workbench/tools/sandbox.py`, `workbench/security/egressd_client.py` |
 | `dev` sandbox backend | Docker. Scripts run as a subprocess with a network probe; isolation is only real with the `docker` backend. | `go/internal/sandbox/dev.go` |
