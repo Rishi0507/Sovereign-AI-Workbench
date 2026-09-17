@@ -36,6 +36,8 @@ The implementation follows [`design/IMPLEMENTATION_PRD.md`](design/IMPLEMENTATIO
 | D28 | Agent | Read-only questions start without a plan approval |
 | D29 | Agent | Approving a plan covers its new drafts |
 | D30 | Files | Drafts and final files live in a folder per task |
+| D31 | UI | Inter is bundled as a local font |
+| D32 | API | Tasks carry a revision counter for change detection |
 
 ---
 
@@ -196,3 +198,13 @@ The implementation follows [`design/IMPLEMENTATION_PRD.md`](design/IMPLEMENTATIO
 
 **Decision:** `drafts/<task id>/` and `final/<task id>/` replace the flat `drafts/` and `final/` folders.
 **Why:** With flat folders, two tasks rendering `approval-note.docx` overwrote each other's drafts. Per-task folders make every first render a new file, which is also what makes D29 safe. Code: `workbench/workspace.py::write_draft`.
+
+### D31. Inter is bundled as a local font
+
+**Decision:** The UI ships the Latin subset of the Inter variable font (`workbench/ui/static/fonts/inter-latin.woff2`, 48 KB) with its SIL Open Font License (`OFL.txt` next to it), and falls back to the system font stack.
+**Why:** The workbench cannot load web fonts from the internet, and system fonts differ widely between the Windows and Linux machines that open it. The Content-Security-Policy still allows only same-origin assets.
+
+### D32. A revision counter for change detection
+
+**Decision:** Every task carries `revision_no`, which increases on every save (the store takes the highest known value, so a stale copy saved later still moves it forward). The UI redraws when it changes.
+**Why:** `updated_at` has one-second resolution. A task that moved through several steps within the same second looked unchanged to the page, which then stayed on "working" until it was reloaded. Code: `workbench/agent/state.py::TaskStore.save`.
