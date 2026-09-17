@@ -132,6 +132,7 @@ flowchart TB
 | Property tests (`hypothesis`) cover tag and unit normalisation, date parsing and the label algebra. | The rules hold for inputs nobody thought of. |
 | `WB_GO_BINARIES=1` switches the contract tests to the real daemons. | The Python fakes cannot drift from the Go behaviour. |
 | `tests/unit/test_repo_hygiene.py` scans text files for em dashes and checks `app.js` with `node --check`. | Keeps the documentation style and catches UI syntax errors that no Python test would see. |
+| `tests/ui` drives the real interface in Chrome through Playwright: a task from the home page to approval, the Details panel, and the Library tabs, including that the tab highlight slides and that updates patch the page in place. | Interaction bugs (a page that stops updating, a tab that does not switch) only show up in a browser. The tests skip themselves when Playwright or Chrome is missing; install Playwright with `pip install playwright`, no browser download is needed. |
 
 Useful selections:
 

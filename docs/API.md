@@ -2,7 +2,7 @@
 
 The workbench exposes a JSON API under `/api`, served by FastAPI on `127.0.0.1:8080` (TLS for the plant LAN is terminated by nginx, see [DEPLOYMENT.md](DEPLOYMENT.md)). The UI uses nothing else, so everything the UI can do can be scripted. The two host daemons expose small HTTP APIs of their own over Unix sockets.
 
-Interactive OpenAPI documentation is available at `http://127.0.0.1:8080/docs` while the server runs.
+Interactive OpenAPI documentation is available at `http://127.0.0.1:8080/api/docs` while the server runs.
 
 ## Contents
 
@@ -178,6 +178,28 @@ Approval returns `409` with the blockers while mismatches are unacknowledged or 
 | `GET /api/egress/events?since=&limit=` | Recent blocked attempts. |
 | `GET /api/audit/verify` | Recompute the audit hash chain: `{ok, entries, latest_hash, broken_at}`. |
 | `GET /api/audit/tail?n=40` | Security officer, admin or document owner. The latest audit entries. |
+
+## Library
+
+### `GET /api/library?workspace=`
+
+Every task the caller may see, newest first, with what it produced and what was decided:
+
+```json
+{"tasks": [{
+  "id": "T4E7E556B", "text": "Draft an approval note for this inspection report",
+  "workspace": "plant-a", "workspace_title": "Plant A · Mechanical integrity", "user": "engineer1",
+  "status": "awaiting_deliverable", "created_at": "...", "updated_at": "...", "label_display": "Confidential",
+  "files": [{"id": "F...", "name": "approval-note.docx", "path": "drafts/T4E7E556B/approval-note.docx",
+             "final": false, "status": "draft", "size": 39512, "label_display": "Confidential"}],
+  "decisions": [{"kind": "plan", "title": "Plan", "status": "approved", "by": "engineer1", "at": "...", "note": null},
+                {"kind": "action", "title": "Create the Word document", "status": "approved",
+                 "by": "engineer1", "note": "approved with the plan"}],
+  "waiting_for": "deliverable"
+}]}
+```
+
+Tasks in workspaces the caller cannot access, or above the caller's clearance, are left out. The Library page combines this with `GET /api/downgrades`.
 
 ## Knowledge base
 

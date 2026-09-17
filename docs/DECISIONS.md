@@ -38,6 +38,7 @@ The implementation follows [`design/IMPLEMENTATION_PRD.md`](design/IMPLEMENTATIO
 | D30 | Files | Drafts and final files live in a folder per task |
 | D31 | UI | Inter is bundled as a local font |
 | D32 | API | Tasks carry a revision counter for change detection |
+| D33 | UI | Pages update in place instead of being rebuilt |
 
 ---
 
@@ -208,3 +209,9 @@ The implementation follows [`design/IMPLEMENTATION_PRD.md`](design/IMPLEMENTATIO
 
 **Decision:** Every task carries `revision_no`, which increases on every save (the store takes the highest known value, so a stale copy saved later still moves it forward). The UI redraws when it changes.
 **Why:** `updated_at` has one-second resolution. A task that moved through several steps within the same second looked unchanged to the page, which then stayed on "working" until it was reloaded. Code: `workbench/agent/state.py::TaskStore.save`.
+
+### D33. Pages update in place
+
+**Decision:** The interface keeps a small in-place updater (`fill` in `app.js`): a new render is compared with what is on screen, matching elements are patched (text, attributes, handlers), keyed rows are moved rather than recreated, and only genuinely new elements animate in. Height changes animate, tab bars and panels that own their own state are marked `data-keep`, and text the user is typing is never overwritten.
+**Why:** Replacing whole sections on every poll made the page flicker, collapsed open sections and reset scroll positions. A framework would need a build step and third-party code, which the air-gapped design avoids. The browser tests check that the conversation element survives a whole task run.
+

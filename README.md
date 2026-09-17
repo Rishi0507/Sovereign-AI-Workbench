@@ -220,12 +220,15 @@ The interface is deliberately plain: a sidebar with your recent tasks, one box t
 | Screen | What you do there |
 |---|---|
 | **Home** | Type a request, attach files with the paperclip (or upload new ones), or pick a suggestion. |
+| **Library** | Every generated file grouped by task and day, every decision in a timeline, and everything waiting on you. Search across all of it and filter documents by type. |
 | **Task** | Approve, edit or cancel the plan, allow file-creating steps, follow progress, read answers with numbered sources, download files. **Details** opens the technical record: activity log, evidence, model choice and checks. |
 | **Review** | Read the draft, click any figure or source number to see where it came from, mark issues as reviewed, fix figures without a source, then approve or request changes. |
 | **Models** | See which models are ready, asleep or being evaluated, and how well each does per kind of work. |
 | **Security** | See that nothing has left the server, run a network test, check the audit log and handle approval requests. |
 
-The account menu (bottom left) switches the signed-in user in development and links to Models and Security. The top bar shows the classification of the open task and the network status. The interface follows the system light or dark theme and works on phone screens.
+The account menu (bottom left) switches the signed-in user in development and links to Models and Security. The top bar shows the classification of the open task and the network status. The interface follows the system light or dark theme, works on phone screens, and animates every change (tabs slide, panels glide, lists update in place) so nothing jumps.
+
+![Library](docs/images/library.png)
 
 ![Dark theme](docs/images/home-dark.png)
 
@@ -301,6 +304,7 @@ python scripts/dev.py lint            # ruff and strict mypy on the core package
 python scripts/dev.py go-test         # Go unit tests with coverage
 python scripts/dev.py go-lint         # gofmt, go vet, no third-party modules
 python scripts/dev.py go-integration  # builds both daemons and runs the contract tests against them
+python -m pytest tests/ui             # optional: drives the interface in Chrome (needs Playwright)
 ```
 
 - Tests run with network access blocked (`pytest-socket`); only loopback is allowed.
