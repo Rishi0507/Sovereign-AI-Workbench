@@ -16,7 +16,7 @@ from workbench.kb.bm25 import BM25Index
 from workbench.kb.chunking import Chunk, chunk_markdown, chunk_pages
 from workbench.kb.clause_diff import ClauseDiff, diff_revisions
 from workbench.kb.embed import Embedder, HashingEmbedder
-from workbench.kb.graph import Node, PlantGraph
+from workbench.kb.graph import Node, PlantGraph, node_id
 from workbench.kb.rerank import LexicalReranker, Reranker
 from workbench.kb.revisions import RevisionIndex, RevisionInfo
 from workbench.kb.store import SimpleVectorStore
@@ -151,6 +151,26 @@ class KnowledgeBase:
         if prev is None:
             return []
         return diff_revisions(self.chunks_of(doc_number, prev.revision), self.chunks_of(doc_number, revision))
+
+    def governed_equipment(self, doc_number: str, as_of: date, user: User, workspace: Workspace,
+                           policy: PolicyEngine) -> tuple[Chunk, dict[str, list[str]]] | None:
+        """Equipment classes and tags governed by the revision of ``doc_number`` in force on ``as_of``.
+
+        Returns the first chunk of that revision (for its anchor and label) and ``{class: [tags]}``,
+        or ``None`` when the document is unknown or the user may not see it."""
+        with self._lock:
+            ceiling = policy.retrieval_ceiling(user, workspace)
+            revision = self.revisions.in_force(doc_number, as_of)
+            chunks = [c for c in self.chunks_of(doc_number, revision)
+                      if self._allowed(c, user, workspace, ceiling, as_of, policy) is None]
+            if not chunks:
+                return None
+            out: dict[str, list[str]] = {}
+            for cls in sorted({cls for c in chunks for cls in c.applies_to_classes}):
+                tags = [t for t in self.graph.tags_of_class(cls)
+                        if (n := self.graph.node(node_id("tag", t))) is not None and ceiling.dominates(n.label)]
+                out[cls] = tags
+            return chunks[0], out
 
     def _allowed(self, c: Chunk, user: User, workspace: Workspace, ceiling: Label, as_of: date,
                  policy: PolicyEngine) -> str | None:

@@ -14,7 +14,9 @@ compiler rejects it and ``plan.repair`` fixes it from the error text), and the f
 from __future__ import annotations
 
 import difflib
+import itertools
 import json
+import math
 import re
 from typing import Any
 
@@ -27,6 +29,7 @@ from workbench.core.normalise import (
     norm_tag,
     tokens,
 )
+from workbench.documents.readers import TEXT_EXTS
 from workbench.kb.rerank import LexicalReranker
 from workbench.llm.base import LLMRequest, LLMResponse, last_user
 
@@ -43,6 +46,9 @@ GENERAL_VERBS = re.compile(r"\b(draft|write|prepare|create|turn|translate|search
 KEY_TERMS = ("price", "payment", "deliver", "warranty", "liquidated", "damages", "guarantee", "terminat",
              "force majeure", "confidential", "arbitration", "governing", "insur", "spares", "security",
              "tax", "training", "inspection", "scope")
+GOVERNED_Q = re.compile(r"\b(?:govern(?:ed|s)?|appl(?:y|ies))\b.*?\b(?P<doc>[A-Z]{2,}(?:-[A-Z0-9]+){1,3})\b")
+QUESTION_FILLER = frozenset({"what", "which", "who", "when", "where", "how", "why", "does", "do", "did", "say",
+                             "says", "about", "tell", "me", "please", "there", "any"})
 SIGNAL = re.compile(r"\d|shall|must|liable|warrant|payable", re.I)
 
 
@@ -51,8 +57,40 @@ def _json(obj: Any) -> LLMResponse:
 
 
 def _sentences(text: str) -> list[str]:
-    flat = " ".join(text.split())
-    return [s.strip() for s in re.split(r"(?<=[.;])\s+(?=[A-Z])", flat) if s.strip()]
+    """Sentences of a passage; markdown headings and table rows are not prose and are dropped."""
+    lines = []
+    for ln in text.splitlines():
+        if ln.lstrip().startswith(("#", "|")):
+            continue
+        # a short title line is its own paragraph, so it does not run into the first sentence
+        lines += ["", ln, ""] if _is_heading(ln) else [ln]
+    out = []
+    for para in re.split(r"\n\s*\n", "\n".join(lines)):
+        flat = " ".join(para.split())
+        out += [s.strip() for s in re.split(r"(?<=[.;])\s+(?=[A-Z])", flat) if s.strip()]
+    return out
+
+
+def _is_heading(line: str) -> bool:
+    """A short line without a closing full stop, such as ``7. Warranty`` or ``CONFIDENTIAL``."""
+    words = line.split()
+    return 0 < len(words) <= 6 and not line.rstrip().endswith((".", ";", ",")) and ":" not in line
+
+
+def _table_facts(text: str) -> list[str]:
+    """Markdown table rows as short statements: ``| Design pressure | P | 4.5 MPa |`` gives
+    ``Design pressure (P) is 4.5 MPa.``"""
+    out = []
+    for line in text.splitlines():
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) < 2 or not line.lstrip().startswith("|") or set("".join(cells)) <= set("-: "):
+            continue
+        name, value = cells[0], cells[-1]
+        if not re.search(r"\d", value):
+            continue
+        middle = f" ({cells[1]})" if len(cells) == 3 and cells[1] else ""
+        out.append(f"{name}{middle} is {value}.")
+    return out
 
 
 def _cite(text: str, *ids: str | None) -> str:
@@ -68,6 +106,78 @@ def _cite(text: str, *ids: str | None) -> str:
 
 def _fmt(v: float) -> str:
     return f"{v:g}" if abs(v - round(v, 1)) > 1e-9 else f"{v:.1f}"
+
+
+def rank_statements(question: str, recs: list[LedgerRecord]) -> list[tuple[float, str, LedgerRecord]]:
+    """Score every sentence and table fact of ``recs`` against ``question``, best first.
+
+    Terms are weighted by inverse frequency across the candidate statements, so words that occur
+    everywhere (``contract`` in a contract) count for little; boilerplate repeated in three or more
+    passages is demoted; a named equipment tag, a matching section heading and the user's own
+    attachment each raise a statement.
+    """
+    q_list = [t for t in tokens(question) if t not in QUESTION_FILLER]
+    q_tags = {norm_tag(t) for t in find_tags(question)}
+    phrases = [f"{a} {b}" for a, b in itertools.pairwise(q_list)]
+    units: dict[str, list[tuple[str | None, str]]] = {}
+    for r in recs:
+        if r.kind == "graph_fact":
+            units[r.id] = [(None, r.summary)]
+            continue
+        units[r.id] = [(head, u) for head, body in _sections(r.body_text())
+                       for u in [*_sentences(body), *_table_facts(body)]
+                       if len(u.split()) >= 3 and not _is_heading(u)]
+    all_units = [u for us in units.values() for _h, u in us]
+    spread: dict[str, int] = {}
+    for us in units.values():
+        for u in {u for _h, u in us}:
+            spread[u] = spread.get(u, 0) + 1
+    common = [u for u, n in spread.items() if n >= 3 and len(u) >= 30]
+    df = {t: sum(1 for u in all_units if t in set(tokens(u))) for t in set(q_list)}
+    weight = {t: math.log(1 + (len(all_units) + 1) / (df[t] + 1)) for t in df}
+    total = sum(weight.values()) or 1.0
+    out: list[tuple[float, str, LedgerRecord]] = []
+    for r in recs:
+        own = 0.15 if r.kind == "ocr_text" else 0.0
+        for heading, sent in units[r.id]:
+            context = set(tokens(heading)) if heading and "continued" not in heading.lower() else set()
+            words = set(tokens(sent))
+            low = sent.lower()
+            score = sum(weight[t] for t in weight if t in words or t in context) / total
+            if any(c in sent for c in common):
+                score -= 0.4
+            if re.search(r"\d", sent):
+                score += 0.1
+            if len(sent.split()) <= 25:
+                score += 0.05
+            if any(p in low for p in phrases):
+                score += 0.1
+            text = sent
+            if heading and context & set(weight):
+                score += 0.1  # the section is about what the question asks
+                if heading.lower() not in low:
+                    text = f"{heading.rstrip('.:')}: {sent}"
+            if q_tags:
+                # a question about named equipment is answered by statements about that equipment
+                if q_tags & {norm_tag(t) for t in find_tags(sent)}:
+                    score += 0.3
+                else:
+                    score *= 0.5
+            out.append((score + own, text, r))
+    out.sort(key=lambda x: (-x[0], x[2].seq))
+    return out
+
+
+def _sections(text: str) -> list[tuple[str | None, str]]:
+    """Split a passage at markdown or numbered title lines into ``(heading, body)`` pairs."""
+    out: list[tuple[str | None, list[str]]] = [(None, [])]
+    for line in text.splitlines():
+        title = line.strip().lstrip("#").strip()
+        if line.lstrip().startswith("#") or (_is_heading(title) and re.match(r"^\d+(\.\d+)*\.?\s+\w", title)):
+            out.append((title, []))
+        else:
+            out[-1][1].append(line)
+    return [(head, "\n".join(body)) for head, body in out if any(b.strip() for b in body)]
 
 
 class HeuristicBackend:
@@ -181,15 +291,27 @@ class HeuristicBackend:
             return _json({"goal": text, "steps": steps,
                           "deliverables": [{"type": "xlsx"}, {"type": "docx"}]})
         if req.meta.get("parent_id") or (QUESTION_WORDS.search(text) and not SUMMARY_WORDS.search(text)):
-            doc = docs[0].rsplit("/", 1)[-1] if docs else None
+            governed = GOVERNED_Q.search(text)
+            if governed and not atts:
+                steps = [
+                    s("graph", "graph_lookup", args={"doc": governed.group("doc")}, out="graph_facts",
+                      title="Look up the equipment the document governs"),
+                    s("answer", task="answer_question", inputs=[("step", "graph")], out="answer",
+                      title="Answer with citations"),
+                ]
+                return _json({"goal": text, "steps": steps, "deliverables": []})
+            readable = docs or [a for a in atts if a.lower().endswith(tuple(TEXT_EXTS))]
+            doc = readable[0].rsplit("/", 1)[-1] if readable else None
             steps = []
-            if docs:
-                steps.append(s("read", "read_document", inputs=[("attachment", docs[0])], out="document",
-                               title="Read the document"))
+            refs = []
+            if readable:
+                steps.append(s("read", "read_document", inputs=[("attachment", a) for a in readable],
+                               out="document", title="Read the attachment"))
+                refs = [("step", "read")]
             steps += [
                 s("search", "search_kb", args={"queries": [text], "top_k": 6, "doc": doc},
-                  inputs=[("step", "read")] if docs else [], out="kb_passages", title="Find the relevant passages"),
-                s("answer", task="answer_question", inputs=[("step", "search")], out="answer",
+                  inputs=refs, out="kb_passages", title="Find the relevant passages"),
+                s("answer", task="answer_question", inputs=[("step", "search"), *refs], out="answer",
                   title="Answer with citations"),
             ]
             return _json({"goal": text, "steps": steps, "deliverables": []})
@@ -562,15 +684,13 @@ class HeuristicBackend:
     def _answer_question(self, req: LLMRequest) -> LLMResponse:
         question = str(req.meta.get("task_text") or last_user(req))
         recs = [r for r in self._records(req) if r.kind in {"kb_chunk", "ocr_text", "graph_fact"}]
-        scored: list[tuple[float, str, LedgerRecord]] = []
-        q_terms = set(tokens(question))
-        for r in recs:
-            for sent in _sentences(r.body_text()):
-                overlap = len(q_terms & set(tokens(sent))) / (len(q_terms) or 1)
-                bonus = 0.1 if re.search(r"\d", sent) else 0.0
-                scored.append((overlap + bonus, sent, r))
-        scored.sort(key=lambda x: (-x[0], x[2].seq))
-        best = [x for x in scored if x[0] >= 0.25][:2]
+        ranked = rank_statements(question, recs)
+        best: list[tuple[float, str, LedgerRecord]] = []
+        for x in ranked:
+            if x[0] < 0.3 or (best and x[0] < best[0][0] - 0.15) or len(best) == 2:
+                break
+            if all(x[1] != b[1] for b in best):
+                best.append(x)
         if not best:
             return _json({"answer": [{"text": "The retrieved passages do not answer this question."}],
                           "not_found": True})
