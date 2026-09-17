@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block data %}data-task="{{ task_id }}"{% endblock %}
+{% block content %}
+<div class="task-layout">
+  <div class="task-main">
+    <header class="task-head" id="task-head">
+      <div class="skeleton skeleton-title"></div>
+    </header>
+    <div class="timeline" id="timeline"></div>
+    <form class="composer composer-inline" id="followup" hidden autocomplete="off">
+      <textarea id="followup-text" rows="2" placeholder="Ask a follow-up question about the same documents"></textarea>
+      <div class="composer-bar"><span class="muted">Answered from the attachments with verified citations</span>
+        <button class="btn btn-primary" type="submit">Ask</button></div>
+    </form>
+  </div>
+  <aside class="inspector" id="inspector">
+    <div class="tabs" role="tablist" id="insp-tabs">
+      <button role="tab" data-tab="evidence" class="active">Evidence</button>
+      <button role="tab" data-tab="routing">Routing</button>
+      <button role="tab" data-tab="checks">Checks</button>
+    </div>
+    <div class="insp-body" id="insp-body"></div>
+  </aside>
+</div>
+{% endblock %}

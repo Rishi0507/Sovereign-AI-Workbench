@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <p class="eyebrow">Inference</p>
+    <h1>Models and pool</h1>
+    <p class="muted" id="models-sub">Registry, tidal pool, speculative decoding and the label-salted prefix cache.</p>
+  </div>
+</header>
+<section class="stat-row" id="pool-stats"></section>
+<section class="card">
+  <header class="card-head"><h2>Tidal pool</h2><span class="muted" id="tide-note"></span></header>
+  <div class="tide" id="tide"></div>
+</section>
+<section class="card">
+  <header class="card-head"><h2>Registry</h2><span class="muted" id="registry-version"></span></header>
+  <div class="model-grid" id="model-grid"></div>
+</section>
+<section class="grid-2">
+  <article class="card">
+    <header class="card-head"><h2>Prefix cache by label partition</h2></header>
+    <div id="cache-table" class="table-wrap"></div>
+    <p class="muted small">Blocks are reused only inside the partition that created them. The simulation is replaced by vLLM's <code>cached_tokens</code> once real servers run.</p>
+  </article>
+  <article class="card">
+    <header class="card-head"><h2>Routing thresholds</h2></header>
+    <div id="thresholds"></div>
+  </article>
+</section>
+<section class="card" id="proposed-card" hidden>
+  <header class="card-head"><h2>Proposed quality-table diff</h2><span class="muted">config/models.proposed.yaml, awaiting review</span></header>
+  <pre class="code" id="proposed"></pre>
+</section>
+{% endblock %}

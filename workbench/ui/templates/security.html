@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="page-head">
+  <div>
+    <p class="eyebrow">Sovereignty</p>
+    <h1>Security and proof</h1>
+    <p class="muted">Two independent egress counters, a tamper-evident audit trail and human-controlled downgrades.</p>
+  </div>
+  <button class="btn btn-primary" id="run-test" type="button">Run egress test</button>
+</header>
+<section class="stat-row" id="egress-stats"></section>
+<section class="card">
+  <header class="card-head"><h2>Egress test</h2><span class="muted" id="test-note">Runs three checks: host raw IP, host DNS, sandbox socket.</span></header>
+  <div id="test-results"><p class="muted">No test run in this session yet.</p></div>
+</section>
+<section class="grid-2">
+  <article class="card">
+    <header class="card-head"><h2>Blocked attempts</h2></header>
+    <div id="events" class="table-wrap"></div>
+  </article>
+  <article class="card">
+    <header class="card-head"><h2>Audit chain</h2><button class="btn btn-ghost btn-sm" id="verify-audit" type="button">Verify</button></header>
+    <div id="audit-status"></div>
+    <ul class="audit-list" id="audit-tail"></ul>
+  </article>
+</section>
+<section class="grid-2">
+  <article class="card">
+    <header class="card-head"><h2>Downgrade requests</h2></header>
+    <div id="downgrades"></div>
+  </article>
+  <article class="card">
+    <header class="card-head"><h2>Template drafts</h2></header>
+    <div id="template-drafts"></div>
+    <header class="card-head card-head-sub"><h2>Supersession impact</h2></header>
+    <form id="impact-form" class="inline-form">
+      <input class="input" id="impact-doc" value="SOP-MECH-014" aria-label="Document number">
+      <input class="input input-sm" id="impact-rev" value="5" aria-label="Revision">
+      <button class="btn btn-ghost btn-sm" type="submit">Show report</button>
+    </form>
+    <div id="impact"></div>
+  </article>
+</section>
+{% endblock %}

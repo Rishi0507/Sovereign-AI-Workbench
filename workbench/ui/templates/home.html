@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero">
+  <p class="eyebrow" id="hero-ws">Workspace</p>
+  <h1 class="hero-title">What should the workbench prepare?</h1>
+  <p class="hero-sub">Every figure is traced to evidence, every file carries its marking, and nothing leaves the premises.</p>
+  <form class="composer" id="composer" autocomplete="off">
+    <textarea id="task-text" rows="3" placeholder="Describe the task, for example: Draft an approval note for this inspection report" required></textarea>
+    <div class="chips" id="attached"></div>
+    <div class="composer-bar">
+      <div class="composer-tools">
+        <button class="btn btn-ghost" type="button" id="attach-btn">
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M13 6l-6 6a2 2 0 003 3l6-6a4 4 0 00-6-6l-6 6"/></svg>Attach
+        </button>
+        <label class="check"><input type="checkbox" id="no-template"> Plan without templates</label>
+      </div>
+      <button class="btn btn-primary" type="submit" id="submit-task">
+        Start<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h11M11 5l5 5-5 5"/></svg>
+      </button>
+    </div>
+    <div class="picker" id="picker" hidden>
+      <div class="picker-head"><strong>Workspace inputs</strong>
+        <label class="btn btn-ghost btn-sm upload-btn">Upload<input type="file" id="upload-input" hidden></label>
+        <select id="upload-level" class="select select-sm" aria-label="Label for the upload">
+          <option value="">Label: detect or default</option>
+          <option>Unclassified</option><option>Restricted</option><option>Confidential</option><option>Secret</option>
+        </select>
+      </div>
+      <ul class="picker-list" id="picker-list"></ul>
+    </div>
+  </form>
+  <div class="suggestions" id="suggestions"></div>
+</section>
+<section class="grid-2">
+  <article class="card">
+    <header class="card-head">
+      <h2>Files</h2>
+      <div class="tabs" id="file-tabs" role="tablist">
+        <button role="tab" data-area="inputs" class="active">Inputs</button>
+        <button role="tab" data-area="drafts">Drafts</button>
+        <button role="tab" data-area="final">Final</button>
+      </div>
+    </header>
+    <div id="file-table" class="table-wrap"></div>
+  </article>
+  <article class="card">
+    <header class="card-head"><h2>Activity</h2><span class="muted" id="queue-note"></span></header>
+    <ul class="activity" id="activity"></ul>
+  </article>
+</section>
+{% endblock %}
