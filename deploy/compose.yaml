@@ -1,4 +1,6 @@
 # Reference docker-compose bundle for the target server (Profile S). Artifact only.
+# The workbench application and the two daemons run as systemd services (deploy/systemd);
+# this bundle runs the model servers and the TLS proxy.
 # Every service binds to loopback; the reverse proxy on 443 is the only LAN-facing listener.
 # Images are loaded from the signed bundle with `docker load` and pinned by digest.
 
@@ -9,38 +11,12 @@ x-offline-env: &offline-env
   DO_NOT_TRACK: "1"
 
 services:
-  workbench:
-    image: workbench/app@sha256:REPLACE_WITH_DIGEST
-    command: ["workbench", "serve", "--host", "127.0.0.1", "--port", "8080"]
-    network_mode: host
-    environment:
-      <<: *offline-env
-      WB_LLM_BACKEND: openai
-      WB_SANDBOX: sandboxd
-      WB_EGRESS: egressd
-      WB_TIME_SCALE: "1.0"
-    volumes:
-      - /srv/workbench/config:/srv/workbench/config:ro
-      - /srv/workspaces:/srv/workbench/var/workspaces
-      - /srv/workbench/var:/srv/workbench/var
-      - /run/workbench:/srv/workbench/run
-    restart: unless-stopped
-
   router-classifier:
     image: workbench/llamacpp@sha256:REPLACE_WITH_DIGEST
     command: ["--model", "/models/qwen2.5-1.5b-instruct-q4_k_m.gguf", "--host", "127.0.0.1", "--port", "8010"]
     network_mode: host
     environment: *offline-env
     volumes: ["/srv/models:/models:ro"]
-    restart: unless-stopped
-
-  qdrant:
-    image: qdrant/qdrant@sha256:REPLACE_WITH_DIGEST
-    network_mode: host
-    environment:
-      QDRANT__SERVICE__HOST: 127.0.0.1
-      QDRANT__TELEMETRY_DISABLED: "true"
-    volumes: ["/srv/qdrant:/qdrant/storage"]
     restart: unless-stopped
 
   vllm:
@@ -62,7 +38,7 @@ services:
 
   proxy:
     image: nginx@sha256:REPLACE_WITH_DIGEST
-    ports: ["10.20.0.2:443:443"]
+    network_mode: host        # reaches the app on 127.0.0.1:8080; nftables admits 443 from the LAN only
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
       - /srv/workbench/tls:/etc/nginx/tls:ro

@@ -1,0 +1,30 @@
+[Unit]
+Description=Sovereign AI Workbench application (API and UI)
+Documentation=file:///srv/workbench/docs/DEPLOYMENT.md
+After=network.target workbench-sandboxd.service workbench-egressd.service
+Wants=workbench-sandboxd.service workbench-egressd.service
+
+[Service]
+Type=simple
+User=wb-app
+Group=workbench
+WorkingDirectory=/srv/workbench
+EnvironmentFile=-/srv/workbench/.env
+Environment=WB_ROOT=/srv/workbench WB_RUN_DIR=/run/workbench WB_WORKSPACES_ROOT=/srv/workspaces
+Environment=WB_LLM_BACKEND=openai WB_SANDBOX=sandboxd WB_EGRESS=egressd WB_TIME_SCALE=1.0
+Environment=HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 DO_NOT_TRACK=1
+ExecStart=/srv/workbench/.venv/bin/workbench serve --host 127.0.0.1 --port 8080
+Restart=on-failure
+RestartSec=2
+UMask=0007
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadWritePaths=/srv/workbench/var /srv/workbench/templates/drafts /srv/workbench/reports /srv/workspaces
+NoNewPrivileges=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=yes
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

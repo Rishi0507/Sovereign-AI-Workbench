@@ -6,8 +6,8 @@ Requires=docker.service
 
 [Service]
 Type=simple
-User=wb-sandbox
-Group=wb-sandbox
+User=wb-app
+Group=workbench
 SupplementaryGroups=docker workbench
 RuntimeDirectory=workbench
 RuntimeDirectoryMode=0770
