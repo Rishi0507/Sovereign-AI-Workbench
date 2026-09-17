@@ -36,7 +36,7 @@ MODEL_TASKS: dict[str, ModelTaskSpec] = {s.name: s for s in [
                   output_type="calc_inputs", accepts=["document"], prompt="extract_calc_inputs",
                   description="Extract formula and inputs for a calculation"),
     ModelTaskSpec(name="answer_question", purpose="answer.question", schema_name="answer", output_type="answer",
-                  accepts=["kb_passages", "document", "graph_facts"], prompt="answer_question",
+                  accepts=["kb_passages", "document", "graph_facts", "facts"], prompt="answer_question",
                   description="Answer a question from retrieved passages with citations"),
     ModelTaskSpec(name="draft_recommendation", purpose="draft.recommendation", schema_name="approval_note",
                   output_type="note", accepts=["comparison", "sandbox_result", "tables", "kb_passages"],
@@ -52,6 +52,7 @@ SCHEMA_TO_TASK = {"findings": "extract_findings", "approval_note": "draft_sectio
 TOOL_OUTPUTS: dict[str, list[str]] = {
     "read_document": ["document", "tables", "findings"],
     "read_file": ["document"],
+    "document_stats": ["facts"],
     "list_files": ["file_list"],
     "write_file": ["file"],
     "search_kb": ["kb_passages"],
@@ -69,6 +70,7 @@ TOOL_OUTPUTS: dict[str, list[str]] = {
 TOOL_ACCEPTS: dict[str, list[str]] = {
     "read_document": [],
     "read_file": [],
+    "document_stats": [],
     "check_consistency": ["findings", "kb_passages", "graph_facts", "document"],
     "calculate": ["calc_inputs"],
 }

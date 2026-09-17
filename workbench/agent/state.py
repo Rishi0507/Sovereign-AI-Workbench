@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import literal_column, select
 
 from workbench.core.clock import Clock, SystemClock
 from workbench.core.db import Database, tasks_table
@@ -163,6 +163,15 @@ class TaskStore:
                 status=state.status, updated_at=state.updated_at, data=state.model_dump_json()))
             self._cache[state.id] = state.model_copy(deep=True)
         return state
+
+    def followups(self, task_id: str) -> list[TaskState]:
+        """Follow-up tasks of a conversation, oldest first."""
+        stmt = (select(tasks_table.c.id).where(tasks_table.c.parent_id == task_id)
+                .order_by(tasks_table.c.created_at, literal_column("rowid")))  # rowid keeps insertion order
+        with self.db.read() as conn:
+            ids = [r[0] for r in conn.execute(stmt).all()]
+        out = [self.get(i) for i in ids]
+        return [t for t in out if t.meta.get("followup_of")]
 
     def list(self, workspace: str | None = None, limit: int = 100) -> list[TaskState]:
         stmt = select(tasks_table.c.data).order_by(tasks_table.c.created_at.desc()).limit(limit)

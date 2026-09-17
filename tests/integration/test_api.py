@@ -353,3 +353,23 @@ def test_library_lists_files_and_decisions(api: tuple[TestClient, Runtime]) -> N
     assert ("plan", "approved", "engineer1") in kinds and ("action", "approved", "engineer1") in kinds
     # A user without access to the workspace sees nothing of it.
     assert all(t["workspace"] != "plant-a" for t in client.get("/api/library", headers={"X-User": "buyer1"}).json()["tasks"])
+
+
+def test_follow_ups_join_the_conversation(api_default: tuple[TestClient, Runtime]) -> None:
+    client, _rt = api_default
+    first = client.post("/api/tasks", headers=ENG, json={"workspace": "plant-a",
+                                                          "text": "What is the design pressure in the data sheet?",
+                                                          "attachments": ["inputs/pipe_data.md"]}).json()
+    wait_for(client, first["id"], lambda t: t["status"] == "completed")
+    second = client.post(f"/api/tasks/{first['id']}/followup", headers=ENG,
+                         json={"text": "How many words are in it?"}).json()
+    assert second["followup_of"] == first["id"] and second["attachments"] == ["inputs/pipe_data.md"]
+    wait_for(client, second["id"], lambda t: t["status"] == "completed")
+    # A follow-up of a follow-up still joins the root conversation.
+    third = client.post(f"/api/tasks/{second['id']}/followup", headers=ENG, json={"text": "And how many pages?"}).json()
+    assert third["followup_of"] == first["id"]
+    wait_for(client, third["id"], lambda t: t["status"] == "completed")
+    root = client.get(f"/api/tasks/{first['id']}", headers=ENG).json()
+    assert [f["id"] for f in root["followups"]] == [second["id"], third["id"]]
+    assert "words" in root["followups"][0]["result"]["answer"]["answer"][0]["text"]
+    assert root["followups"][0]["label_display"] == "Restricted"

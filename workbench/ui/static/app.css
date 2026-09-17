@@ -4,7 +4,7 @@
   font-family: "Inter";
   font-style: normal;
   font-weight: 100 900;
-  font-display: swap;
+  font-display: block;
   src: url("fonts/inter-latin.woff2") format("woff2");
 }
 
@@ -201,7 +201,7 @@ details[open] > summary { margin-bottom: 8px; }
 .net-dot.ok { background: var(--ok); }
 .net-dot.bad { background: var(--bad); }
 .popover { position: absolute; right: 0; top: calc(100% + 8px); width: 290px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow-lg); padding: 14px; z-index: 30; display: flex; flex-direction: column; gap: 8px; }
-.content { flex: 1; overflow-y: auto; min-height: 0; }
+.content { flex: 1; overflow-y: auto; min-height: 0; scrollbar-gutter: stable; overflow-anchor: none; }
 .scrim { display: none; }
 
 /* Overlays ----------------------------------------------------------------------------------- */
@@ -259,7 +259,7 @@ input[type="checkbox"] { accent-color: var(--primary); width: 15px; height: 15px
 
 /* Task conversation ---------------------------------------------------------------------------- */
 .thread-page { max-width: 760px; margin: 0 auto; padding: 0 20px 24px; display: flex; flex-direction: column; min-height: 100%; }
-.thread-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 0 18px; }
+.thread-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 0 18px; min-height: 58px; }
 .thread-title { font-size: 14px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .thread { flex: 1; display: flex; flex-direction: column; gap: 28px; }
 .turn.user { display: flex; justify-content: flex-end; }
@@ -514,8 +514,8 @@ a.file:hover .file-dl { color: var(--accent); background: var(--accent-soft); }
 ::view-transition-old(root), ::view-transition-new(root) { animation-duration: .22s; animation-timing-function: ease; }
 .sidebar { view-transition-name: sidebar; }
 .topbar { view-transition-name: topbar; }
-.content { opacity: 0; transform: translateY(4px); transition: opacity .3s var(--ease), transform .3s var(--ease); }
-body.ready .content { opacity: 1; transform: none; }
+.content { opacity: 0; transition: opacity .25s var(--ease); }
+body.ready .content { opacity: 1; }
 
 a, button, .btn, .chip, .tag, .file, .tile, .starter, .filter, .status-pill, .event, .wait-card, .source-card, input, select, textarea {
   transition: background-color .2s var(--ease), color .2s var(--ease), border-color .2s var(--ease), box-shadow .2s var(--ease), opacity .2s var(--ease), transform .2s var(--ease);
@@ -623,3 +623,18 @@ details[open]::details-content { block-size: auto; opacity: 1; }
   .enter, .tab-stage.tab-in > * { animation: none; }
   .seg-thumb, .panel-body, .modal-body, .popover, .picker, .menu, .toast { transition-duration: .01s; }
 }
+
+/* Conversation additions --------------------------------------------------------------------- */
+.turn-tools { display: flex; opacity: 0; transition: opacity .2s var(--ease); margin-top: -6px; }
+.turn.assistant:hover .turn-tools, .turn-tools:focus-within { opacity: 1; }
+.link-btn.quiet { display: inline-flex; align-items: center; gap: 5px; color: var(--muted); font-size: 12.5px; }
+.link-btn.quiet svg { width: 14px; height: 14px; }
+.link-btn.quiet:hover { color: var(--text); text-decoration: none; }
+.facts { display: flex; flex-direction: column; gap: 6px; }
+.fact { display: flex; align-items: center; gap: 10px; text-align: left; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--text); cursor: pointer; font-size: 14.5px; }
+.fact:hover { border-color: var(--accent); background: var(--accent-soft); }
+.fact-icon { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); flex: none; }
+.fact-icon svg { width: 16px; height: 16px; }
+.turn + .turn.user { margin-top: 10px; }
+.composer.followup textarea:disabled { cursor: not-allowed; }
+.composer.followup:has(textarea:disabled) { opacity: .75; }

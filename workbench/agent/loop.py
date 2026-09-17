@@ -45,6 +45,7 @@ from workbench.llm.base import ChatMessage, LLMRequest, LLMResponse
 from workbench.llm.prompts import render_prompt
 from workbench.llm.schemas import load_schema, validation_errors
 from workbench.planning.compiler import CompileContext, compile_plan, compile_with_repair
+from workbench.planning.extras import add_requested_facts
 from workbench.planning.model_tasks import MODEL_TASKS, SCHEMA_TO_TASK, ModelTaskSpec
 from workbench.planning.plan_schema import Plan, PlanStep
 from workbench.planning.templates import resolve
@@ -419,11 +420,15 @@ class Orchestrator:
             matches = [t for t in matches if t.name == choice.choice] or matches[:1]
         if matches:
             tpl = matches[0]
-            plan = compile_plan(tpl.instantiate(state.text), self._compile_ctx(state))
+            draft = tpl.instantiate(state.text)
+            add_requested_facts(draft, state.text, state.attachments)
+            plan = compile_plan(draft, self._compile_ctx(state))
             self._trace(state, "plan", summary=f"template {tpl.name} v{tpl.version} matched", ok=plan.valid,
                         purpose="plan.template")
         else:
             plan, history = self._model_plan(state, cancelled)
+            if add_requested_facts(plan, state.text, state.attachments):
+                plan = compile_plan(plan, self._compile_ctx(state))
         state.plan = plan
         state.plan_history = history
         self.rt.tasks.save(state)
@@ -956,6 +961,10 @@ class Orchestrator:
                                       self.rt.kb.revisions, self.s.date_dayfirst)
             state.result["answer"] = answer
             state.result["claims"] = [c.model_dump() for c in claims]
+        facts = [{"record": r.id, "text": r.body["statement"]} for r in self.rt.ledger.for_task(state.id)
+                 if r.kind == "calc_result" and isinstance(r.body, dict) and "statement" in r.body]
+        if facts:
+            state.result["facts"] = facts
         code = next((o for o in state.outputs.values() if isinstance(o, dict) and o.get("script_file")), None)
         if code is not None:
             state.result["code"] = {k: code.get(k) for k in ("script_file", "result", "attempts", "files")}

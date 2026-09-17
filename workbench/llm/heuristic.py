@@ -122,7 +122,7 @@ def rank_statements(question: str, recs: list[LedgerRecord]) -> list[tuple[float
     phrases = [f"{a} {b}" for a, b in itertools.pairwise(q_list)]
     units: dict[str, list[tuple[str | None, str]]] = {}
     for r in recs:
-        if r.kind == "graph_fact":
+        if r.kind in {"graph_fact", "calc_result"}:
             units[r.id] = [(None, r.summary)]
             continue
         units[r.id] = [(head, u) for head, body in _sections(r.body_text())
@@ -687,7 +687,7 @@ class HeuristicBackend:
 
     def _answer_question(self, req: LLMRequest) -> LLMResponse:
         question = str(req.meta.get("task_text") or last_user(req))
-        recs = [r for r in self._records(req) if r.kind in {"kb_chunk", "ocr_text", "graph_fact"}]
+        recs = [r for r in self._records(req) if r.kind in {"kb_chunk", "ocr_text", "graph_fact", "calc_result"}]
         ranked = rank_statements(question, recs)
         best: list[tuple[float, str, LedgerRecord]] = []
         for x in ranked:

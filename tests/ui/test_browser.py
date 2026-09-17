@@ -142,3 +142,43 @@ def test_damaged_tab_storage_does_not_break_pages(page: Any) -> None:
     page.goto(page.base + "/library")
     expect(page.locator(".wait-card")).to_have_count(0)
     expect(page.locator("#lib-tabs .seg")).to_be_visible()
+
+
+def test_conversation_continues_on_the_same_page(page: Any) -> None:
+    expect = playwright_api.expect
+    page.goto(page.base + "/")
+    page.locator("#attach-btn").click()
+    page.locator(".pick", has_text="pipe_data.md").locator("input").check()
+    page.locator("#task-text").fill("What is the design pressure in the data sheet?")
+    page.locator("#task-text").press("Enter")
+    page.wait_for_url("**/t/T*")
+    url = page.url
+    first = page.locator(".answer").first
+    expect(first).to_contain_text("4.5 MPa", timeout=15_000)
+    left_before = page.evaluate("document.querySelector('.thread').getBoundingClientRect().left")
+
+    box = page.locator("#followup-text")
+    expect(box).to_be_enabled()
+    box.fill("How many words are in it?")
+    box.press("Enter")
+    expect(page.locator(".turn.user")).to_have_count(2)
+    expect(page.locator(".answer").nth(1)).to_contain_text("pipe_data.md has 1 page and", timeout=15_000)
+    expect(page.locator(".source-card").last).to_contain_text("Counted from the document")
+    assert page.url == url
+    expect(box).to_be_enabled()
+    expect(box).to_have_value("")
+    # The sidebar lists the conversation once.
+    expect(page.locator("#recent a")).to_have_count(1)
+
+    # Switching to another chat keeps the column in exactly the same place.
+    page.goto(page.base + "/")
+    page.get_by_role("button", name="Analyse sensor readings").click()
+    page.locator("#task-text").press("Enter")
+    page.wait_for_url("**/t/T*")
+    expect(page.get_by_role("button", name="Start")).to_be_visible(timeout=15_000)
+    left_other = page.evaluate("document.querySelector('.thread').getBoundingClientRect().left")
+    page.locator("#recent a", has_text="design pressure").click()
+    page.wait_for_url(url)
+    expect(page.locator(".turn.user")).to_have_count(2)
+    left_after = page.evaluate("document.querySelector('.thread').getBoundingClientRect().left")
+    assert left_before == left_other == left_after, (left_before, left_other, left_after)
