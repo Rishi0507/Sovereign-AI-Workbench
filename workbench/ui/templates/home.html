@@ -1,7 +1,10 @@
 {% extends "base.html" %}
 {% block content %}
 <section class="home">
-  <h1 class="greeting">What can I help you prepare?</h1>
+  <div class="hero">
+    <h1 class="greeting">What can I help you prepare?</h1>
+    <p class="greeting-sub"></p>
+  </div>
   <form class="composer" id="composer" autocomplete="off">
     <div class="attached" id="attached"></div>
     <textarea id="task-text" rows="1" placeholder="Ask anything, or describe a document to prepare" required></textarea>
