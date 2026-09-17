@@ -1,0 +1,4 @@
+{"id": "lab-01", "workspace": "plant-a", "user": "engineer1", "text": "What is the design pressure in the data sheet?", "attachments": ["inputs/pipe_data.md"], "expected": {"level": "Restricted", "compartments": []}}
+{"id": "lab-02", "workspace": "plant-a", "user": "engineer1", "text": "Which clause of this contract covers warranty?", "attachments": ["inputs/vendor_contract.pdf", "inputs/pipe_data.md"], "expected": {"level": "Confidential", "compartments": []}}
+{"id": "lab-03", "workspace": "proc", "user": "buyer1", "text": "What is the delivery period in this offer?", "attachments": ["inputs/offer_b.pdf"], "expected": {"level": "Secret", "compartments": ["VENDOR-COMMERCIAL"]}}
+{"id": "lab-04", "workspace": "plant-a", "user": "engineer1", "text": "What does the approval note history say about P-108B?", "attachments": [], "expected": {"level": "Confidential", "compartments": []}}

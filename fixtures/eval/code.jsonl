@@ -1,0 +1,10 @@
+{"id": "code-01", "text": "Write a Python script to compute the mean of these flow values", "column": "flow_m3h", "check": "mean", "seed": 1}
+{"id": "code-02", "text": "Write a script to find the maximum of these temperature readings", "column": "temperature_c", "check": "max", "seed": 2}
+{"id": "code-03", "text": "Write a Python script to count vibration readings above 7.1", "column": "vibration_mm_s", "check": "count:7.1", "seed": 3}
+{"id": "code-04", "text": "Write a Python script to flag anomalies in these pressure readings", "column": "pressure_psi", "check": "anomalies", "seed": 4}
+{"id": "code-05", "text": "Write a script to compute the average of these level values", "column": "level_pct", "check": "mean", "seed": 5}
+{"id": "code-06", "text": "Write python code to report the peak of these current readings", "column": "current_a", "check": "max", "seed": 6}
+{"id": "code-07", "text": "Write a script to count flow readings over 120", "column": "flow_m3h", "check": "count:120", "seed": 7}
+{"id": "code-08", "text": "Write a Python script to compute the mean of these density readings", "column": "density", "check": "mean", "seed": 8}
+{"id": "code-09", "text": "Write a script to flag anomalies in these temperature readings", "column": "temp_c", "check": "anomalies", "seed": 9}
+{"id": "code-10", "text": "Write a Python script to compute the median of these pressure readings", "column": "pressure_bar", "check": "median", "seed": 10}

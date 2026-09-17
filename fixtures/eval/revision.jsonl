@@ -1,0 +1,6 @@
+{"id": "rev-01", "query": "minimum casing wall thickness for centrifugal pumps", "as_of": "2023-06-01", "doc_number": "SOP-MECH-014", "clause": "4.3", "expected_revision": "4"}
+{"id": "rev-02", "query": "minimum casing wall thickness for centrifugal pumps", "as_of": "2026-09-15", "doc_number": "SOP-MECH-014", "clause": "4.3", "expected_revision": "5"}
+{"id": "rev-03", "query": "re-inspection interval for casings above the minimum", "as_of": "2022-01-10", "doc_number": "SOP-MECH-014", "clause": "4.4", "expected_revision": "4"}
+{"id": "rev-04", "query": "corrosion rate trend assessment projected thickness", "as_of": "2025-03-01", "doc_number": "SOP-MECH-014", "clause": "4.5", "expected_revision": "5"}
+{"id": "rev-05", "query": "gauge calibration certificate valid on date of inspection", "as_of": "2024-12-31", "doc_number": "SOP-MECH-014", "clause": "3.1", "expected_revision": "4"}
+{"id": "rev-06", "query": "gauge calibration certificate valid on date of inspection", "as_of": "2025-01-01", "doc_number": "SOP-MECH-014", "clause": "3.1", "expected_revision": "5"}

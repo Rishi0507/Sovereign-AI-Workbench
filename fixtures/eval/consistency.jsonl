@@ -1,0 +1,3 @@
+{"id": "con-01", "doc": "inputs/inspection_P108B.pdf", "expected_mismatches": ["row_tags_match", "thickness_trend", "thickness_vs_limit"]}
+{"id": "con-02", "doc": "inputs/inspection_P101A_clean.pdf", "expected_mismatches": []}
+{"id": "con-03", "doc": "inputs/inspection_P101A_injected.pdf", "expected_mismatches": []}

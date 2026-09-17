@@ -1,0 +1,5 @@
+{"id": "gr-01", "query": "Which sheet shows P-108B?", "expected_doc": "PID-CW-003", "k": 5}
+{"id": "gr-02", "query": "Earlier approval decisions for P-108B", "expected_doc": "AN-2024-004", "k": 5}
+{"id": "gr-03", "query": "What governs P-101A?", "expected_doc": "SOP-MECH-014", "k": 5}
+{"id": "gr-04", "query": "Previous decision on P-101B", "expected_doc": "AN-2023-017", "k": 5}
+{"id": "gr-05", "query": "Drawing for FT-108", "expected_doc": "PID-CW-003", "k": 5}
