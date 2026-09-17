@@ -657,12 +657,18 @@
     const re = /\s*\[(R-[A-Za-z0-9]+-\d+(?:,\s*R-[A-Za-z0-9]+-\d+)*)\]/g;
     let m;
     while ((m = re.exec(text))) {
-      out.push(text.slice(last, m.index));
-      m[1].split(/,\s*/).forEach((rid) => {
+      const before = text.slice(last, m.index);
+      const word = before.match(/\S+$/);
+      out.push(word ? before.slice(0, word.index) : before);
+      const badges = m[1].split(/,\s*/).map((rid) => {
         if (!sources.includes(rid)) sources.push(rid);
-        out.push(h("button", { class: "cite", type: "button", title: rid, text: sources.indexOf(rid) + 1, onclick: () => onOpen(rid) }));
+        return h("button", { class: "cite", type: "button", title: rid, text: sources.indexOf(rid) + 1, onclick: () => onOpen(rid) });
       });
       last = m.index + m[0].length;
+      // Keep trailing punctuation on the same line as its badges.
+      const tail = text.slice(last).match(/^[.,;:!?)]+/);
+      if (tail) last += tail[0].length;
+      out.push(h("span", { class: "cite-group" }, word ? word[0] : "", badges, tail ? tail[0] : ""));
     }
     out.push(text.slice(last));
     return out;
