@@ -156,7 +156,8 @@ def render_note(data: dict[str, Any], label: Label, template: Path, refs: RefBoo
         hdr[0].text, hdr[1].text, hdr[2].text = "Check", "Result", "Detail"
         for c in checks:
             row = table.add_row().cells
-            row[0].text = str(c.get("rule", "")).replace("_", " ")
+            rule = str(c.get("rule", ""))
+            row[0].text = rule.replace("_", " ") if "_" in rule and " " not in rule else rule
             row[1].text = STATUS_TEXT.get(str(c.get("status")), str(c.get("status")))
             add_cited(row[2].paragraphs[0], str(c.get("text", "")), refs)
     else:

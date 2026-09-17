@@ -1,51 +1,28 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="hero">
-  <p class="eyebrow" id="hero-ws">Workspace</p>
-  <h1 class="hero-title">What should the workbench prepare?</h1>
-  <p class="hero-sub">Every figure is traced to evidence, every file carries its marking, and nothing leaves the premises.</p>
+<section class="home">
+  <h1 class="greeting">What can I help you prepare?</h1>
   <form class="composer" id="composer" autocomplete="off">
-    <textarea id="task-text" rows="3" placeholder="Describe the task, for example: Draft an approval note for this inspection report" required></textarea>
-    <div class="chips" id="attached"></div>
+    <div class="attached" id="attached"></div>
+    <textarea id="task-text" rows="1" placeholder="Describe the task, or ask a question" required></textarea>
     <div class="composer-bar">
-      <div class="composer-tools">
-        <button class="btn btn-ghost" type="button" id="attach-btn">
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M13 6l-6 6a2 2 0 003 3l6-6a4 4 0 00-6-6l-6 6"/></svg>Attach
-        </button>
-        <label class="check"><input type="checkbox" id="no-template"> Plan without templates</label>
-      </div>
-      <button class="btn btn-primary" type="submit" id="submit-task">
-        Start<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h11M11 5l5 5-5 5"/></svg>
+      <button class="icon-btn" type="button" id="attach-btn" aria-label="Attach files" title="Attach files">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M13.5 6.5l-6 6a1.8 1.8 0 002.5 2.5l6.2-6.2a3.5 3.5 0 00-5-5L5 10a5.2 5.2 0 007.4 7.4l5-5"/></svg>
+      </button>
+      <span class="grow"></span>
+      <button class="send" type="submit" id="send-btn" aria-label="Start task" disabled>
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 16V4M5 9l5-5 5 5"/></svg>
       </button>
     </div>
     <div class="picker" id="picker" hidden>
-      <div class="picker-head"><strong>Workspace inputs</strong>
-        <label class="btn btn-ghost btn-sm upload-btn">Upload<input type="file" id="upload-input" hidden></label>
-        <select id="upload-level" class="select select-sm" aria-label="Label for the upload">
-          <option value="">Label: detect or default</option>
-          <option>Unclassified</option><option>Restricted</option><option>Confidential</option><option>Secret</option>
-        </select>
+      <div class="picker-head">
+        <strong>Files in this workspace</strong>
+        <label class="link-btn">Upload<input type="file" id="upload-input" hidden></label>
       </div>
-      <ul class="picker-list" id="picker-list"></ul>
+      <div class="picker-list" id="picker-list"></div>
+      <label class="picker-option"><input type="checkbox" id="no-template"> Plan from scratch instead of using a saved template</label>
     </div>
   </form>
-  <div class="suggestions" id="suggestions"></div>
-</section>
-<section class="grid-2">
-  <article class="card">
-    <header class="card-head">
-      <h2>Files</h2>
-      <div class="tabs" id="file-tabs" role="tablist">
-        <button role="tab" data-area="inputs" class="active">Inputs</button>
-        <button role="tab" data-area="drafts">Drafts</button>
-        <button role="tab" data-area="final">Final</button>
-      </div>
-    </header>
-    <div id="file-table" class="table-wrap"></div>
-  </article>
-  <article class="card">
-    <header class="card-head"><h2>Activity</h2><span class="muted" id="queue-note"></span></header>
-    <ul class="activity" id="activity"></ul>
-  </article>
+  <div class="starters" id="starters"></div>
 </section>
 {% endblock %}

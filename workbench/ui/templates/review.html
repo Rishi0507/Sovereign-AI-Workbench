@@ -1,18 +1,12 @@
 {% extends "base.html" %}
 {% block data %}data-task="{{ task_id }}"{% endblock %}
 {% block content %}
-<div class="review-layout">
-  <div class="review-doc">
-    <header class="review-head" id="review-head"><div class="skeleton skeleton-title"></div></header>
-    <div class="doc-tabs tabs" id="doc-tabs" role="tablist"></div>
-    <div class="legend">
-      <span><i class="fig fig-sourced">5.6 mm</i> from a source reading</span>
-      <span><i class="fig fig-derived">5.33 mm</i> computed</span>
-      <span><i class="fig fig-unsourced">7.9 mm</i> unsourced</span>
-      <span><i class="claim-unverified">sentence</i> unverified claim</span>
-    </div>
-    <div id="doc-view"></div>
+<div class="review">
+  <div class="review-main">
+    <header class="review-head" id="review-head"></header>
+    <div class="seg" id="doc-tabs" role="tablist"></div>
+    <div id="doc-view"><div class="loading"><span class="spinner"></span></div></div>
   </div>
-  <aside class="review-panel" id="review-panel"></aside>
+  <aside class="review-side" id="review-side"></aside>
 </div>
 {% endblock %}

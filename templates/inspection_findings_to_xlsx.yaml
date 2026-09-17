@@ -9,13 +9,13 @@ deliverables:
   - {type: xlsx, name: inspection-findings.xlsx}
 steps:
   - id: extract
-    title: Read the report and extract findings
+    title: Read the report
     tool: read_document
     default_args: {path: "{attachments[0]}", mode: findings}
     output_schema: schemas/findings.json
     output_type: findings
   - id: ground
-    title: Retrieve the thickness limit in force
+    title: Look up the thickness limit
     tool: search_kb
     default_args:
       queries: ["minimum casing wall thickness acceptance criteria"]
@@ -25,13 +25,13 @@ steps:
     inputs: [extract]
     output_type: kb_passages
   - id: check
-    title: Compare with the limit
+    title: Compare readings with the limit
     tool: check_consistency
     default_args: {facts: "{extract}", against: [asset_register, "{ground}"]}
     inputs: [extract, ground]
     output_type: check_results
   - id: sheet
-    title: Render the findings spreadsheet
+    title: Create the spreadsheet
     tool: make_xlsx
     default_args: {kind: findings, data: {findings: "{extract}", checks: "{check}"}, name: inspection-findings.xlsx}
     inputs: [extract, check]

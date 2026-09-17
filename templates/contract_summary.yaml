@@ -14,13 +14,13 @@ steps:
     default_args: {path: "{attachments[0]}", mode: full}
     output_type: document
   - id: summarise
-    title: Summarise section by section, then combine
+    title: Summarise each section
     model_task: summarise_document
     output_schema: schemas/contract_summary.json
     inputs: [read]
     output_type: summary
   - id: render
-    title: Render the summary
+    title: Create the Word document
     tool: make_docx
     default_args: {template: summary, data: "{summarise}", name: summary.docx}
     inputs: [summarise]

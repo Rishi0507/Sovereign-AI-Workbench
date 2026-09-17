@@ -49,6 +49,7 @@ KEY_TERMS = ("price", "payment", "deliver", "warranty", "liquidated", "damages",
 GOVERNED_Q = re.compile(r"\b(?:govern(?:ed|s)?|appl(?:y|ies))\b.*?\b(?P<doc>[A-Z]{2,}(?:-[A-Z0-9]+){1,3})\b")
 QUESTION_FILLER = frozenset({"what", "which", "who", "when", "where", "how", "why", "does", "do", "did", "say",
                              "says", "about", "tell", "me", "please", "there", "any"})
+NUMBERED_HEADING = re.compile(r"^\d+(\.\d+)*\.?\s+\w")
 SIGNAL = re.compile(r"\d|shall|must|liable|warrant|payable", re.I)
 
 
@@ -155,7 +156,7 @@ def rank_statements(question: str, recs: list[LedgerRecord]) -> list[tuple[float
             text = sent
             if heading and context & set(weight):
                 score += 0.1  # the section is about what the question asks
-                if heading.lower() not in low:
+                if heading.lower() not in low and NUMBERED_HEADING.match(heading):
                     text = f"{heading.rstrip('.:')}: {sent}"
             if q_tags:
                 # a question about named equipment is answered by statements about that equipment
@@ -173,7 +174,7 @@ def _sections(text: str) -> list[tuple[str | None, str]]:
     out: list[tuple[str | None, list[str]]] = [(None, [])]
     for line in text.splitlines():
         title = line.strip().lstrip("#").strip()
-        if line.lstrip().startswith("#") or (_is_heading(title) and re.match(r"^\d+(\.\d+)*\.?\s+\w", title)):
+        if line.lstrip().startswith("#") or (_is_heading(title) and NUMBERED_HEADING.match(title)):
             out.append((title, []))
         else:
             out[-1][1].append(line)
@@ -270,23 +271,23 @@ class HeuristicBackend:
         route = req.meta.get("route")
         if route == "code" or (CODE_WORDS.search(text) and re.search(r"\b(write|fix|debug)\b", text, re.I)):
             steps = [s("code", task="write_code", inputs=[("attachment", a) for a in atts], out="code", side=True,
-                       title="Write, run and fix the script in the sandbox")]
+                       title="Write the script and test it safely")]
             return _json({"goal": text, "steps": steps, "deliverables": [{"type": "code"}]})
         if COMPARE_WORDS.search(text) and len(docs) >= 2:
             steps = [
                 s("read", "read_document", inputs=[("attachment", a) for a in docs], out="document",
                   title="Read the offers and the tender conditions"),
                 s("compare", task="compare_offers", inputs=[("step", "read")], out="comparison",
-                  title="Build the comparison"),
+                  title="Compare the offers"),
                 s("score", "run_python", inputs=[("step", "tables"), ("step", "compare")], out="sandbox_result",
-                  title="Score the offers in the sandbox"),
+                  title="Score the offers"),
                 s("note", task="draft_recommendation", inputs=[("step", "compare"), ("step", "score")], out="note",
-                  title="Draft the recommendation"),
+                  title="Write the recommendation"),
                 s("sheet", "make_xlsx", inputs=[("step", "compare")], out="file", side=True,
-                  title="Comparison spreadsheet with live formulas"),
+                  title="Create the comparison spreadsheet"),
                 s("doc", "make_docx", args={"template": "recommendation_note", "data": "{note}",
                                             "name": "recommendation-note.docx"},
-                  inputs=[("step", "note")], out="file", side=True, title="Recommendation note"),
+                  inputs=[("step", "note")], out="file", side=True, title="Create the recommendation document"),
             ]
             return _json({"goal": text, "steps": steps,
                           "deliverables": [{"type": "xlsx"}, {"type": "docx"}]})
@@ -295,9 +296,9 @@ class HeuristicBackend:
             if governed and not atts:
                 steps = [
                     s("graph", "graph_lookup", args={"doc": governed.group("doc")}, out="graph_facts",
-                      title="Look up the equipment the document governs"),
+                      title="Look up the equipment it covers"),
                     s("answer", task="answer_question", inputs=[("step", "graph")], out="answer",
-                      title="Answer with citations"),
+                      title="Answer with sources"),
                 ]
                 return _json({"goal": text, "steps": steps, "deliverables": []})
             readable = docs or [a for a in atts if a.lower().endswith(tuple(TEXT_EXTS))]
@@ -310,14 +311,15 @@ class HeuristicBackend:
                 refs = [("step", "read")]
             steps += [
                 s("search", "search_kb", args={"queries": [text], "top_k": 6, "doc": doc},
-                  inputs=refs, out="kb_passages", title="Find the relevant passages"),
+                  inputs=refs, out="kb_passages", title="Search the procedures"),
                 s("answer", task="answer_question", inputs=[("step", "search"), *refs], out="answer",
-                  title="Answer with citations"),
+                  title="Answer with sources"),
             ]
             return _json({"goal": text, "steps": steps, "deliverables": []})
         if SUMMARY_WORDS.search(text) and docs:
             steps = [s("read", "read_document", inputs=[("attachment", docs[0])], out="document"),
-                     s("summarise", task="summarise_document", inputs=[("step", "read")], out="summary"),
+                     s("summarise", task="summarise_document", inputs=[("step", "read")], out="summary",
+                       title="Summarise each section"),
                      s("render", "make_docx", args={"template": "summary", "data": "{summarise}"},
                        inputs=[("step", "summarise")], out="file", side=True)]
             return _json({"goal": text, "steps": steps, "deliverables": [{"type": "docx"}]})
@@ -325,17 +327,17 @@ class HeuristicBackend:
             steps = [
                 s("read", "read_document", inputs=[("attachment", docs[0])], out="document", title="Read the report"),
                 s("extract", task="extract_findings", inputs=[("step", "read")], out="findings",
-                  title="Extract findings"),
+                  title="Pick out the findings"),
                 s("ground", "search_kb", args={"queries": ["approval note structure and evidence",
                                                            "minimum casing wall thickness acceptance criteria",
                                                            "past approval notes {equipment_tag}"],
                                                "top_k": 8, "as_of": "{report_date}", "tags": ["{equipment_tag}"]},
-                  inputs=[("step", "extract")], out="kb_passages", title="Ground in procedures and history"),
+                  inputs=[("step", "extract")], out="kb_passages", title="Look up the procedure and past readings"),
                 s("check", "check_consistency", inputs=[("step", "extract"), ("step", "ground")],
-                  out="check_results", title="Cross-check"),
+                  out="check_results", title="Check the facts"),
                 s("draft", task="draft_sections", inputs=[("step", "extract"), ("step", "ground"), ("step", "check")],
-                  out="note", title="Draft cited sections"),
-                s("render", "make_docx", inputs=[("step", "draft")], out="file", side=True, title="Render"),
+                  out="note", title="Write the note with sources"),
+                s("render", "make_docx", inputs=[("step", "draft")], out="file", side=True, title="Create the Word document"),
             ]
             return _json({"goal": text, "steps": steps, "deliverables": [{"type": "docx"}]})
         steps = []
@@ -360,7 +362,7 @@ class HeuristicBackend:
                     readers = [st for st in steps[:idx] if st["action"].get("tool") == "read_document"]
                     inputs = readers[0]["inputs"] if readers else []
                     new = self._step("tables", "read_document", inputs=[
-                        (i["from"], i["ref"]) for i in inputs], out="tables", title="Extract the offer tables")
+                        (i["from"], i["ref"]) for i in inputs], out="tables", title="Pull out the price tables")
                     insert_at = next((i for i, st in enumerate(steps) if any(
                         x["ref"] in {r["id"] for r in readers} for x in st["inputs"])), idx)
                     steps.insert(insert_at, new)
@@ -585,14 +587,16 @@ class HeuristicBackend:
             desc_c = b.get("description") or b.get("rule")
             phrase = {"pass": "consistent", "mismatch": "mismatch", "not_found": "reference not found",
                       "not_checked": "not checked"}.get(status, status)
-            parts = [f"{desc_c}: {phrase}."]
+            parts = []
             if b.get("left_value") is not None:
                 parts.append(f"Reported {b['left_value']}" + (f"; reference {b['right_value']}." if
                                                              b.get("right_value") else "."))
+            else:
+                parts.append(f"{str(phrase).capitalize()}.")
             if b.get("extra", {}).get("location"):
                 parts.append(f"Location: {b['extra']['location']}.")
             cites = [x for x in (b.get("left_record"), b.get("right_record")) if x]
-            cons.append({"rule": b.get("rule"), "status": status, "check": c.id,
+            cons.append({"rule": desc_c, "status": status, "check": c.id,
                          "text": _cite(" ".join(parts), *cites)})
         mismatches = [c for c in checks if c.body.get("status") == "mismatch"]
         if mismatches:
@@ -689,7 +693,7 @@ class HeuristicBackend:
         for x in ranked:
             if x[0] < 0.3 or (best and x[0] < best[0][0] - 0.15) or len(best) == 2:
                 break
-            if all(x[1] != b[1] for b in best):
+            if all(x[1] != b[1] and x[2].id != b[2].id for b in best):
                 best.append(x)
         if not best:
             return _json({"answer": [{"text": "The retrieved passages do not answer this question."}],

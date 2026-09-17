@@ -1,6 +1,6 @@
 # Every table row must carry the report equipment tag (catches transposed tags).
 name: row_tags_match
-description: Tag in each reading row matches the report equipment tag
+description: Equipment tag in a reading row
 applies_to: [inspection_report]
 left: fact.measurements[*].tag
 right: {source: fact, field: equipment_tag}

@@ -1,9 +1,9 @@
-/* Sovereign Workbench UI: vanilla JS, no build step, no external requests.
-   All user data is inserted with textContent; nothing from the API is parsed as HTML. */
+/* Workbench UI: vanilla JS, no build step, no external requests.
+   All data from the API is inserted with textContent; nothing is parsed as HTML. */
 (() => {
   "use strict";
 
-  // ---------------------------------------------------------------------------------------------
+  // -------------------------------------------------------------------------------------------
   // Helpers
 
   const $ = (sel, root = document) => root.querySelector(sel);
@@ -19,13 +19,12 @@
       else if (key === "dataset") Object.assign(el.dataset, value);
       else if (key.startsWith("on") && typeof value === "function") el.addEventListener(key.slice(2), value);
       else if (key === "style") {
-        // CSSOM writes are allowed under the page's Content-Security-Policy; style attributes are not.
+        // CSSOM writes are allowed by the Content-Security-Policy; style attributes are not.
         String(value).split(";").forEach((decl) => {
           const at = decl.indexOf(":");
           if (at > 0) el.style.setProperty(decl.slice(0, at).trim(), decl.slice(at + 1).trim());
         });
-      }
-      else if (value === true) el.setAttribute(key, "");
+      } else if (value === true) el.setAttribute(key, "");
       else el.setAttribute(key, String(value));
     }
     for (const child of children.flat(Infinity)) {
@@ -35,26 +34,23 @@
     return el;
   }
 
+  function fill(el, ...children) {
+    el.replaceChildren(...children.flat(Infinity).filter((c) => c !== null && c !== undefined && c !== false));
+    return el;
+  }
+
   const ICONS = {
-    check: "M4 10.5l4 4 8-9",
-    cross: "M5 5l10 10M15 5L5 15",
-    route: "M4 16c0-6 12-6 12-12M13 4h3v3",
-    plan: "M5 5h10M5 10h10M5 15h6",
-    play: "M6 4l10 6-10 6z",
-    shield: "M10 2l6 3v5c0 4-3 7-6 8-3-1-6-4-6-8V5z",
-    doc: "M6 2h6l4 4v12H6zM12 2v4h4",
-    alert: "M10 3l8 14H2zM10 8v4M10 14.5v.5",
-    user: "M10 10a3 3 0 100-6 3 3 0 000 6zM4 17c1-3 3-4 6-4s5 1 6 4",
-    spark: "M10 2v4M10 14v4M2 10h4M14 10h4M5 5l2.5 2.5M12.5 12.5L15 15M5 15l2.5-2.5M12.5 7.5L15 5",
-    list: "M7 5h9M7 10h9M7 15h9M4 5h.01M4 10h.01M4 15h.01",
+    check: "M4.5 10.5l3.5 3.5 7.5-8",
+    cross: "M5.5 5.5l9 9M14.5 5.5l-9 9",
+    alert: "M10 6.5v4.5M10 13.8v.2M10 2.8l7.8 13.7H2.2z",
+    file: "M6 2.5h5.5l3.5 3.5v11.5H6zM11.5 2.5V6H15",
+    download: "M10 3.5v9M6.5 9l3.5 3.5L13.5 9M4.5 16.5h11",
     up: "M10 15V5M6 9l4-4 4 4",
     down: "M10 5v10M6 11l4 4 4-4",
-    trash: "M4 6h12M8 6V4h4v2M6 6l1 10h6l1-10",
-    download: "M10 3v10M6 9l4 4 4-4M4 16h12",
-    share: "M14 6l-8 4 8 4M15 7a2 2 0 100-4 2 2 0 000 4zM15 17a2 2 0 100-4 2 2 0 000 4zM5 12a2 2 0 100-4 2 2 0 000 4z",
-    clock: "M10 18a8 8 0 100-16 8 8 0 000 16zM10 6v4l3 2",
-    code: "M7 6l-4 4 4 4M13 6l4 4-4 4",
-    answer: "M4 4h12v9H9l-4 3v-3H4z",
+    trash: "M4.5 6h11M8 6V4.5h4V6M6 6l.8 10h6.4L14 6",
+    info: "M10 9v5M10 6.2v.2M10 17.5a7.5 7.5 0 100-15 7.5 7.5 0 000 15z",
+    chevron: "M8 5l5 5-5 5",
+    dot: "M10 11a1 1 0 100-2 1 1 0 000 2z",
   };
 
   function icon(name) {
@@ -62,60 +58,61 @@
     svg.setAttribute("viewBox", "0 0 20 20");
     svg.setAttribute("aria-hidden", "true");
     const path = document.createElementNS(SVG_NS, "path");
-    path.setAttribute("d", ICONS[name] || ICONS.spark);
+    path.setAttribute("d", ICONS[name] || ICONS.dot);
     svg.append(path);
     return svg;
   }
 
+  const spinner = () => h("span", { class: "spinner" });
   const fmtTime = (iso) => {
-    if (!iso) return "";
     const d = new Date(iso);
-    return isNaN(d) ? iso : d.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+    return isNaN(d) ? "" : d.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
   };
-  const ago = (iso) => {
-    const d = new Date(iso);
-    if (isNaN(d)) return "";
-    const s = Math.max(0, (Date.now() - d.getTime()) / 1000);
-    if (s < 60) return "just now";
-    if (s < 3600) return `${Math.floor(s / 60)} min ago`;
-    if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
-    return d.toLocaleDateString();
-  };
-  const bytes = (n) => (n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1048576).toFixed(1)} MB`);
-  const pct = (x) => (x === null || x === undefined ? "n/a" : `${Math.round(x * 100)}%`);
-  const statusText = (s) => String(s || "").replace(/_/g, " ");
+  const bytes = (n) => (n < 1024 ? `${n} B` : n < 1048576 ? `${Math.round(n / 1024)} KB` : `${(n / 1048576).toFixed(1)} MB`);
+  const plural = (n, word, many) => `${n} ${n === 1 ? word : many || `${word}s`}`;
+  const shortName = (p) => String(p).split("/").pop();
   const TERMINAL = new Set(["completed", "failed", "handed_back", "rejected", "cancelled"]);
 
-  function badge(status, text) {
-    return h("span", { class: `badge st-${status}`, text: text || statusText(status) });
-  }
+  const STATUS = {
+    queued: "Waiting to start", routing: "Starting", planning: "Planning", awaiting_plan: "Needs your approval",
+    waiting_tide: "Waiting for the reasoning model", running: "Working", awaiting_action: "Needs your approval",
+    rendering: "Preparing files", awaiting_deliverable: "Ready for review", completed: "Done", failed: "Failed",
+    handed_back: "Needs a person", rejected: "Stopped", cancelled: "Cancelled",
+  };
+  const NEEDS_YOU = new Set(["awaiting_plan", "awaiting_action", "awaiting_deliverable"]);
 
   function levelOf(label) {
     if (!label) return "unclassified";
     if (typeof label === "string") return label.split(/[ ·+]/)[0].toLowerCase();
     return String(label.level || "").toLowerCase();
   }
-
-  function labelChip(label, display) {
+  function labelTag(label, display) {
     const text = display || (typeof label === "string" ? label : [label.level, ...(label.compartments || [])].join(" · "));
-    return h("span", { class: `label-chip lv-${levelOf(label)}`, text });
+    return h("span", { class: `tag lv-${levelOf(label)}`, text });
   }
 
   function toast(message, bad = false) {
     const el = h("div", { class: `toast${bad ? " bad" : ""}`, text: message });
     $("#toasts").append(el);
-    setTimeout(() => el.remove(), bad ? 7000 : 3500);
+    setTimeout(() => el.remove(), bad ? 7000 : 3000);
   }
 
-  // ---------------------------------------------------------------------------------------------
+  function autosize(area) {
+    const fit = () => { area.style.height = "auto"; area.style.height = `${Math.min(area.scrollHeight, 240)}px`; };
+    area.addEventListener("input", fit);
+    fit();
+  }
+
+  // -------------------------------------------------------------------------------------------
   // API
 
   const store = {
     get(key, fallback) { try { return localStorage.getItem(key) || fallback; } catch { return fallback; } },
-    set(key, value) { try { localStorage.setItem(key, value); } catch { /* private mode */ } },
+    set(key, value) { try { localStorage.setItem(key, value); } catch { /* storage unavailable */ } },
   };
   let USER = store.get("wb_user", "engineer1");
-  document.cookie = `wb_user=${encodeURIComponent(USER)}; path=/; SameSite=Strict`;
+  const setUserCookie = (id) => { document.cookie = `wb_user=${encodeURIComponent(id)}; path=/; SameSite=Strict`; };
+  setUserCookie(USER);
 
   async function api(path, options = {}) {
     const opts = { ...options, headers: { "X-User": USER, ...(options.headers || {}) } };
@@ -135,659 +132,620 @@
     }
     return data;
   }
-
   const fileUrl = (id) => `/api/files/${encodeURIComponent(id)}/download`;
 
   async function guarded(button, fn) {
     if (button) button.disabled = true;
-    try {
-      return await fn();
-    } catch (e) {
-      toast(e.message, true);
-      return undefined;
-    } finally {
-      if (button) button.disabled = false;
-    }
+    try { return await fn(); } catch (e) { toast(e.message, true); return undefined; } finally { if (button) button.disabled = false; }
   }
 
-  // ---------------------------------------------------------------------------------------------
+  function button(text, onclick, kind = "") {
+    return h("button", { class: `btn ${kind}`.trim(), type: "button", onclick: (e) => guarded(e.currentTarget, () => onclick(e)) }, text);
+  }
+
+  // -------------------------------------------------------------------------------------------
+  // Overlays: a side panel for details and a modal for single records
+
+  function openLayer(id, title, content) {
+    const layer = $(`#${id}`);
+    $(`#${id}-title`).textContent = title;
+    fill($(`#${id}-content`), content);
+    layer.hidden = false;
+    $$("[data-close]", layer).forEach((el) => { el.onclick = () => { layer.hidden = true; }; });
+  }
+  const openPanel = (title, content) => openLayer("panel", title, content);
+  const openModal = (title, content) => openLayer("modal", title, content);
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+    if (!$("#modal").hidden) $("#modal").hidden = true;
+    else $("#panel").hidden = true;
+  });
+
+  const KIND_NAMES = {
+    user_input: "Your request", plan: "Approved plan", attachment: "Attachment", ocr_text: "Page text",
+    vlm_read: "Field read", kb_chunk: "Procedure passage", graph_fact: "Plant record", sandbox_result: "Script run",
+    calc_result: "Calculation", check_result: "Check", model_output: "Model output", tool_output: "Tool output",
+  };
+
+  async function showRecord(id) {
+    openModal(id, h("div", { class: "loading" }, spinner()));
+    let rec;
+    try { rec = await api(`/records/${encodeURIComponent(id)}`); } catch (e) { openModal(id, h("p", { class: "muted", text: e.message })); return; }
+    const task = rec.id.split("-")[1];
+    const body = typeof rec.body === "string" ? rec.body : JSON.stringify(rec.body, null, 2);
+    const parts = [
+      h("div", { class: "row wrap" }, h("span", { class: "chip", text: KIND_NAMES[rec.kind] || rec.kind }), labelTag(rec.label),
+        rec.confidence && rec.confidence !== "high" ? h("span", { class: "chip warn", text: `${rec.confidence} confidence` }) : null),
+      h("p", { class: "muted small", text: `${rec.source || ""}${rec.created_at ? ` · ${fmtTime(rec.created_at)}` : ""}` }),
+    ];
+    if (rec.body && rec.body.crop) {
+      parts.push(h("div", { class: "crops" },
+        h("img", { class: "crop", alt: "Scanned region", src: `/api/tasks/${task}/evidence/${rec.body.crop}` }),
+        rec.body.zoomed_crop ? h("img", { class: "crop", alt: "Zoomed region", src: `/api/tasks/${task}/evidence/${rec.body.zoomed_crop}` }) : null));
+    }
+    parts.push(h("pre", { class: "code", text: body.length > 12000 ? `${body.slice(0, 12000)}\n...` : body }));
+    const fields = Object.entries(rec.fields || {}).filter(([k]) => k !== "source_key");
+    if (fields.length) {
+      parts.push(h("details", {}, h("summary", { text: `Extracted values (${fields.length})` }),
+        h("table", { class: "table" }, h("tbody", {}, fields.slice(0, 40).map(([k, v]) => h("tr", {},
+          h("td", { class: "mono", text: k }), h("td", { text: v.raw }), h("td", { class: "muted", text: v.confidence || "" })))))));
+    }
+    if (rec.chain && rec.chain.length > 1) {
+      parts.push(h("details", {}, h("summary", { text: "Where this came from" }),
+        h("ul", { class: "plain" }, rec.chain.map((c) => h("li", {}, h("button", { class: "link-btn mono", type: "button", text: c.id, onclick: () => showRecord(c.id) }), ` ${c.summary.slice(0, 90)}`)))));
+    }
+    parts.push(h("p", { class: "muted tiny mono", text: `hash ${rec.hash.slice(0, 24)}...` }));
+    openModal(KIND_NAMES[rec.kind] || rec.kind, parts);
+  }
+
+  // -------------------------------------------------------------------------------------------
   // Shell
 
-  const shell = { workspaces: [], ws: null, me: null };
+  const shell = { workspaces: [], ws: null, me: null, users: [] };
 
-  function setBanner(label, text) {
-    const banner = $("#banner");
-    banner.style.setProperty("--lv", `var(--lv-${levelOf(label)})`);
-    $("#banner-text").textContent = text;
+  function setMarking(label, display) {
+    const el = $("#marking");
+    el.hidden = !display;
+    el.className = `marking lv-${levelOf(label)}`;
+    el.textContent = display || "";
+    el.title = "Classification of what you are viewing";
   }
 
   async function initShell() {
     const page = document.body.dataset.page;
-    $$(`[data-nav]`).forEach((a) => a.classList.toggle("active", a.dataset.nav === page));
-    $("#menu-btn").addEventListener("click", () => $("#side").classList.toggle("open"));
-    $("#new-task").addEventListener("click", () => {
-      if (page === "home") $("#task-text").focus();
-      else location.href = "/";
-    });
+    const side = $("#sidebar");
+    const scrim = $("#scrim");
+    const toggleSide = (open) => { side.classList.toggle("open", open); scrim.hidden = !open; };
+    $("#menu-btn").addEventListener("click", () => toggleSide(!side.classList.contains("open")));
+    scrim.addEventListener("click", () => toggleSide(false));
 
-    const users = await api("/users");
+    const menu = $("#account-menu");
+    const accountBtn = $("#account-btn");
+    accountBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      menu.hidden = !menu.hidden;
+      accountBtn.setAttribute("aria-expanded", String(!menu.hidden));
+    });
+    document.addEventListener("click", (e) => { if (!menu.hidden && !menu.contains(e.target)) menu.hidden = true; });
+
+    shell.users = await api("/users");
+    if (!shell.users.some((u) => u.id === USER)) { USER = shell.users[0].id; setUserCookie(USER); }
     const userSel = $("#user-select");
-    users.forEach((u) => userSel.append(h("option", { value: u.id, text: `${u.name} (${u.id})` })));
-    if (!users.some((u) => u.id === USER)) USER = users[0].id;
+    shell.users.forEach((u) => userSel.append(h("option", { value: u.id, text: u.name })));
     userSel.value = USER;
     userSel.addEventListener("change", () => {
       store.set("wb_user", userSel.value);
-      document.cookie = `wb_user=${encodeURIComponent(userSel.value)}; path=/; SameSite=Strict`;
-      location.reload();
+      setUserCookie(userSel.value);
+      location.href = "/";
     });
     shell.me = await api("/me");
+    $("#account-name").textContent = shell.me.name;
+    $("#avatar").textContent = shell.me.name.split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 
     shell.workspaces = await api("/workspaces");
     const wsSel = $("#ws-select");
     shell.workspaces.forEach((w) => wsSel.append(h("option", { value: w.id, text: w.title })));
     const wanted = new URLSearchParams(location.search).get("ws") || store.get("wb_ws", "");
     shell.ws = shell.workspaces.find((w) => w.id === wanted) || shell.workspaces[0] || null;
-    if (shell.ws) wsSel.value = shell.ws.id;
+    if (shell.ws) {
+      wsSel.value = shell.ws.id;
+      store.set("wb_ws", shell.ws.id);
+    }
     wsSel.addEventListener("change", () => {
       store.set("wb_ws", wsSel.value);
-      location.href = `/?ws=${encodeURIComponent(wsSel.value)}`;
+      location.href = "/";
     });
-    if (shell.ws) {
-      store.set("wb_ws", shell.ws.id);
-      setBanner(shell.ws.ceiling, `${shell.ws.title} · ceiling ${shell.ws.ceiling_display} · your access ${shell.ws.retrieval_ceiling}`);
-    } else {
-      setBanner("Unclassified", "No workspace access for this user");
-    }
+    $(".ws-picker").hidden = page !== "home";
+
     refreshRecent();
-    setInterval(refreshRecent, 6000);
-    initEgress();
+    setInterval(refreshRecent, 5000);
+    initNetwork();
   }
 
   async function refreshRecent() {
-    if (!shell.ws) return;
-    let tasks = [];
-    try { tasks = await api(`/tasks?workspace=${encodeURIComponent(shell.ws.id)}`); } catch { return; }
     const list = $("#recent");
+    let tasks = [];
+    try { tasks = await api("/tasks"); } catch { return; }
+    const mine = tasks.filter((t) => t.user === USER);
     const current = document.body.dataset.task;
-    list.replaceChildren(...tasks.slice(0, 14).map((t) => h("li", {},
-      h("a", { href: `/t/${t.id}`, class: t.id === current ? "active" : "", title: t.text },
-        h("span", { class: `dot st-${t.status}` }), h("span", { class: "title", text: t.text })))));
-    if (!tasks.length) list.append(h("li", { class: "muted small", text: "No tasks yet" }));
+    fill(list, ...mine.slice(0, 30).map((t) => {
+      let mark = null;
+      if (NEEDS_YOU.has(t.status)) mark = h("span", { class: "flag", title: STATUS[t.status] });
+      else if (!TERMINAL.has(t.status)) mark = h("span", { class: "spinner tiny", title: STATUS[t.status] });
+      else if (t.status !== "completed") mark = h("span", { class: "flag bad", title: STATUS[t.status] });
+      return h("a", { href: `/t/${t.id}`, class: t.id === current ? "active" : "", title: t.text },
+        h("span", { class: "recent-title", text: t.text }), mark);
+    }));
+    if (!mine.length) list.append(h("p", { class: "side-empty", text: "Your tasks will appear here." }));
   }
 
-  async function initEgress() {
-    const pill = $("#egress-pill");
-    const pop = $("#egress-pop");
-    pill.addEventListener("click", () => {
+  function initNetwork() {
+    const btn = $("#net-btn");
+    const pop = $("#net-pop");
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
       pop.hidden = !pop.hidden;
-      if (!pop.hidden) renderEgressPop();
+      if (!pop.hidden) renderNetPop();
     });
-    document.addEventListener("click", (e) => {
-      if (!pop.hidden && !$("#egress").contains(e.target)) pop.hidden = true;
-    });
+    document.addEventListener("click", (e) => { if (!pop.hidden && !pop.contains(e.target)) pop.hidden = true; });
     const tick = async () => {
       try {
         const snap = await api("/egress");
         shell.egress = snap;
-        const dot = $("#egress-dot");
+        const dot = $("#net-dot");
         if (snap.status !== "ok") {
-          dot.className = "pulse off";
-          $("#egress-text").textContent = "Egress monitor offline";
+          dot.className = "net-dot off";
+          $("#net-text").textContent = "Monitor offline";
+        } else if (snap.breach || snap.external_connections) {
+          dot.className = "net-dot bad";
+          $("#net-text").textContent = "Data left the server";
         } else {
-          const blocked = (snap.blocked_connect_host || 0) + (snap.blocked_connect_sandbox || 0);
-          dot.className = `pulse ${snap.breach || snap.external_connections ? "bad" : "ok"}`;
-          $("#egress-text").textContent = `${snap.external_connections} external · ${blocked} blocked`;
+          dot.className = "net-dot ok";
+          $("#net-text").textContent = "Local only";
         }
-      } catch { /* shown on next tick */ }
+      } catch { /* retried on the next tick */ }
     };
     tick();
     setInterval(tick, 8000);
   }
 
-  function egressCounters(snap) {
-    const packets = snap.blocked_packets === null || snap.blocked_packets === undefined ? "n/a" : snap.blocked_packets;
-    return h("div", { class: "counter-grid" },
-      h("div", { class: "counter" }, h("b", { text: snap.external_connections }), h("span", { text: "External connections" })),
-      h("div", { class: "counter" }, h("b", { text: packets }), h("span", { text: "Blocked packets (nftables)" })),
-      h("div", { class: "counter" }, h("b", { text: snap.blocked_connect_host }), h("span", { text: "Blocked connect(), host" })),
-      h("div", { class: "counter" }, h("b", { text: snap.blocked_connect_sandbox }), h("span", { text: "Blocked connect(), sandbox" })));
-  }
-
-  function renderEgressPop() {
-    const pop = $("#egress-pop");
+  function renderNetPop() {
+    const pop = $("#net-pop");
     const snap = shell.egress;
     if (!snap || snap.status !== "ok") {
-      pop.replaceChildren(h("strong", { text: "Monitor offline" }),
-        h("p", { class: "muted", text: "egressd is not reachable. Start it with the Go services (see the README)." }));
+      fill(pop, h("strong", { text: "The network monitor is not running" }),
+        h("p", { class: "muted small", text: "Start egressd, then reload." }));
       return;
     }
-    const btn = h("button", { class: "btn btn-primary btn-sm", type: "button", text: "Run egress test" });
-    btn.addEventListener("click", () => guarded(btn, async () => {
-      const res = await api("/egress/test", { method: "POST" });
-      toast(res.pass ? "Egress test passed: every attempt was blocked and counted" : "Egress test reported a failure", !res.pass);
-      shell.egress = await api("/egress");
-      renderEgressPop();
-    }));
-    pop.replaceChildren(
-      h("div", { class: "card-head" }, h("strong", { text: "Sovereignty proof" }), badge(snap.breach ? "failed" : "completed", snap.breach ? "breach" : `mode ${snap.mode}`)),
-      egressCounters(snap),
-      h("p", { class: "muted small", text: `Counting since ${fmtTime(snap.since)}. Collectors: ${Object.entries(snap.collectors || {}).map(([k, v]) => `${k} ${v}`).join(", ")}` }),
-      h("div", { class: "actions" }, btn, h("a", { class: "btn btn-ghost btn-sm", href: "/security", text: "Details" })));
+    const blocked = (snap.blocked_connect_host || 0) + (snap.blocked_connect_sandbox || 0);
+    fill(pop, 
+      h("strong", { text: snap.external_connections ? "Outbound connections were detected" : "Nothing has left this server" }),
+      h("p", { class: "muted small", text: `${snap.external_connections} outbound connections · ${plural(blocked, "attempt")} blocked` }),
+      h("div", { class: "row" },
+        button("Run a test", async () => {
+          const res = await api("/egress/test", { method: "POST" });
+          toast(res.pass ? "Test passed: every attempt was blocked" : "The test found a problem", !res.pass);
+          shell.egress = await api("/egress");
+          renderNetPop();
+        }),
+        h("a", { class: "btn ghost", href: "/security", text: "Details" })));
   }
 
-  // ---------------------------------------------------------------------------------------------
-  // Record drawer
-
-  function openDrawer(title, body) {
-    const drawer = $("#drawer");
-    $("#drawer-title").textContent = title;
-    $("#drawer-body").replaceChildren(...[].concat(body));
-    drawer.hidden = false;
-    $$("[data-close]", drawer).forEach((el) => { el.onclick = () => { drawer.hidden = true; }; });
-  }
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("#drawer").hidden = true; });
-
-  function recLink(id, taskId) {
-    return h("button", { class: "reclink", type: "button", text: id, onclick: (e) => { e.stopPropagation(); showRecord(id, taskId); } });
-  }
-
-  async function showRecord(id, taskId) {
-    openDrawer(id, h("div", { class: "skeleton skeleton-title" }));
-    let rec;
-    try { rec = await api(`/records/${encodeURIComponent(id)}`); } catch (e) { openDrawer(id, h("p", { class: "muted", text: e.message })); return; }
-    const task = taskId || rec.id.split("-")[1];
-    const body = typeof rec.body === "string" ? rec.body : JSON.stringify(rec.body, null, 2);
-    const parts = [
-      h("div", { class: "meta-row" }, h("span", { class: "kind", text: rec.kind }),
-        h("span", { class: rec.trust === "control" ? "trust-control" : "muted", text: rec.trust }),
-        labelChip(rec.label), rec.confidence ? badge(rec.confidence === "uncertain" ? "not_checked" : rec.confidence === "high" ? "pass" : "derived", `${rec.confidence} confidence`) : null),
-      h("dl", { class: "kv" },
-        h("dt", { text: "Source" }), h("dd", { text: rec.source }),
-        h("dt", { text: "Produced by" }), h("dd", { text: rec.produced_by || "" }),
-        h("dt", { text: "Created" }), h("dd", { text: fmtTime(rec.created_at) }),
-        h("dt", { text: "Hash" }), h("dd", { class: "mono small", text: rec.hash.slice(0, 32) + "…" })),
-    ];
-    if (rec.body && rec.body.crop) {
-      parts.push(h("div", { class: "crop-pair" },
-        h("strong", { text: "Scan region" }),
-        h("img", { class: "crop", alt: "cropped region", src: `/api/tasks/${task}/evidence/${rec.body.crop}` }),
-        rec.body.zoomed_crop ? h("img", { class: "crop", alt: "zoomed re-read", src: `/api/tasks/${task}/evidence/${rec.body.zoomed_crop}` }) : null));
-    }
-    parts.push(h("h3", { text: "Body" }), h("pre", { class: "code", text: body.length > 12000 ? body.slice(0, 12000) + "\n…" : body }));
-    const fields = Object.entries(rec.fields || {});
-    if (fields.length) {
-      parts.push(h("h3", { text: "Typed fields" }), h("div", { class: "table-wrap" }, h("table", {},
-        h("thead", {}, h("tr", {}, h("th", { text: "Field" }), h("th", { text: "Raw" }), h("th", { text: "Normalised" }), h("th", { text: "Confidence" }))),
-        h("tbody", {}, fields.slice(0, 40).map(([k, v]) => h("tr", {}, h("td", { class: "mono", text: k }), h("td", { text: v.raw }), h("td", { text: v.normalised }), h("td", { text: v.confidence })))))));
-    }
-    if (rec.chain && rec.chain.length > 1) {
-      parts.push(h("h3", { text: "Derivation chain" }), h("ul", { class: "chain" },
-        rec.chain.map((c) => h("li", {}, recLink(c.id, task), h("span", { class: "kind", text: c.kind }), h("span", { class: "muted small", text: c.summary.slice(0, 90) })))));
-    }
-    openDrawer(`${rec.id} · ${rec.kind}`, parts);
-  }
-
-  // ---------------------------------------------------------------------------------------------
+  // -------------------------------------------------------------------------------------------
   // Home
 
   async function pageHome() {
     const ws = shell.ws;
     if (!ws) {
-      $("#content").replaceChildren(h("div", { class: "card empty", text: "This user has no workspace access." }));
+      fill($("#content"), h("div", { class: "home" }, h("h1", { class: "greeting", text: "No workspace access" }),
+        h("p", { class: "muted", text: "Ask an administrator to add you to a workspace." })));
       return;
     }
-    $("#hero-ws").textContent = ws.title;
+    const text = $("#task-text");
+    const send = $("#send-btn");
     const attached = new Set();
     let files = [];
-    let area = "inputs";
+    autosize(text);
+    text.focus();
+    const syncSend = () => { send.disabled = !text.value.trim(); };
+    text.addEventListener("input", syncSend);
+    text.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); if (text.value.trim()) $("#composer").requestSubmit(); }
+    });
 
     const renderAttached = () => {
-      $("#attached").replaceChildren(...[...attached].map((p) => h("span", { class: "chip" }, p.replace(/^inputs\//, ""),
-        h("button", { type: "button", "aria-label": "Remove", onclick: () => { attached.delete(p); renderAttached(); renderPicker(); } }, icon("cross")))));
+      fill($("#attached"), ...[...attached].map((p) => h("span", { class: "file-chip" }, icon("file"), shortName(p),
+        h("button", { type: "button", "aria-label": `Remove ${shortName(p)}`, onclick: () => { attached.delete(p); renderAttached(); renderPicker(); } }, icon("cross")))));
     };
     const renderPicker = () => {
       const inputs = files.filter((f) => f.area === "inputs");
-      $("#picker-list").replaceChildren(...inputs.map((f) => h("li", {}, h("label", {},
+      fill($("#picker-list"), ...inputs.map((f) => h("label", { class: "pick" },
         h("input", { type: "checkbox", checked: attached.has(f.path), onchange: (e) => { e.target.checked ? attached.add(f.path) : attached.delete(f.path); renderAttached(); } }),
-        h("span", { class: "name", text: f.name }), labelChip(f.label, f.label_display), h("span", { class: "muted small", text: bytes(f.size) })))));
-      if (!inputs.length) $("#picker-list").append(h("li", { class: "muted small", text: "No inputs yet. Upload a file." }));
+        h("span", { class: "pick-name", text: f.name }), labelTag(f.label, f.label_display), h("span", { class: "muted small", text: bytes(f.size) }))));
+      if (!inputs.length) $("#picker-list").append(h("p", { class: "muted small", text: "No files yet. Upload one to start." }));
     };
-    const renderFiles = () => {
-      const rows = files.filter((f) => f.area === area);
-      const wrap = $("#file-table");
-      if (!rows.length) { wrap.replaceChildren(h("div", { class: "empty", text: `No files in ${area}/` })); return; }
-      const others = shell.workspaces.filter((w) => w.id !== ws.id);
-      wrap.replaceChildren(h("table", {},
-        h("thead", {}, h("tr", {}, h("th", { text: "Name" }), h("th", { text: "Label" }), h("th", { text: "Size" }), h("th", { text: "" }))),
-        h("tbody", {}, rows.map((f) => h("tr", {},
-          h("td", {}, h("div", { text: f.name }), f.task_id ? h("a", { class: "small", href: `/t/${f.task_id}`, text: `from ${f.task_id}` }) : null),
-          h("td", {}, labelChip(f.label, f.label_display)),
-          h("td", { class: "num muted", text: bytes(f.size) }),
-          h("td", {}, h("div", { class: "row-actions" },
-            h("a", { class: "btn btn-ghost btn-sm", href: fileUrl(f.id), title: "Download" }, icon("download")),
-            area !== "inputs" && others.length ? shareControl(f, others) : null)))))));
+    const renderStarters = () => {
+      const find = (re) => files.find((f) => f.area === "inputs" && re.test(f.name));
+      const ideas = [];
+      const add = (label, prompt, paths) => { if (paths.every(Boolean)) ideas.push([label, prompt, paths]); };
+      add("Draft an approval note", "Draft an approval note for this inspection report", [find(/^inspection_P108B/)]);
+      add("Summarise a contract", "Summarise this vendor contract", [find(/contract.*\.pdf$/)]);
+      add("Analyse sensor readings", "Write a Python script to parse these pressure readings and flag anomalies", [find(/pressure.*\.csv$/)]);
+      add("Calculate wall thickness", "Compute the required wall thickness for this pipe per the attached data", [find(/pipe_data/)]);
+      const offers = files.filter((f) => f.area === "inputs" && /^(offer_|tender)/.test(f.name));
+      if (offers.length >= 2) ideas.push(["Compare vendor offers", "Compare these three vendor offers against the tender conditions and recommend one", offers]);
+      fill($("#starters"), ...ideas.slice(0, 4).map(([label, prompt, paths]) => h("button", {
+        class: "starter", type: "button", text: label,
+        onclick: () => {
+          text.value = prompt;
+          attached.clear();
+          paths.forEach((f) => attached.add(f.path));
+          renderAttached(); renderPicker(); syncSend(); text.dispatchEvent(new Event("input")); text.focus();
+        },
+      })));
     };
     const loadFiles = async () => {
       files = await api(`/workspaces/${ws.id}/files`);
-      renderFiles();
       renderPicker();
-      renderSuggestions();
-    };
-    const renderSuggestions = () => {
-      const has = (re) => files.find((f) => f.area === "inputs" && re.test(f.name));
-      const ideas = [];
-      const scan = has(/^inspection_P108B/);
-      if (scan) ideas.push(["Draft an approval note for this inspection report", [scan.path]]);
-      const csv = has(/pressure.*\.csv$/);
-      if (csv) ideas.push(["Write a Python script to parse these pressure readings and flag anomalies", [csv.path]]);
-      const contract = has(/contract.*\.pdf$/);
-      if (contract) ideas.push(["Summarise this vendor contract", [contract.path]]);
-      const pipe = has(/pipe_data/);
-      if (pipe) ideas.push(["Compute the required wall thickness for this pipe per the attached data", [pipe.path]]);
-      const offers = files.filter((f) => f.area === "inputs" && /^(offer_|tender)/.test(f.name));
-      if (offers.length >= 2) ideas.push(["Compare these three vendor offers against the tender conditions and recommend one", offers.map((f) => f.path)]);
-      const notes = has(/board_notes/);
-      if (notes) ideas.push(["Turn these notes into a board deck", [notes.path]]);
-      ideas.push(["Which pumps are governed by SOP-MECH-014?", []]);
-      $("#suggestions").replaceChildren(...ideas.map(([text, paths]) => h("button", {
-        class: "suggestion", type: "button", text,
-        onclick: () => { $("#task-text").value = text; attached.clear(); paths.forEach((p) => attached.add(p)); renderAttached(); renderPicker(); $("#task-text").focus(); },
-      })));
+      renderStarters();
     };
 
-    $$("#file-tabs button").forEach((b) => b.addEventListener("click", () => {
-      area = b.dataset.area;
-      $$("#file-tabs button").forEach((x) => x.classList.toggle("active", x === b));
-      renderFiles();
-    }));
-    $("#attach-btn").addEventListener("click", () => { $("#picker").hidden = !$("#picker").hidden; });
+    const picker = $("#picker");
+    $("#attach-btn").addEventListener("click", (e) => { e.stopPropagation(); picker.hidden = !picker.hidden; });
+    document.addEventListener("click", (e) => { if (!picker.hidden && !picker.contains(e.target)) picker.hidden = true; });
     $("#upload-input").addEventListener("change", async (e) => {
       const file = e.target.files[0];
       if (!file) return;
       const form = new FormData();
       form.append("file", file);
-      const level = $("#upload-level").value;
-      if (level) form.append("level", level);
       await guarded(null, async () => {
         const rec = await api(`/workspaces/${ws.id}/files`, { method: "POST", body: form });
-        toast(`Uploaded ${rec.name} as ${rec.label_display}`);
+        toast(`Uploaded ${rec.name} (${rec.label_display})`);
         attached.add(rec.path);
         renderAttached();
         await loadFiles();
       });
       e.target.value = "";
     });
-    $("#task-text").addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) $("#composer").requestSubmit();
-    });
     $("#composer").addEventListener("submit", (e) => {
       e.preventDefault();
-      const text = $("#task-text").value.trim();
-      if (!text) return;
-      guarded($("#submit-task"), async () => {
+      const value = text.value.trim();
+      if (!value) return;
+      guarded(send, async () => {
         const meta = $("#no-template").checked ? { templates_disabled: true } : {};
-        const task = await api("/tasks", { method: "POST", json: { workspace: ws.id, text, attachments: [...attached], meta } });
+        const task = await api("/tasks", { method: "POST", json: { workspace: ws.id, text: value, attachments: [...attached], meta } });
         location.href = `/t/${task.id}`;
       });
     });
-
-    const renderActivity = async () => {
-      const [tasks, jobs] = await Promise.all([api(`/tasks?workspace=${ws.id}`), api("/jobs")]);
-      const waiting = jobs.filter((j) => j.state === "queued").length;
-      const running = jobs.filter((j) => j.state === "running").length;
-      $("#queue-note").textContent = `${running} running · ${waiting} queued`;
-      const list = $("#activity");
-      if (!tasks.length) { list.replaceChildren(h("li", { class: "empty", text: "Tasks you start appear here." })); return; }
-      list.replaceChildren(...tasks.slice(0, 10).map((t) => h("li", {}, h("a", { href: `/t/${t.id}` },
-        h("span", { class: `dot st-${t.status}` }),
-        h("div", { style: "min-width:0" }, h("div", { class: "title", text: t.text }), h("div", { class: "sub", text: `${t.id} · ${t.user} · ${ago(t.created_at)}${t.model ? " · " + t.model : ""}` })),
-        h("div", { class: "meta-row" }, labelChip(t.label, t.label_display), badge(t.status))))));
-    };
     await loadFiles();
-    await renderActivity();
-    setInterval(renderActivity, 5000);
-    if (new URLSearchParams(location.search).get("focus")) $("#task-text").focus();
   }
 
-  function shareControl(file, workspaces) {
-    const select = h("select", { class: "select select-sm", "aria-label": "Share to workspace" },
-      h("option", { value: "", text: "Share to…" }), workspaces.map((w) => h("option", { value: w.id, text: `${w.title} (${w.ceiling_display})` })));
-    select.addEventListener("change", () => {
-      const target = select.value;
-      if (!target) return;
-      guarded(select, async () => {
-        await api(`/files/${file.id}/share`, { method: "POST", json: { workspace: target } });
-        toast(`Shared ${file.name} to ${target}`);
-      }).finally(() => { select.value = ""; });
-    });
-    return select;
+  // -------------------------------------------------------------------------------------------
+  // Task (conversation view)
+
+  const TOOL_NAMES = {
+    read_document: "Read the document", read_file: "Read the file", write_file: "Save a file", list_files: "List files",
+    search_kb: "Search the procedures", graph_lookup: "Look up plant records", check_consistency: "Check the facts",
+    calculate: "Calculate", run_python: "Run a script", make_docx: "Create the Word document",
+    make_xlsx: "Create the spreadsheet", make_pptx: "Create the slide deck", recall: "Re-read a source",
+    delegate: "Ask a helper task", finish: "Finish", summarise_document: "Summarise the document",
+    answer_question: "Answer with sources", write_code: "Write the script and test it safely",
+  };
+  const STEP_ICON = { done: "check", incomplete: "alert", denied: "cross", failed: "alert", skipped: "cross" };
+
+  function citeText(text, sources, onOpen) {
+    const out = [];
+    let last = 0;
+    const re = /\s*\[(R-[A-Za-z0-9]+-\d+(?:,\s*R-[A-Za-z0-9]+-\d+)*)\]/g;
+    let m;
+    while ((m = re.exec(text))) {
+      out.push(text.slice(last, m.index));
+      m[1].split(/,\s*/).forEach((rid) => {
+        if (!sources.includes(rid)) sources.push(rid);
+        out.push(h("button", { class: "cite", type: "button", title: rid, text: sources.indexOf(rid) + 1, onclick: () => onOpen(rid) }));
+      });
+      last = m.index + m[0].length;
+    }
+    out.push(text.slice(last));
+    return out;
   }
-
-  // ---------------------------------------------------------------------------------------------
-  // Task page
-
-  const KIND_ICON = { route: "route", plan: "plan", decide: "spark", tool: "play", model: "spark", default: "alert", gate: "shield", escalation: "up", info: "list", error: "alert", sandbox: "code", check: "check", finish: "check" };
 
   async function pageTask() {
     const id = document.body.dataset.task;
-    const view = { task: null, editing: null, tab: "evidence", ledger: [], checks: null, filter: "all", lastUpdate: "" };
+    const view = { task: null, editing: null, stamp: "", ledger: [] };
+    const follow = $("#followup");
+    autosize($("#followup-text"));
 
     const load = async () => {
       let task;
       try { task = await api(`/tasks/${id}`); } catch (e) {
-        $("#task-head").replaceChildren(h("h1", { text: "Task unavailable" }), h("p", { class: "muted", text: e.message }));
+        fill($("#thread"), h("div", { class: "notice", text: e.status === 403 ? "You do not have access to this task." : e.message }));
         return false;
       }
-      const changed = task.updated_at !== view.lastUpdate;
-      view.task = task;
-      view.lastUpdate = task.updated_at;
-      if (changed) {
+      if (task.updated_at !== view.stamp) {
+        view.task = task;
+        view.stamp = task.updated_at;
         renderHead(task);
-        if (!view.editing) renderTimeline(task);
-        view.ledger = await api(`/tasks/${id}/ledger`).catch(() => []);
-        if (task.checks && task.checks.length) view.checks = await api(`/tasks/${id}/checks`).catch(() => null);
-        renderInspector();
-        setBanner(task.label, `${task.marking} · task ${task.id} inherits the highest source marking`);
-        $("#followup").hidden = !(task.status === "completed" && task.attachments.length);
+        if (!view.editing) renderThread(task);
+        setMarking(task.label, task.label_display);
+        follow.hidden = task.status !== "completed" || !task.attachments.length;
       }
       return !TERMINAL.has(task.status);
     };
-
     const poll = async () => {
       const again = await load();
-      const t = view.task;
-      if (!t) return;
-      const waiting = t.pending_gate || t.status === "waiting_tide";
-      if (again) setTimeout(poll, waiting ? 2500 : 1000);
+      if (again) setTimeout(poll, view.task && view.task.pending_gate ? 2500 : 900);
     };
+    const refresh = () => { view.stamp = ""; return load(); };
 
     function renderHead(t) {
       const job = t.job;
-      const cancel = job && ["queued", "running"].includes(job.state) && t.is_owner
-        ? h("button", { class: "btn btn-danger btn-sm", type: "button", text: "Cancel", onclick: (e) => guarded(e.target, async () => { await api(`/jobs/${job.id}`, { method: "DELETE" }); toast("Cancellation requested"); }) })
-        : null;
-      const done = t.plan ? t.plan.steps.filter((s) => ["done", "incomplete", "denied"].includes(s.status)).length : 0;
-      const total = t.plan ? t.plan.steps.length : 0;
-      $("#task-head").replaceChildren(
-        h("div", { class: "meta-row" }, h("span", { class: "mono", text: t.id }), h("span", { text: "·" }), h("span", { text: t.workspace }), h("span", { text: "·" }), h("span", { text: `${t.user}, ${fmtTime(t.created_at)}` })),
-        h("h1", { text: t.text }),
-        h("div", { class: "meta-row" }, badge(t.status), labelChip(t.label, t.label_display),
-          t.model ? h("span", { class: "pill model", text: t.model }) : null,
-          job && job.state === "queued" ? h("span", { class: "muted", text: `queue position ${job.position}, about ${job.eta_s}s` }) : null,
-          t.status_note ? h("span", { class: "muted", text: t.status_note }) : null, h("span", { class: "grow" }), cancel),
-        total ? h("div", { class: "progress", title: `${done} of ${total} steps` }, h("i", { style: `width:${Math.round((done / total) * 100)}%` })) : null);
+      const running = job && ["queued", "running"].includes(job.state) && t.is_owner;
+      fill($("#thread-head"), 
+        h("div", { class: "thread-title", text: t.text }),
+        h("div", { class: "row" },
+          running && !t.pending_gate ? button("Stop", async () => { await api(`/jobs/${job.id}`, { method: "DELETE" }); toast("Stopping"); }, "ghost") : null,
+          h("button", { class: "btn ghost", type: "button", onclick: () => openDetails(t) }, icon("info"), "Details")));
     }
 
-    function tl(iconName, tone, card) {
-      return h("div", { class: "tl" }, h("div", { class: `tl-icon ${tone || ""}` }, icon(iconName)), card);
+    function assistant(...children) {
+      return h("div", { class: "turn assistant" }, h("img", { class: "turn-avatar", src: "/static/mark.svg", alt: "" }),
+        h("div", { class: "turn-body" }, children));
     }
 
-    function renderTimeline(t) {
+    function renderThread(t) {
       const items = [];
-      items.push(tl("user", "accent", h("section", { class: "card" },
-        h("p", { class: "request-text", text: t.text }),
-        t.attachments.length ? h("div", { class: "chips" }, t.attachments.map((a) => h("span", { class: "chip", text: a.replace(/^inputs\//, "") }))) : null)));
-      if (t.route) items.push(tl("route", "", routeCard(t)));
+      items.push(h("div", { class: "turn user" }, h("div", { class: "bubble" },
+        h("p", { text: t.text }),
+        t.attachments.length ? h("div", { class: "row wrap" }, t.attachments.map((a) => h("span", { class: "file-chip", title: a }, icon("file"), shortName(a)))) : null)));
+
+      const body = [];
       const gate = t.pending_gate;
-      if (gate && gate.kind === "template_choice") items.push(tl("alert", "warn", templateChoiceCard(t, gate)));
-      if (t.plan) items.push(tl("plan", gate && gate.kind === "plan" ? "warn" : "", planCard(t, gate && gate.kind === "plan" ? gate : null)));
-      if (gate && gate.kind === "action") items.push(tl("shield", "warn", actionCard(t, gate)));
-      if (t.status === "waiting_tide") items.push(tl("clock", "warn", h("section", { class: "card attention" }, h("h2", { text: "Waiting for the reasoning model" }), h("p", { class: "muted", text: t.status_note || "The swap-slot model wakes at the next tide." }))));
-      const exec = t.trace.filter((r) => !["route", "plan"].includes(r.kind));
-      if (exec.length) items.push(tl("play", "", traceCard(t, exec)));
-      if (t.checks && t.checks.length) items.push(tl("check", t.checks.some((c) => c.status === "mismatch") ? "bad" : "good", checksSummary(t)));
-      if (t.deliverables && t.deliverables.length) items.push(tl("doc", gate && gate.kind === "deliverable" ? "warn" : "good", deliverablesCard(t, gate && gate.kind === "deliverable" ? gate : null)));
-      const result = resultCard(t);
-      if (result) items.push(result);
-      $("#timeline").replaceChildren(...items);
+      const step = t.plan && t.plan.steps.find((s) => s.status === "running");
+      if (!TERMINAL.has(t.status) && !gate) {
+        const total = t.plan ? t.plan.steps.length : 0;
+        const done = t.plan ? t.plan.steps.filter((s) => ["done", "incomplete", "denied"].includes(s.status)).length : 0;
+        let note = STATUS[t.status] || "Working";
+        if (step) note = `${step.title || step.id} (${done + 1} of ${total})`;
+        if (t.status === "waiting_tide") note = "Waiting for the reasoning model to load";
+        if (t.job && t.job.state === "queued") note = `Waiting in line (position ${t.job.position})`;
+        body.push(h("div", { class: "working" }, spinner(), h("span", { text: note })));
+      }
+      if (gate && gate.kind === "template_choice") body.push(choiceBlock(t, gate));
+      if (t.plan) body.push(gate && gate.kind === "plan" ? planGate(t, gate) : progress(t));
+      if (gate && gate.kind === "action") body.push(actionGate(t, gate));
+      body.push(...results(t));
+      if (body.length) items.push(assistant(body));
+      fill($("#thread"), ...items);
     }
 
-    function routeCard(t) {
-      const r = t.route;
-      const p = r.profile;
-      const chosen = r.candidates.find((c) => c.model === r.chosen) || {};
-      return h("section", { class: "card" },
-        h("div", { class: "card-head" }, h("h2", {}, "Routed to ", h("span", { class: "pill model", text: r.chosen })),
-          h("span", { class: "muted small", text: `threshold ${r.threshold.toFixed(2)}${r.below_threshold ? " · below threshold" : ""}${r.queued_for_tide ? " · queued for tide" : ""}` })),
-        h("div", { class: "meta-row" },
-          h("span", { class: "pill", text: `route ${p.task_type}` }), p.rule ? h("span", { class: "pill", text: `rule ${p.rule}` }) : h("span", { class: "pill", text: "classifier" }),
-          h("span", { class: "pill", text: `modality ${p.modalities.join("+")}${p.decoupled ? " (decoupled)" : ""}` }),
-          h("span", { class: "pill", text: `≈${Math.round(p.est_input_tokens / 1000)}k tokens` }),
-          h("span", { class: "pill", text: `lang ${p.languages.join(",")}` }), h("span", { class: "pill", text: `complexity ${p.complexity}` })),
-        chosen.quality !== undefined && chosen.quality !== null ? h("p", { class: "muted small", text: `Quality ${chosen.quality.toFixed(2)} on this route, expected step cost ${chosen.cost_s}s. See the Routing tab for every candidate.` }) : null);
-    }
-
-    function templateChoiceCard(t, gate) {
-      return h("section", { class: "card attention" },
-        h("h2", { text: "More than one template fits" }),
-        h("p", { class: "muted", text: "Choose the plan template to use for this request." }),
-        h("div", { class: "actions" }, gate.payload.options.map((name) => h("button", {
-          class: "btn btn-ghost", type: "button", text: name.replace(/_/g, " "),
-          onclick: (e) => guarded(e.target, async () => { await api(`/tasks/${t.id}/template/decision`, { method: "POST", json: { template: name } }); poll(); }),
+    function choiceBlock(t, gate) {
+      return h("div", { class: "block" },
+        h("p", { text: "More than one saved approach fits this request. Which one should I use?" }),
+        h("div", { class: "row wrap" }, gate.payload.options.map((name) => button(name.replace(/_/g, " "), async () => {
+          await api(`/tasks/${t.id}/template/decision`, { method: "POST", json: { template: name } });
+          await refresh();
         }))));
     }
 
-    function typedPlan(plan) {
+    function stepSummary(s) {
+      return s.title || TOOL_NAMES[s.tool] || TOOL_NAMES[s.model_task] || (s.tool || s.model_task || s.id).replace(/_/g, " ");
+    }
+
+    function planGate(t, gate) {
+      const plan = t.plan;
+      const editing = view.editing;
+      const steps = editing ? editing.steps : plan.steps;
+      const list = h("ol", { class: "plan" }, steps.map((s, i) => h("li", {},
+        h("span", { class: "plan-text", text: stepSummary(s) }),
+        s.side_effect ? h("span", { class: "chip", text: "asks first" }) : null,
+        editing ? h("span", { class: "row tight" },
+          h("button", { class: "icon-btn", type: "button", "aria-label": "Move up", disabled: i === 0, onclick: () => { [steps[i - 1], steps[i]] = [steps[i], steps[i - 1]]; renderThread(t); } }, icon("up")),
+          h("button", { class: "icon-btn", type: "button", "aria-label": "Move down", disabled: i === steps.length - 1, onclick: () => { [steps[i + 1], steps[i]] = [steps[i], steps[i + 1]]; renderThread(t); } }, icon("down")),
+          h("button", { class: "icon-btn", type: "button", "aria-label": "Remove step", onclick: () => { steps.splice(i, 1); renderThread(t); } }, icon("trash"))) : null)));
+      const eta = plan.est_time_s ? (plan.est_time_s < 60 ? ", under a minute" : `, about ${Math.round(plan.est_time_s / 60)} min`) : "";
+      const parts = [h("p", { text: `Here is my plan${eta}:` }), list];
+      if (plan.errors && plan.errors.length) {
+        parts.push(h("div", { class: "notice bad" }, h("strong", { text: "This plan cannot run yet" }), h("ul", { class: "plain" }, plan.errors.map((e) => h("li", { text: e })))));
+      }
+      if (editing) {
+        parts.push(h("div", { class: "row" },
+          button("Use this plan", async () => {
+            await api(`/tasks/${t.id}/plan/decision`, { method: "POST", json: { decision: "edit", plan: typedPlan(plan, steps) } });
+            view.editing = null;
+            await refresh();
+          }, "primary"),
+          h("button", { class: "btn ghost", type: "button", text: "Discard changes", onclick: () => { view.editing = null; renderThread(t); } })));
+      } else {
+        parts.push(h("div", { class: "row" },
+          h("button", { class: "btn primary", type: "button", disabled: !plan.valid, onclick: (e) => guarded(e.currentTarget, async () => {
+            await api(`/tasks/${t.id}/plan/decision`, { method: "POST", json: { decision: "approve" } });
+            await refresh();
+          }) }, "Start"),
+          h("button", { class: "btn", type: "button", text: "Edit", onclick: () => {
+            view.editing = { steps: plan.steps.map((s) => ({ ...s })) };
+            renderThread(t);
+          } }),
+          button("Cancel", async () => {
+            await api(`/tasks/${t.id}/plan/decision`, { method: "POST", json: { decision: "reject" } });
+            await refresh();
+          }, "ghost")));
+      }
+      return h("div", { class: "block" }, parts);
+    }
+
+    function typedPlan(plan, steps) {
       return {
         goal: plan.goal, deliverables: plan.deliverables,
-        steps: plan.steps.map((s) => ({ id: s.id, title: s.title, action: s.tool ? { tool: s.tool } : { model_task: s.model_task },
-          args: s.args, inputs: s.inputs.map((i) => ({ from: i.from || i.source, ref: i.ref })), output_type: s.output_type, side_effect: s.side_effect })),
+        steps: steps.map((s) => ({
+          id: s.id, title: s.title, action: s.tool ? { tool: s.tool } : { model_task: s.model_task },
+          args: s.args, inputs: s.inputs.map((i) => ({ from: i.from || i.source, ref: i.ref })),
+          output_type: s.output_type, side_effect: s.side_effect,
+        })),
       };
     }
 
-    function planCard(t, gate) {
-      const plan = t.plan;
-      const editing = view.editing;
-      const steps = editing ? editing.steps : plan.steps.map((s) => ({ ...s }));
-      const header = h("div", { class: "card-head" },
-        h("h2", {}, plan.source === "template" ? `Plan from template ${plan.template} v${plan.template_version}` : "Compiled plan"),
-        h("span", { class: "muted small", text: `${plan.steps.length} steps · about ${Math.round(plan.est_time_s)}s${plan.repairs ? ` · ${plan.repairs} repair` : ""}` }));
-      const list = h("ol", { class: "steps" }, steps.map((s, i) => h("li", { class: `step ${s.status || ""}` },
-        h("span", { class: "step-n", text: i + 1 }),
-        h("div", {},
-          h("div", { class: "step-title", text: s.title || s.id }),
-          h("div", { class: "step-sub" }, h("span", { class: "pill", text: s.tool || `model: ${s.model_task}` }),
-            (s.inputs || []).filter((x) => (x.from || x.source) === "step").length ? h("span", { text: `uses ${(s.inputs || []).filter((x) => (x.from || x.source) === "step").map((x) => x.ref).join(", ")}` }) : null,
-            s.side_effect ? h("span", { class: "badge st-awaiting_action plain", text: "needs approval" }) : null,
-            s.note ? h("span", { text: s.note }) : null)),
-        editing ? h("div", { class: "step-edit" },
-          h("button", { class: "icon-btn", type: "button", "aria-label": "Move up", disabled: i === 0, onclick: () => { [steps[i - 1], steps[i]] = [steps[i], steps[i - 1]]; renderTimeline(t); } }, icon("up")),
-          h("button", { class: "icon-btn", type: "button", "aria-label": "Move down", disabled: i === steps.length - 1, onclick: () => { [steps[i + 1], steps[i]] = [steps[i], steps[i + 1]]; renderTimeline(t); } }, icon("down")),
-          h("button", { class: "icon-btn", type: "button", "aria-label": "Remove", onclick: () => { steps.splice(i, 1); renderTimeline(t); } }, icon("trash")))
-          : badge(s.status || "pending"))));
-      const parts = [header];
-      if (plan.errors && plan.errors.length) parts.push(h("ul", { class: "errors" }, plan.errors.map((e) => h("li", { text: e }))));
-      if (plan.notes && plan.notes.length) parts.push(h("ul", { class: "notes" }, plan.notes.map((e) => h("li", { text: e }))));
-      if (t.plan_history && t.plan_history.length > 1) {
-        parts.push(h("details", {}, h("summary", { class: "muted small", text: "Compiler and repair history" }),
-          h("ul", { class: "notes" }, t.plan_history.map((x) => h("li", { text: `attempt ${x.attempt}: ${x.errors.length ? x.errors.join("; ") : "valid"}` })))));
+    function progress(t) {
+      const steps = t.plan.steps;
+      const done = steps.filter((s) => s.status === "done").length;
+      const list = h("ol", { class: "steps" }, steps.map((s) => {
+        const state = s.status || "pending";
+        const mark = state === "running" ? spinner() : STEP_ICON[state] ? icon(STEP_ICON[state]) : h("span", { class: "pending-dot" });
+        return h("li", { class: `st-${state}` }, h("span", { class: "step-mark" }, mark),
+          h("span", {}, stepSummary(s), s.note && state !== "done" ? h("span", { class: "muted small", text: ` · ${s.note}` }) : null));
+      }));
+      if (TERMINAL.has(t.status) || t.status === "awaiting_deliverable") {
+        return h("details", { class: "steps-wrap" }, h("summary", { text: `${done} of ${plural(steps.length, "step")} completed` }), list);
       }
-      parts.push(list);
-      if (gate) {
-        if (editing) {
-          const json = h("textarea", { class: "mono", rows: 10 });
-          json.value = JSON.stringify(typedPlan({ ...plan, steps }), null, 2);
-          parts.push(h("details", {}, h("summary", { class: "muted small", text: "Advanced: edit the typed plan as JSON" }), json));
-          parts.push(h("div", { class: "actions" },
-            h("button", { class: "btn btn-primary", type: "button", text: "Submit edited plan", onclick: (e) => guarded(e.target, async () => {
-              let typed;
-              try { typed = JSON.parse(json.value); } catch { throw new Error("The JSON is not valid"); }
-              if (json.parentElement && !json.parentElement.open) typed = typedPlan({ ...plan, steps });
-              await api(`/tasks/${t.id}/plan/decision`, { method: "POST", json: { decision: "edit", plan: typed } });
-              view.editing = null;
-              toast("Edited plan sent to the compiler");
-              poll();
-            }) }),
-            h("button", { class: "btn btn-ghost", type: "button", text: "Discard changes", onclick: () => { view.editing = null; renderTimeline(t); } })));
-        } else {
-          const note = h("input", { class: "input", placeholder: "Optional note for the audit log" });
-          parts.push(h("div", { class: "actions" },
-            h("button", { class: "btn btn-primary", type: "button", disabled: !plan.valid, onclick: (e) => guarded(e.target, async () => {
-              await api(`/tasks/${t.id}/plan/decision`, { method: "POST", json: { decision: "approve", note: note.value || null } });
-              toast("Plan approved"); poll();
-            }) }, icon("check"), "Approve plan"),
-            h("button", { class: "btn btn-ghost", type: "button", text: "Edit", onclick: () => { view.editing = { steps: plan.steps.map((s) => ({ ...s, inputs: s.inputs.map((i) => ({ from: i.from || i.source, ref: i.ref })) })) }; renderTimeline(t); } }),
-            h("button", { class: "btn btn-danger", type: "button", text: "Reject", onclick: (e) => guarded(e.target, async () => {
-              await api(`/tasks/${t.id}/plan/decision`, { method: "POST", json: { decision: "reject", note: note.value || null } });
-              poll();
-            }) }), h("span", { class: "grow" })), note);
+      return h("div", { class: "steps-wrap open" }, list);
+    }
+
+    function actionGate(t, gate) {
+      const p = gate.payload;
+      const name = p.args && (p.args.name || p.args.path) ? shortName(p.args.name || p.args.path) : null;
+      const act = (approve) => async () => {
+        await api(`/tasks/${t.id}/actions/${gate.id}/decision`, { method: "POST", json: { approve } });
+        await refresh();
+      };
+      return h("div", { class: "block ask" },
+        h("p", {}, h("strong", { text: name ? `Save ${name}?` : `${stepSummary((t.plan && t.plan.steps.find((s) => s.id === p.step)) || { tool: p.tool })}?` })),
+        h("p", { class: "muted small", text: "This creates a draft. Nothing becomes final until you approve it." }),
+        h("details", {}, h("summary", { text: "What will run" }), h("pre", { class: "code", text: JSON.stringify(p.args, null, 2) })),
+        h("div", { class: "row" }, button("Allow", act(true), "primary"), button("Don't allow", act(false), "ghost")));
+    }
+
+    function results(t) {
+      const out = [];
+      const r = t.result || {};
+      if (r.answer) {
+        const sources = [];
+        const answer = r.answer;
+        out.push(h("div", { class: "answer" }, answer.answer.map((a) => h("p", {}, citeText(a.text, sources, showRecord)))));
+        if (sources.length) {
+          const recs = new Map(view.ledger.map((x) => [x.id, x]));
+          const list = h("ol", { class: "sources" }, sources.map((rid) => h("li", {},
+            h("button", { class: "link-btn", type: "button", onclick: () => showRecord(rid) }, recs.get(rid) ? recs.get(rid).summary.slice(0, 110) : rid))));
+          out.push(h("details", { class: "sources-wrap" }, h("summary", { text: `${plural(sources.length, "source")}` }), list));
+          if (!view.ledgerLoaded) {
+            view.ledgerLoaded = true;
+            api(`/tasks/${t.id}/ledger`).then((l) => { view.ledger = l; renderThread(t); }).catch(() => {});
+          }
         }
       }
-      return h("section", { class: `card${gate ? " attention" : ""}` }, parts);
-    }
-
-    function actionCard(t, gate) {
-      const p = gate.payload;
-      const act = (approve) => (e) => guarded(e.target, async () => {
-        await api(`/tasks/${t.id}/actions/${gate.id}/decision`, { method: "POST", json: { approve } });
-        toast(approve ? "Action approved" : "Action denied"); poll();
-      });
-      return h("section", { class: "card attention" },
-        h("div", { class: "card-head" }, h("h2", {}, "Approve ", h("span", { class: "pill", text: p.tool }), ` for step ${p.step}`), badge("awaiting_action", "side effect")),
-        h("p", { class: "muted", text: "This action writes into drafts/. Nothing moves to final/ until the deliverable is approved." }),
-        h("pre", { class: "code", text: JSON.stringify(p.args, null, 2) }),
-        h("div", { class: "actions" },
-          h("button", { class: "btn btn-primary", type: "button", onclick: act(true) }, icon("check"), "Approve"),
-          h("button", { class: "btn btn-danger", type: "button", text: "Deny", onclick: act(false) })));
-    }
-
-    function traceCard(t, rows) {
-      const lastN = rows.length > 60 ? rows.slice(-60) : rows;
-      return h("section", { class: "card" },
-        h("div", { class: "card-head" }, h("h2", { text: "Live trace" }), h("span", { class: "muted small", text: `${rows.length} events · ${t.template_fallbacks} fallback(s) · ${t.escalations.length} escalation(s)` })),
-        h("div", { class: "trace" }, lastN.map((r) => h("div", { class: `trace-row${r.ok ? "" : " err"}${/TEMPLATE_DEFAULT|DENIED|escalat/.test(r.summary) ? " hl" : ""}` },
-          h("span", { class: "n", text: r.n }),
-          h("span", { class: "k", text: [r.kind, r.step_id].filter(Boolean).join(" · ") }),
-          h("span", { class: "s" }, r.tool ? h("span", { class: "pill", text: r.tool }) : r.purpose ? h("span", { class: "pill", text: r.purpose }) : null, " ", r.summary,
-            r.records && r.records.length ? h("span", {}, " ", r.records.slice(0, 4).map((x) => [recLink(x, t.id), " "]), r.records.length > 4 ? `+${r.records.length - 4}` : "") : null),
-          h("span", { class: "t", text: r.latency_s ? `${r.latency_s.toFixed(2)}s` : "" })))));
-    }
-
-    function checksSummary(t) {
-      const counts = {};
-      t.checks.forEach((c) => { counts[c.status] = (counts[c.status] || 0) + 1; });
-      const mismatches = t.checks.filter((c) => c.status === "mismatch");
-      return h("section", { class: "card" },
-        h("div", { class: "card-head" }, h("h2", { text: "Consistency checks" }),
-          h("div", { class: "meta-row" }, Object.entries(counts).map(([k, v]) => badge(k, `${v} ${statusText(k)}`)))),
-        mismatches.length ? h("ul", { class: "blockers" }, mismatches.map((c) => h("li", {}, badge("mismatch", t.acknowledged.includes(c.record_id) ? "acknowledged" : "mismatch"),
-          h("span", {}, h("strong", { text: c.description || c.rule }), `: ${c.left_value ?? ""}${c.right_value ? ` vs ${c.right_value}` : ""}`)))) : h("p", { class: "muted", text: "No mismatches." }),
-        h("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Open checks panel", onclick: () => switchTab("checks") }));
-    }
-
-    function deliverablesCard(t, gate) {
-      const summary = t.draft_summary || {};
-      const rows = t.deliverables.map((d) => {
-        const ext = d.relpath.split(".").pop();
-        const c = d.provenance.counts || {};
-        const verified = d.claims.filter((x) => x.status === "verified").length;
-        return h("div", { class: "deliverable" },
-          h("span", { class: `file-ico ${ext}`, text: ext }),
-          h("div", {}, h("div", { class: "step-title", text: d.relpath }),
-            h("div", { class: "step-sub" }, labelChip(d.label), (c.sourced || c.derived || c.unsourced) ? h("span", { text: `${c.sourced || 0} sourced · ${c.derived || 0} computed · ${c.unsourced || 0} unsourced` }) : null,
-              d.claims.length ? h("span", { text: `${verified}/${d.claims.length} claims verified` }) : null, d.status !== "draft" ? badge(d.status) : null)),
-          h("div", { class: "row-actions" },
-            h("a", { class: "btn btn-ghost btn-sm", href: fileUrl(d.final_file_id || d.file_id), title: "Download" }, icon("download"))));
-      });
-      const head = gate
-        ? h("div", { class: "card-head" }, h("h2", { text: "Draft ready for review" }), badge("awaiting_deliverable", `${(summary.unacknowledged || []).length} to acknowledge · ${(summary.orphans || []).length} unsourced`))
-        : h("div", { class: "card-head" }, h("h2", { text: t.status === "completed" ? "Approved deliverables" : "Deliverables" }), t.status === "completed" ? badge("completed", "in final/") : null);
-      return h("section", { class: `card${gate ? " attention" : ""}` }, head, rows,
-        h("div", { class: "actions" }, h("a", { class: `btn ${gate ? "btn-primary" : "btn-ghost"}`, href: `/t/${t.id}/review` }, icon("doc"), gate ? "Review and approve" : "Open review")));
-    }
-
-    function citedText(text) {
-      const out = [];
-      let last = 0;
-      const re = /\[(R-[A-Za-z0-9]+-\d+(?:,\s*R-[A-Za-z0-9]+-\d+)*)\]/g;
-      let m;
-      while ((m = re.exec(text))) {
-        out.push(text.slice(last, m.index));
-        m[1].split(/,\s*/).forEach((rid) => out.push(h("button", { class: "reclink cite", type: "button", text: rid, onclick: () => showRecord(rid, id) })));
-        last = m.index + m[0].length;
+      if (r.code) {
+        const res = r.code.result;
+        const tries = r.code.attempts > 1 ? ` It needed ${r.code.attempts} attempts; the earlier errors are in Details.` : "";
+        out.push(h("p", { text: `The script ran successfully in the sandbox.${tries}` }));
+        if (res && typeof res === "object" && !Array.isArray(res)) {
+          out.push(h("table", { class: "table kv" }, h("tbody", {}, Object.entries(res).map(([k, v]) => h("tr", {},
+            h("td", { class: "muted", text: k.replace(/_/g, " ") }),
+            h("td", { text: Array.isArray(v) ? v.join(", ") : typeof v === "object" && v !== null ? JSON.stringify(v) : String(v) }))))));
+        } else if (res !== undefined && res !== null) {
+          out.push(h("pre", { class: "code", text: typeof res === "string" ? res : JSON.stringify(res, null, 2) }));
+        }
       }
-      out.push(text.slice(last));
+      const checks = t.checks || [];
+      if (checks.length) {
+        const issues = checks.filter((c) => c.status === "mismatch");
+        if (issues.length) {
+          out.push(h("p", { text: `I found ${plural(issues.length, "issue")} you should look at:` }),
+            h("ul", { class: "issues" }, issues.map((c) => h("li", {}, h("strong", { text: c.description || c.rule }),
+              c.left_value !== undefined && c.left_value !== null ? h("span", { class: "muted", text: ` (${c.left_value}${c.right_value ? ` vs ${c.right_value}` : ""})` }) : null))));
+        } else {
+          out.push(h("p", { class: "muted", text: `All ${plural(checks.length, "check")} passed.` }));
+        }
+      }
+      if (t.deliverables && t.deliverables.length) {
+        const gate = t.pending_gate && t.pending_gate.kind === "deliverable";
+        out.push(h("div", { class: "files" }, t.deliverables.map((d) => h("div", { class: "file" },
+          h("span", { class: "file-ext", text: d.relpath.split(".").pop() }),
+          h("div", { class: "file-info" }, h("div", { class: "file-name", text: shortName(d.relpath) }),
+            h("div", { class: "row tight" }, labelTag(d.label), d.status === "approved" ? h("span", { class: "muted small", text: "Final" }) : h("span", { class: "muted small", text: "Draft" }))),
+          h("a", { class: "icon-btn", href: fileUrl(d.final_file_id || d.file_id), title: "Download", "aria-label": `Download ${shortName(d.relpath)}` }, icon("download"))))));
+        if (gate) {
+          const ds = t.draft_summary || {};
+          const open = (ds.unacknowledged || []).length + (ds.orphans || []).length;
+          out.push(h("div", { class: "row" }, h("a", { class: "btn primary", href: `/t/${t.id}/review`, text: "Review and approve" }),
+            open ? h("span", { class: "muted small", text: `${plural(open, "item")} to check first` }) : null));
+        } else if (t.status === "completed") {
+          out.push(h("p", { class: "done-line" }, icon("check"), "Approved and saved to the final folder. ",
+            h("a", { href: `/t/${t.id}/review`, text: "View" })));
+        }
+      }
+      if (t.status === "completed" && !(t.deliverables || []).length && !r.answer && !r.code) {
+        out.push(h("p", { class: "done-line" }, icon("check"), "Done."));
+      }
+      if (["failed", "handed_back", "rejected", "cancelled"].includes(t.status)) {
+        const messages = {
+          failed: "Something went wrong and the task stopped.",
+          handed_back: "I could not finish this on my own. The full record is in Details.",
+          rejected: "This task was stopped.",
+          cancelled: "This task was cancelled.",
+        };
+        out.push(h("div", { class: `notice${t.status === "failed" ? " bad" : ""}` }, h("p", { text: messages[t.status] }),
+          t.error ? h("p", { class: "muted small", text: t.error }) : null));
+      }
+      if (t.status === "completed" && t.plan && t.plan.source === "model" && (t.deliverables || []).length) {
+        out.push(h("div", { class: "row" }, button("Save this plan for reuse", async () => {
+          await api("/templates/drafts", { method: "POST", json: { task_id: t.id } });
+          toast("Saved. An administrator can approve it under Security.");
+        }, "ghost small")));
+      }
       return out;
     }
 
-    function resultCard(t) {
-      const parts = [];
-      if (t.result && t.result.answer) {
-        const claims = t.result.claims || [];
-        const verified = claims.filter((c) => c.status === "verified").length;
-        parts.push(tl("answer", t.result.answer.not_found ? "warn" : "good", h("section", { class: "card answer" },
-          h("div", { class: "card-head" }, h("h2", { text: "Answer" }), claims.length ? badge(verified === claims.length ? "verified" : "unverified", `${verified}/${claims.length} citations verified`) : null),
-          t.result.answer.answer.map((a) => h("p", {}, citedText(a.text))))));
-      }
-      if (t.result && t.result.code) {
-        const c = t.result.code;
-        parts.push(tl("code", "good", h("section", { class: "card" },
-          h("div", { class: "card-head" }, h("h2", { text: "Script passed in the sandbox" }), h("span", { class: "muted small", text: `${c.attempts} attempt(s)` })),
-          h("pre", { class: "code", text: JSON.stringify(c.result, null, 2) }))));
-      }
-      if (["failed", "handed_back", "rejected", "cancelled"].includes(t.status)) {
-        parts.push(tl("alert", "bad", h("section", { class: "card" }, h("h2", { text: t.status === "handed_back" ? "Handed back with the full trace" : `Task ${statusText(t.status)}` }),
-          h("p", { class: "muted", text: t.error || t.status_note || "" }))));
-      }
-      if (t.status === "completed" && t.plan && t.plan.source === "model") {
-        parts.push(tl("spark", "", h("section", { class: "card" }, h("div", { class: "card-head" }, h("h2", { text: "Reuse this plan" }),
-          h("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Save as template draft", onclick: (e) => guarded(e.target, async () => {
-            const r = await api("/templates/drafts", { method: "POST", json: { task_id: t.id } });
-            toast(`Saved ${r.draft}; a reviewer approves it on the Security page`);
-          }) })), h("p", { class: "muted small", text: "The compiled plan becomes a versioned template once a reviewer approves it." }))));
-      }
-      return parts.length ? parts : null;
+    // Details panel: the technical record behind the conversation.
+    async function openDetails(t) {
+      const tabs = [["activity", "Activity"], ["evidence", "Evidence"], ["model", "Model choice"], ["checks", "Checks"]];
+      let tab = "activity";
+      const seg = h("div", { class: "seg" });
+      const holder = h("div", { class: "details-body" });
+      const render = async () => {
+        $$("button", seg).forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
+        fill(holder, h("div", { class: "loading" }, spinner()));
+        const task = view.task;
+        if (tab === "activity") {
+          fill(holder, h("ol", { class: "log" }, task.trace.map((r) => h("li", { class: r.ok ? "" : "bad" },
+            h("span", { class: "log-k", text: [r.kind, r.step_id].filter(Boolean).join(" · ") }),
+            h("span", { class: "log-s", text: r.summary }),
+            r.latency_s ? h("span", { class: "log-t", text: `${r.latency_s.toFixed(2)}s` }) : h("span", {})))));
+        } else if (tab === "evidence") {
+          view.ledger = await api(`/tasks/${task.id}/ledger`).catch(() => []);
+          fill(holder, ...view.ledger.map((r) => h("button", { class: "evidence", type: "button", onclick: () => showRecord(r.id) },
+            h("span", { class: "row tight" }, h("span", { class: "strong", text: KIND_NAMES[r.kind] || r.kind }), labelTag(r.label),
+              r.confidence && r.confidence !== "high" ? h("span", { class: "chip warn", text: r.confidence }) : null, h("span", { class: "grow" }), h("span", { class: "mono tiny muted", text: r.id })),
+            h("span", { class: "evidence-sum", text: r.summary }))));
+          if (!view.ledger.length) fill(holder, h("p", { class: "muted", text: "No evidence yet." }));
+        } else if (tab === "model") {
+          const r = task.route;
+          if (!r) { fill(holder, h("p", { class: "muted", text: "Not decided yet." })); return; }
+          fill(holder, 
+            h("p", {}, "Chosen: ", h("strong", { text: r.chosen })),
+            h("p", { class: "muted small", text: `The cheapest model scoring at least ${r.threshold.toFixed(2)} for this kind of task is chosen.` }),
+            h("table", { class: "table" }, h("tbody", {}, r.candidates.map((c) => h("tr", { class: c.model === r.chosen ? "chosen" : "" },
+              h("td", { class: "mono", text: c.model }),
+              h("td", { text: c.ok ? (c.quality === null ? "no score" : `score ${c.quality.toFixed(2)}`) : `not suitable (${c.reason})` }),
+              h("td", { class: "muted", text: c.ok && c.cost_s !== null ? `${Math.round(c.cost_s + (c.wait_s || 0))}s` : "" }))))),
+            h("details", {}, h("summary", { text: "Decision log" }), h("pre", { class: "code", text: r.log_line })));
+        } else {
+          const data = await api(`/tasks/${task.id}/checks`).catch(() => ({ checks: [] }));
+          if (!data.checks.length) { fill(holder, h("p", { class: "muted", text: "No checks for this task." })); return; }
+          fill(holder, ...data.checks.map((c) => h("div", { class: `check-row ${c.status}` },
+            h("span", { class: "check-mark" }, icon(c.status === "pass" ? "check" : c.status === "mismatch" ? "alert" : "info")),
+            h("div", {}, h("div", { class: "strong", text: c.description || c.rule }),
+              h("div", { class: "small", text: `${c.left_value ?? ""}${c.right_value ? ` vs ${c.right_value}` : ""}` }),
+              c.note ? h("div", { class: "muted small", text: c.note }) : null,
+              c.extra && c.extra.crop ? h("img", { class: "crop", alt: "Scanned region", src: `/api/tasks/${task.id}/evidence/${c.extra.crop}` }) : null))));
+        }
+      };
+      tabs.forEach(([key, label]) => seg.append(h("button", { type: "button", dataset: { tab: key }, text: label, onclick: () => { tab = key; render(); } })));
+      openPanel("Details", [
+        h("p", { class: "muted small", text: `${t.id} · ${t.user} · ${fmtTime(t.created_at)}${t.model ? ` · ${t.model}` : ""}` }),
+        seg, holder]);
+      render();
     }
 
-    // Inspector
-    function switchTab(tab) {
-      view.tab = tab;
-      $$("#insp-tabs button").forEach((b) => b.classList.toggle("active", b.dataset.tab === tab));
-      renderInspector();
-    }
-    $$("#insp-tabs button").forEach((b) => b.addEventListener("click", () => switchTab(b.dataset.tab)));
-
-    function renderInspector() {
-      const body = $("#insp-body");
-      const t = view.task;
-      if (!t) return;
-      if (view.tab === "evidence") {
-        const kinds = ["all", ...new Set(view.ledger.map((r) => r.kind))];
-        const rows = view.ledger.filter((r) => view.filter === "all" || r.kind === view.filter);
-        body.replaceChildren(
-          h("div", { class: "filter-row" }, kinds.map((k) => h("button", { type: "button", class: view.filter === k ? "active" : "", text: k === "all" ? `all ${view.ledger.length}` : k, onclick: () => { view.filter = k; renderInspector(); } }))),
-          ...rows.map((r) => h("button", { class: "record", type: "button", onclick: () => showRecord(r.id, t.id) },
-            h("span", { class: "r-top" }, h("span", { class: "mono", text: r.id }), h("span", { class: `kind${r.trust === "control" ? " trust-control" : ""}`, text: r.kind }), labelChip(r.label), r.confidence && r.confidence !== "high" ? badge(r.confidence === "uncertain" ? "not_checked" : "derived", r.confidence) : null),
-            h("span", { class: "r-sum", text: r.summary }))));
-        if (!rows.length) body.append(h("p", { class: "muted", text: "No records yet." }));
-      } else if (view.tab === "routing") {
-        if (!t.route) { body.replaceChildren(h("p", { class: "muted", text: "Not routed yet." })); return; }
-        const r = t.route;
-        body.replaceChildren(
-          h("p", { class: "muted small", text: `Threshold ${r.threshold.toFixed(2)} for complexity ${r.profile.complexity} (classifier confidence ${r.profile.classifier_confidence.toFixed(2)}). Cheapest candidate that meets it wins.` }),
-          ...r.candidates.map((c) => h("div", { class: `cand${c.model === r.chosen ? " chosen" : ""}` },
-            h("span", { class: "mono", text: c.model }),
-            c.ok ? h("span", { class: "muted small", text: c.quality === null ? "no quality" : `q ${c.quality.toFixed(2)} · ${c.cost_s}s` }) : badge("failed", `✗ ${c.reason}`),
-            c.ok && c.quality !== null ? h("div", { class: "qbar" }, h("i", { style: `width:${c.quality * 100}%;${c.meets_threshold ? "" : "background:var(--warn)"}` }), h("b", { style: `left:${r.threshold * 100}%` })) : null,
-            c.ok && c.wait_s ? h("span", { class: "why", text: `includes an expected tide wait of ${Math.round(c.wait_s)}s` }) : null)),
-          h("h3", { text: "Log line" }), h("pre", { class: "logline mono small", text: r.log_line }),
-          h("p", { class: "muted small", text: `Registry version ${r.registry_version}` }));
-      } else {
-        const data = view.checks;
-        if (!data || !data.checks.length) { body.replaceChildren(h("p", { class: "muted", text: "No consistency checks for this task." })); return; }
-        body.replaceChildren(...data.checks.map((c) => {
-          const crop = c.extra && c.extra.crop ? h("img", { class: "crop", alt: "scan region", src: `/api/tasks/${t.id}/evidence/${c.extra.crop}` }) : null;
-          return h("div", { class: `item${c.status === "mismatch" ? " mismatch" : ""}` },
-            h("div", { class: "item-top" }, h("strong", { text: c.description || c.rule }), badge(c.status)),
-            h("div", { class: "small" }, `${c.left_value ?? "n/a"}`, c.right_value ? ` vs ${c.right_value}` : ""),
-            h("div", { class: "muted small", text: c.note }),
-            crop,
-            h("div", { class: "meta-row" }, c.left_record ? recLink(c.left_record, t.id) : null, c.right_record ? recLink(c.right_record, t.id) : null, recLink(c.record_id, t.id)));
-        }));
-      }
-    }
-
-    $("#followup").addEventListener("submit", (e) => {
+    follow.addEventListener("submit", (e) => {
       e.preventDefault();
       const text = $("#followup-text").value.trim();
       if (!text) return;
@@ -796,12 +754,16 @@
         location.href = `/t/${child.id}`;
       });
     });
+    $("#followup-text").addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); follow.requestSubmit(); }
+    });
 
     await poll();
+    if (location.hash === "#details" && view.task) openDetails(view.task);
   }
 
-  // ---------------------------------------------------------------------------------------------
-  // Review page
+  // -------------------------------------------------------------------------------------------
+  // Review
 
   async function pageReview() {
     const id = document.body.dataset.task;
@@ -810,41 +772,35 @@
 
     const load = async () => {
       try { data = await api(`/tasks/${id}/draft`); } catch (e) {
-        $("#review-head").replaceChildren(h("h1", { text: "No draft to review" }), h("p", { class: "muted", text: e.message }), h("a", { href: `/t/${id}`, text: "Back to the task" }));
+        fill($("#review-head"), h("a", { class: "back", href: `/t/${id}`, text: "Back" }), h("h1", { text: "Nothing to review" }), h("p", { class: "muted", text: e.message }));
+        fill($("#doc-view"));
         return;
       }
       const t = data.task;
-      setBanner(t.label, `${t.marking} · draft of ${t.id}`);
-      $("#review-head").replaceChildren(
-        h("a", { class: "small", href: `/t/${id}`, text: "← Back to the task" }),
-        h("h1", { text: t.text }),
-        h("div", { class: "meta-row" }, badge(t.status), labelChip(t.label, t.label_display), h("span", { class: "mono", text: t.id })));
-      $("#doc-tabs").replaceChildren(...data.deliverables.map((d, i) => h("button", { type: "button", class: i === current ? "active" : "", text: d.name, onclick: () => { current = i; render(); } })));
+      setMarking(t.label, t.label_display);
+      fill($("#review-head"), h("a", { class: "back", href: `/t/${id}`, text: "Back to task" }), h("h1", { text: t.text }));
+      const tabs = $("#doc-tabs");
+      tabs.hidden = data.deliverables.length < 2;
+      fill(tabs, ...data.deliverables.map((d, i) => h("button", { type: "button", class: i === current ? "active" : "", text: d.name, onclick: () => { current = i; render(); } })));
       render();
     };
 
-    const figureMap = (d) => {
-      const map = {};
-      (d.provenance.figures || []).forEach((f) => { (map[f.location] = map[f.location] || []).push(f); });
-      return map;
-    };
     const decisions = () => new Map(data.figure_decisions.map((f) => [f.figure, f]));
 
     function figSpan(f, d, text) {
-      const key = `${d.file_id}:${f.id}`;
-      const decided = decisions().get(key);
-      const cls = `fig fig-${f.status}${decided ? " resolved" : ""}`;
-      const title = f.status === "unsourced" ? (decided ? `Resolved: ${decided.action}` : "No evidence found for this figure") : `${f.status} from ${f.record_id || "formula"}`;
-      return h("i", { class: cls, title, text, onclick: () => (f.record_id ? showRecord(f.record_id, id) : focusFigure(key)) });
+      const decided = decisions().get(`${d.file_id}:${f.id}`);
+      const cls = `fig ${f.status}${decided ? " resolved" : ""}`;
+      const title = f.status === "unsourced" ? (decided ? `Resolved (${decided.action})` : "No source found for this figure") : f.status === "derived" ? "Calculated" : "From a source document";
+      return h("span", { class: cls, title, text, onclick: () => f.record_id && showRecord(f.record_id) });
     }
 
-    function runsWithFigures(runs, figs, d) {
+    function withFigures(runs, figs, d) {
       const queue = [...(figs || [])];
       const out = [];
       runs.forEach((r) => {
         if (r.sup) {
           const refs = (r.refs || []).filter(Boolean);
-          out.push(h("sup", { text: r.text, title: refs.join(", "), onclick: () => refs[0] && showRecord(refs[0], id) }));
+          out.push(h("sup", { text: r.text, title: refs.join(", "), onclick: () => refs[0] && showRecord(refs[0]) }));
           return;
         }
         let text = r.text;
@@ -855,8 +811,7 @@
             if (at >= 0 && (!best || at < best.at)) best = { at, f };
           });
           if (!best) { out.push(text); break; }
-          out.push(text.slice(0, best.at));
-          out.push(figSpan(best.f, d, best.f.raw));
+          out.push(text.slice(0, best.at), figSpan(best.f, d, best.f.raw));
           text = text.slice(best.at + best.f.raw.length);
           queue.splice(queue.indexOf(best.f), 1);
         }
@@ -865,22 +820,24 @@
     }
 
     function renderDocx(d) {
-      const figs = figureMap(d);
+      const figs = {};
+      (d.provenance.figures || []).forEach((f) => { (figs[f.location] = figs[f.location] || []).push(f); });
       const unverified = d.claims.filter((c) => c.status === "unverified").map((c) => c.sentence.replace(/\s*\[[^\]]+\]/g, "").slice(0, 36));
       const paper = h("article", { class: "paper" });
       let tableIndex = 0;
       d.preview.blocks.forEach((b) => {
-        if (b.type === "marking") { paper.append(h("div", { class: "marking", text: b.text })); return; }
+        if (b.type === "marking") { paper.append(h("div", { class: "paper-marking", text: b.text })); return; }
         if (b.type === "table") {
           tableIndex += 1;
+          const ti = tableIndex;
           paper.append(h("table", {}, h("tbody", {}, b.rows.map((row, ri) => h("tr", {}, row.map((cell, ci) =>
-            h("td", {}, runsWithFigures(cell, figs[`table ${tableIndex} row ${ri + 1} col ${ci + 1}`], d))))))));
+            h("td", {}, withFigures(cell, figs[`table ${ti} row ${ri + 1} col ${ci + 1}`], d))))))));
           return;
         }
         const text = b.runs.map((r) => r.text).join("");
-        const content = runsWithFigures(b.runs, figs[`paragraph ${b.index}`], d);
+        const content = withFigures(b.runs, figs[`paragraph ${b.index}`], d);
         const flagged = unverified.some((u) => u && text.includes(u));
-        const inner = flagged ? h("i", { class: "claim-unverified", title: "This claim did not pass citation verification" }, content) : content;
+        const inner = flagged ? h("span", { class: "unverified", title: "This sentence could not be matched to its source" }, content) : content;
         const style = b.style;
         if (style === "WB Marking") return;
         if (style === "Title" || style === "Heading 1") paper.append(h("h1", {}, inner));
@@ -888,163 +845,164 @@
         else if (style === "WB Meta") paper.append(h("p", { class: "meta" }, inner));
         else if (style === "List Bullet") paper.append(h("p", { class: "bullet" }, inner));
         else if (style === "WB Reference") paper.append(h("p", { class: "ref" }, inner));
-        else if (style === "WB Signature") paper.append(h("p", { class: "sig" }, inner));
         else paper.append(h("p", {}, inner));
       });
-      paper.append(h("div", { class: "marking bottom", text: d.marking }));
-      return paper;
+      paper.append(h("div", { class: "paper-marking", text: d.marking }));
+      return [h("div", { class: "legend" },
+        h("span", {}, h("span", { class: "fig sourced", text: "12.5" }), " from a source"),
+        h("span", {}, h("span", { class: "fig derived", text: "12.5" }), " calculated"),
+        h("span", {}, h("span", { class: "fig unsourced", text: "12.5" }), " no source")), paper];
     }
 
     function renderSheet(d) {
-      const figs = {};
-      (d.provenance.figures || []).forEach((f) => { figs[f.location] = f; });
-      const tabs = h("div", { class: "tabs" });
+      const seg = h("div", { class: "seg" });
       const holder = h("div", {});
       const show = (i) => {
-        $$("button", tabs).forEach((b, j) => b.classList.toggle("active", i === j));
+        $$("button", seg).forEach((b, j) => b.classList.toggle("active", i === j));
         const s = d.preview.sheets[i];
-        holder.replaceChildren(h("div", { class: "sheet-view" }, h("table", {}, h("tbody", {}, s.rows.map((row, ri) => h("tr", {},
+        fill(holder, h("div", { class: "sheet" }, h("table", {}, h("tbody", {}, s.rows.map((row, ri) => h("tr", {},
           h("td", { class: "rowhead", text: ri + 1 }),
           row.map((c) => {
-            const f = figs[`${s.name}!${c.ref}`];
             const formula = typeof c.v === "string" && c.v.startsWith("=");
-            const cls = formula ? "formula" : c.comment ? "sourced" : "";
-            return h("td", { class: cls, title: c.comment || (formula ? "live formula" : f ? f.status : "") }, c.v === null ? "" : String(c.v));
+            return h("td", { class: formula ? "formula" : c.comment ? "sourced" : "", title: c.comment || (formula ? "Formula" : "") }, c.v === null ? "" : String(c.v));
           })))))));
       };
-      d.preview.sheets.forEach((s, i) => tabs.append(h("button", { type: "button", text: s.name, onclick: () => show(i) })));
+      d.preview.sheets.forEach((s, i) => seg.append(h("button", { type: "button", text: s.name, onclick: () => show(i) })));
       show(0);
-      return h("div", { class: "card" }, h("div", { class: "card-head" }, h("h2", { text: d.name }), tabs),
-        h("p", { class: "muted small", text: "Green cells carry a source comment; blue cells are live formulas that recompute in Excel or LibreOffice." }), holder);
+      return [d.preview.sheets.length > 1 ? seg : null, holder, h("p", { class: "muted small", text: "Blue cells are formulas. Green cells note their source." })];
     }
 
     function renderOther(d) {
       const p = d.preview;
       if (p.svg !== undefined) {
-        const img = h("img", { class: "svg-preview", alt: d.name, src: `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(p.svg)))}` });
-        return h("div", { class: "card" }, h("h2", { text: d.name }), img);
+        return h("div", { class: "sheet pad" }, h("img", { class: "svg-preview", alt: d.name, src: `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(p.svg)))}` }));
       }
       if (p.slides) {
-        return h("div", { class: "card" }, h("h2", { text: d.name }), p.slides.map((s, i) => h("div", { class: "item" }, h("strong", { text: `Slide ${i + 1}: ${s[0] || ""}` }), h("pre", { class: "code", text: s.slice(1).join("\n") }))));
+        return h("div", { class: "slides" }, p.slides.map((s, i) => h("div", { class: "slide" }, h("strong", { text: `${i + 1}. ${s[0] || ""}` }), h("ul", { class: "plain" }, s.slice(1).map((x) => h("li", { text: x }))))));
       }
-      return h("div", { class: "card" }, h("h2", { text: d.name }), h("pre", { class: "code", text: p.text || "(binary file)" }));
+      return h("pre", { class: "code tall", text: p.text || "This file cannot be previewed. Download it instead." });
     }
 
     function render() {
       $$("#doc-tabs button").forEach((b, i) => b.classList.toggle("active", i === current));
       const d = data.deliverables[current];
-      const t = d.preview.type;
-      $("#doc-view").replaceChildren(t === "docx" ? renderDocx(d) : t === "xlsx" ? renderSheet(d) : renderOther(d));
-      renderPanel();
+      const type = d.preview.type;
+      fill($("#doc-view"), ...[].concat(type === "docx" ? renderDocx(d) : type === "xlsx" ? renderSheet(d) : renderOther(d)));
+      renderSide();
     }
 
-    function focusFigure(key) {
-      const el = document.querySelector(`[data-fig="${CSS.escape(key)}"]`);
-      if (el) { el.scrollIntoView({ block: "center" }); el.querySelector("input")?.focus(); }
-    }
-
-    function renderPanel() {
-      const panel = $("#review-panel");
+    function renderSide() {
+      const side = $("#review-side");
       const s = data.summary;
-      const gate = data.pending_gate && data.pending_gate.kind === "deliverable" ? data.pending_gate : null;
       const t = data.task;
-      const cards = [];
-      if (t.status === "completed") {
-        cards.push(h("div", { class: "approved-banner" }, icon("check"), "Approved and moved to final/"));
-      }
+      const gate = data.pending_gate && data.pending_gate.kind === "deliverable";
+      const d = data.deliverables[current];
+      const parts = [];
       const blockers = data.blockers || [];
-      cards.push(h("section", { class: "card" },
-        h("h2", { text: "Approval checklist" }),
-        h("ul", { class: "blockers" },
-          h("li", {}, badge(s.unacknowledged.length ? "mismatch" : "pass", s.unacknowledged.length ? `${s.unacknowledged.length} open` : "done"), "Every mismatch acknowledged"),
-          h("li", {}, badge(s.orphans.length ? "unsourced" : "pass", s.orphans.length ? `${s.orphans.length} open` : "done"), "Every unsourced figure resolved"),
-          h("li", {}, badge(s.unverified_claims.length ? "derived" : "pass", s.unverified_claims.length ? `${s.unverified_claims.length} flagged` : "all verified"), "Citations verified against their records"))));
 
-      const checks = data.checks.filter((c) => c.status !== "pass");
-      if (checks.length) {
-        cards.push(h("section", { class: "card" }, h("h2", { text: "Consistency findings" }), checks.map((c) => {
+      if (t.status === "completed") {
+        parts.push(h("div", { class: "status-card good" }, icon("check"), h("div", {}, h("strong", { text: "Approved" }), h("div", { class: "small", text: "Saved to the final folder." }))));
+      } else if (gate) {
+        const open = s.unacknowledged.length + s.orphans.length;
+        parts.push(blockers.length
+          ? h("div", { class: "status-card warn" }, icon("alert"), h("div", {}, h("strong", { text: `${plural(open || blockers.length, "item")} to check before approving` })))
+          : h("div", { class: "status-card good" }, icon("check"), h("div", {}, h("strong", { text: "Ready to approve" }))));
+      }
+
+      const issues = data.checks.filter((c) => c.status !== "pass");
+      if (issues.length) {
+        parts.push(h("section", { class: "side-block" }, h("h3", { text: "Issues found" }), issues.map((c) => {
           const acked = data.acknowledged.includes(c.record_id);
           const box = h("input", { type: "checkbox", checked: acked, disabled: acked || !gate || !data.can_approve || c.status !== "mismatch" });
           box.addEventListener("change", () => guarded(box, async () => { await api(`/tasks/${id}/checks/${c.record_id}/acknowledge`, { method: "POST" }); await load(); }));
-          return h("div", { class: `item${c.status === "mismatch" ? " mismatch" : ""}` },
-            h("div", { class: "item-top" }, h("strong", { text: c.description || c.rule }), badge(c.status)),
-            h("div", { class: "small", text: `${c.left_value ?? "n/a"}${c.right_value ? ` vs ${c.right_value}` : ""}` }),
-            h("div", { class: "muted small", text: c.note }),
-            c.status === "mismatch" ? h("label", { class: "check" }, box, acked ? "Acknowledged" : "I have read this finding") : null);
+          return h("div", { class: `issue ${c.status}` },
+            h("div", { class: "strong", text: c.description || c.rule }),
+            h("div", { class: "small", text: `${c.left_value ?? ""}${c.right_value ? ` vs ${c.right_value}` : ""}` }),
+            c.note ? h("div", { class: "muted small", text: c.note }) : null,
+            c.status === "mismatch" ? h("label", { class: "tick" }, box, acked ? "Reviewed" : "Mark as reviewed") : null);
         })));
       }
 
-      const d = data.deliverables[current];
       const orphans = (d.provenance.figures || []).filter((f) => f.status === "unsourced");
       if (orphans.length) {
         const dec = decisions();
-        cards.push(h("section", { class: "card" }, h("h2", { text: `Unsourced figures in ${d.name}` }), orphans.map((f) => {
+        parts.push(h("section", { class: "side-block" }, h("h3", { text: "Figures without a source" }), orphans.map((f) => {
           const key = `${d.file_id}:${f.id}`;
           const done = dec.get(key);
-          const input = h("input", { class: "input", placeholder: "R-… or corrected value" });
-          const send = (action) => (e) => guarded(e.target, async () => {
+          const input = h("input", { class: "input", placeholder: "Record id or corrected value" });
+          const act = (action) => async () => {
             const body = { action, note: null };
             if (action === "link") body.record_id = input.value.trim();
             if (action === "correct") body.value = input.value.trim();
             await api(`/tasks/${id}/draft/figures/${encodeURIComponent(key)}`, { method: "POST", json: body });
-            toast(`Figure ${f.raw}: ${action}`);
             await load();
-          });
-          return h("div", { class: "item", dataset: { fig: key } },
-            h("div", { class: "item-top" }, h("strong", { text: f.raw }), done ? badge("pass", done.action) : badge("unsourced")),
-            h("div", { class: "muted small", text: `${f.location}: ${f.context.slice(0, 120)}` }),
-            !done && gate ? h("div", { class: "item-actions" }, input,
-              h("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Link", onclick: send("link") }),
-              h("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Correct", onclick: send("correct") }),
-              h("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Confirm", onclick: send("confirm") })) : null);
+          };
+          return h("div", { class: "issue" },
+            h("div", { class: "row tight" }, h("strong", { text: f.raw }), done ? h("span", { class: "chip", text: done.action }) : null),
+            h("div", { class: "muted small", text: f.context.slice(0, 120) }),
+            !done && gate ? [input, h("div", { class: "row tight" }, button("Link", act("link"), "small"), button("Correct", act("correct"), "small"), button("Keep", act("confirm"), "small ghost"))] : null);
         })));
       }
 
       if (d.claims.length) {
+        const ok = d.claims.filter((c) => c.status === "verified").length;
         const bad = d.claims.filter((c) => c.status !== "verified" || c.currency_warning);
-        cards.push(h("section", { class: "card" },
-          h("div", { class: "card-head" }, h("h2", { text: "Citations" }), badge(bad.length ? "derived" : "verified", `${d.claims.length - d.claims.filter((c) => c.status !== "verified").length}/${d.claims.length} verified`)),
-          bad.length ? bad.map((c) => h("div", { class: "item" }, h("div", { class: "item-top" }, badge(c.status), c.currency_warning ? badge("not_checked", "currency") : null),
-            h("div", { class: "small", text: c.sentence.replace(/\s*\[[^\]]+\]/g, "") }),
-            c.reasons.length ? h("div", { class: "muted small", text: c.reasons.join("; ") }) : null,
-            c.currency_warning ? h("div", { class: "muted small", text: c.currency_warning }) : null))
-            : h("p", { class: "muted small", text: "Every cited sentence is supported by the record it cites." })));
+        parts.push(h("section", { class: "side-block" }, h("h3", { text: "Citations" }),
+          h("p", { class: "small", text: `${ok} of ${d.claims.length} checked against their sources.` }),
+          bad.map((c) => h("div", { class: "issue" }, h("div", { class: "small", text: c.sentence.replace(/\s*\[[^\]]+\]/g, "") }),
+            h("div", { class: "muted small", text: [...c.reasons, c.currency_warning].filter(Boolean).join("; ") })))));
       }
 
       if (gate) {
-        const note = h("textarea", { rows: 2, placeholder: "Note (required to request a revision)" });
-        cards.push(h("section", { class: "card attention" }, h("h2", { text: "Decision" }),
-          data.can_approve ? [note, h("div", { class: "actions" },
-            h("button", { class: "btn btn-primary", type: "button", disabled: blockers.length > 0, title: blockers.join("; "), onclick: (e) => guarded(e.target, async () => {
-              await api(`/tasks/${id}/draft/decision`, { method: "POST", json: { decision: "approve", acknowledged: data.acknowledged, note: note.value || null } });
-              toast("Approved. Moving files to final/");
-              setTimeout(load, 1200);
-            }) }, icon("check"), "Approve"),
-            h("button", { class: "btn btn-danger", type: "button", text: "Request revision", onclick: (e) => guarded(e.target, async () => {
-              await api(`/tasks/${id}/draft/decision`, { method: "POST", json: { decision: "reject", note: note.value || null } });
-              toast("Revision requested"); setTimeout(() => { location.href = `/t/${id}`; }, 800);
-            }) })), blockers.length ? h("p", { class: "muted small", text: `Approval unlocks when: ${blockers.join("; ")}.` }) : null]
-            : h("p", { class: "muted", text: "Only a user with the approver role can decide." })));
+        if (data.can_approve) {
+          const note = h("textarea", { class: "input", rows: 2, placeholder: "Note for changes (optional when approving)" });
+          parts.push(h("section", { class: "side-block" }, note,
+            h("div", { class: "row" },
+              h("button", { class: "btn primary", type: "button", disabled: blockers.length > 0, title: blockers.join("; "), onclick: (e) => guarded(e.currentTarget, async () => {
+                await api(`/tasks/${id}/draft/decision`, { method: "POST", json: { decision: "approve", acknowledged: data.acknowledged, note: note.value || null } });
+                toast("Approved");
+                setTimeout(load, 1200);
+              }) }, "Approve"),
+              button("Request changes", async () => {
+                if (!note.value.trim()) throw new Error("Write a note describing the changes first");
+                await api(`/tasks/${id}/draft/decision`, { method: "POST", json: { decision: "reject", note: note.value } });
+                location.href = `/t/${id}`;
+              }, "ghost"))));
+        } else {
+          parts.push(h("p", { class: "muted small", text: "Only an approver can approve this draft." }));
+        }
       }
 
       if (t.status === "completed") {
         const finals = data.deliverables.filter((x) => x.final_file_id);
         const others = shell.workspaces.filter((w) => w.id !== t.workspace);
-        cards.push(h("section", { class: "card" }, h("h2", { text: "Final files" }), finals.map((x) => {
-          const level = h("select", { class: "select select-sm" }, ["Unclassified", "Restricted", "Confidential"].map((l) => h("option", { text: l })));
-          const reason = h("input", { class: "input", placeholder: "Reason for downgrade" });
-          return h("div", { class: "item" },
-            h("div", { class: "item-top" }, h("strong", { text: x.name }), labelChip(x.label)),
-            h("div", { class: "item-actions" }, h("a", { class: "btn btn-ghost btn-sm", href: fileUrl(x.final_file_id) }, icon("download"), "Download"),
-              others.length ? shareControl({ id: x.final_file_id, name: x.name }, others) : null),
-            h("details", {}, h("summary", { class: "muted small", text: "Request a downgrade" }),
-              h("div", { class: "item-actions" }, level, reason, h("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Request", onclick: (e) => guarded(e.target, async () => {
-                await api(`/files/${x.final_file_id}/downgrade`, { method: "POST", json: { level: level.value, reason: reason.value } });
-                toast("Downgrade requested; a second authorised person must approve it");
-              }) }))));
-        })));
+        parts.push(h("section", { class: "side-block" }, h("h3", { text: "Files" }), finals.map((x) => h("div", { class: "issue" },
+          h("div", { class: "row tight" }, h("a", { href: fileUrl(x.final_file_id), text: x.name }), labelTag(x.label)),
+          h("details", {}, h("summary", { text: "More" }), shareControl(x, others), downgradeControl(x))))));
       }
-      panel.replaceChildren(...cards);
+      fill(side, ...parts);
+    }
+
+    function shareControl(x, others) {
+      if (!others.length) return null;
+      const select = h("select", { class: "select" }, h("option", { value: "", text: "Share to workspace" }), others.map((w) => h("option", { value: w.id, text: w.title })));
+      select.addEventListener("change", () => {
+        if (!select.value) return;
+        guarded(select, async () => {
+          await api(`/files/${x.final_file_id}/share`, { method: "POST", json: { workspace: select.value } });
+          toast("Shared");
+        }).finally(() => { select.value = ""; });
+      });
+      return select;
+    }
+
+    function downgradeControl(x) {
+      const level = h("select", { class: "select" }, ["Unclassified", "Restricted", "Confidential"].map((l) => h("option", { text: l })));
+      const reason = h("input", { class: "input", placeholder: "Reason for a lower classification" });
+      return h("div", { class: "stack" }, level, reason, button("Request lower classification", async () => {
+        await api(`/files/${x.final_file_id}/downgrade`, { method: "POST", json: { level: level.value, reason: reason.value } });
+        toast("Requested. A second authorised person must approve it.");
+      }, "small"));
     }
 
     await load();
@@ -1055,159 +1013,137 @@
     }, 3000);
   }
 
-  // ---------------------------------------------------------------------------------------------
-  // Models page
+  // -------------------------------------------------------------------------------------------
+  // Models
+
+  const SERVES = { document: "Documents", vision: "Images", general: "General", code: "Code", reasoning: "Reasoning", agentic: "Multi-step work" };
 
   async function pageModels() {
     const render = async () => {
       const m = await api("/models");
-      $("#registry-version").textContent = `version ${m.registry_version} · profile ${m.profile} · backend ${m.backend}`;
-      const pool = m.pool;
-      $("#pool-stats").replaceChildren(
-        h("div", { class: "stat" }, h("b", { text: pool.tide }), h("span", { text: "Current tide" })),
-        h("div", { class: "stat" }, h("b", { text: pool.tide_count }), h("span", { text: "Tides turned" })),
-        h("div", { class: "stat" }, h("b", { text: pool.swap_queue }), h("span", { text: "Jobs waiting for the swap slot" })),
-        h("div", { class: "stat" }, h("b", { text: `${pool.running_resident} / ${pool.running_swap}` }), h("span", { text: "Running steps (resident / swap)" })));
-      $("#tide-note").textContent = `max wait ${pool.policy.tide.max_wait_s}s · batch ${pool.policy.tide.max_queue} · min resident ${pool.policy.tide.min_resident_s}s · time scale ${pool.time_scale}`;
-      $("#tide").replaceChildren(...m.models.filter((x) => x.status !== "retired").map((x) => h("div", { class: `slot ${x.state}` },
-        h("span", { class: "model-name", text: x.name }),
-        h("span", { class: "state" }, h("span", { class: `dot ${x.state === "awake" ? "st-completed" : x.state === "asleep" ? "st-running" : ""}` }), `${x.state} · ${x.pool_profile}`),
-        h("span", { class: "muted small", text: x.pool_profile === "swap" ? "weights in host RAM while asleep" : x.pool_profile === "cold" ? "not loaded" : "always loaded" }))));
-      const me = shell.me || { roles: [] };
-      $("#model-grid").replaceChildren(...m.models.map((x) => {
+      const admin = shell.me.roles.includes("admin");
+      fill($("#model-list"), ...m.models.map((x) => {
+        let state = x.state === "awake" ? ["Ready", "ok"] : x.state === "asleep" ? ["Sleeping, wakes when needed", "idle"] : ["Not loaded", "off"];
+        if (x.status === "shadow") state = ["Being evaluated", "idle"];
+        if (x.status === "retired") state = ["Retired", "off"];
         const routes = Object.entries(x.quality);
-        const admin = me.roles.includes("admin");
-        return h("article", { class: `model-card${x.status === "shadow" ? " shadow" : ""}` },
-          h("div", { class: "model-top" }, h("div", {}, h("div", { class: "model-name", text: x.name }), h("div", { class: "muted small", text: x.weights || "" })), badge(x.status === "active" ? "completed" : x.status === "shadow" ? "awaiting_plan" : "failed", x.status)),
-          h("div", { class: "meta-row" }, x.serves.map((s) => h("span", { class: "pill", text: s })), h("span", { class: "pill", text: x.modalities.join("+") })),
-          routes.length ? h("div", {}, routes.map(([r, q]) => h("div", { class: "qrow" }, h("span", { class: "muted", text: r }), h("div", { class: "qbar" }, h("i", { style: `width:${q * 100}%` })), h("span", { class: "mono small", text: q.toFixed(2) }))))
-            : h("p", { class: "muted small", text: "No quality table yet. Run the shadow evaluation." }),
-          h("dl", { class: "kv" },
-            h("dt", { text: "Provenance" }), h("dd", { text: `${x.provenance.developer} · ${x.provenance.licence}${x.provenance.origin ? " · " + x.provenance.origin : ""}` }),
-            h("dt", { text: "Context" }), h("dd", { text: `${x.max_context.toLocaleString()} tokens` }),
-            h("dt", { text: "Protocol" }), h("dd", { text: x.protocol === "code_block" ? "code-block (no tool parser)" : `tools (${x.tool_parser})` }),
-            h("dt", { text: "Step latency" }), h("dd", { text: `${x.latency.step_s}s${x.latency.wake_s ? ` · wake ${x.latency.wake_s}s` : ""}` }),
-            h("dt", { text: "Speculative" }), h("dd", { text: x.speculative.method === "off" ? "off" : `${x.speculative.method}, k=${x.speculative.num_speculative_tokens}` }),
-            h("dt", { text: "Measured speed-up" }), h("dd", { text: x.measured_speedup ? `${x.measured_speedup}×` : "n/a (no GPU)" }),
-            h("dt", { text: "Tasks served" }), h("dd", { text: m.tasks_served[x.name] || 0 })),
-          x.serve_argv.length ? h("details", {}, h("summary", { class: "muted small", text: "vllm serve command" }), h("pre", { class: "code", text: x.serve_argv.join(" ") })) : null,
-          admin && x.status === "shadow" ? h("div", { class: "actions" },
-            h("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Run shadow evaluation", onclick: (e) => guarded(e.target, async () => {
-              const r = await api(`/models/${x.name}/shadow-eval`, { method: "POST" });
-              toast(`Measured: ${Object.entries(r.quality).map(([k, v]) => `${k} ${v}`).join(", ")}`); render();
-            }) }),
-            h("button", { class: "btn btn-primary btn-sm", type: "button", text: "Promote", onclick: (e) => guarded(e.target, async () => {
-              await api(`/models/${x.name}/promote`, { method: "POST", json: { confirm: true } });
-              toast(`${x.name} is now active`); render();
-            }) })) : null);
+        return h("details", { class: "model" },
+          h("summary", {},
+            h("span", { class: `state-dot ${state[1]}` }),
+            h("span", { class: "model-main" }, h("span", { class: "strong", text: x.name }), h("span", { class: "muted small", text: x.serves.map((s) => SERVES[s] || s).join(", ") })),
+            h("span", { class: "muted small", text: state[0] }),
+            icon("chevron")),
+          h("div", { class: "model-body" },
+            routes.length ? h("table", { class: "table" }, h("tbody", {}, routes.map(([r, q]) => h("tr", {}, h("td", { text: SERVES[r] || r }), h("td", {}, h("span", { class: "bar" }, h("i", { style: `width:${q * 100}%` }))), h("td", { class: "mono", text: q.toFixed(2) })))))
+              : h("p", { class: "muted small", text: "No scores yet." }),
+            h("p", { class: "muted small", text: `${x.provenance.developer} · ${x.provenance.licence} · ${x.max_context.toLocaleString()} tokens · ${x.latency.step_s}s per step · used in ${plural(m.tasks_served[x.name] || 0, "task")}` }),
+            x.serve_argv.length ? h("details", {}, h("summary", { text: "Start command" }), h("pre", { class: "code", text: x.serve_argv.join(" ") })) : null,
+            admin && x.status === "shadow" ? h("div", { class: "row" },
+              button("Evaluate", async () => { await api(`/models/${x.name}/shadow-eval`, { method: "POST" }); toast("Evaluation finished"); render(); }),
+              button("Make active", async () => { await api(`/models/${x.name}/promote`, { method: "POST", json: { confirm: true } }); toast(`${x.name} is active`); render(); }, "primary")) : null));
       }));
-      const cache = m.cache;
-      $("#cache-table").replaceChildren(cache.length ? h("table", {},
-        h("thead", {}, h("tr", {}, h("th", { text: "Partition" }), h("th", { text: "Label" }), h("th", { text: "Requests" }), h("th", { text: "Hit rate" }))),
-        h("tbody", {}, cache.map((c) => h("tr", {}, h("td", { class: "mono", text: c.partition }), h("td", {}, labelChip(c.label || "Unclassified", c.label)), h("td", { class: "num", text: c.requests }), h("td", { class: "num", text: pct(c.hit_rate) })))))
-        : h("div", { class: "empty", text: "No model requests yet." }));
-      const th = m.routing.thresholds;
-      $("#thresholds").replaceChildren(...Object.entries(th).map(([k, v]) => h("div", { class: "threshold-row" }, h("span", { class: "pill", text: k }), h("div", { class: "qbar" }, h("i", { style: `width:${v * 100}%` })), h("span", { class: "mono", text: v.toFixed(2) }))),
-        h("p", { class: "muted small", text: `A classifier confidence below ${m.routing.low_confidence_below} raises the threshold one level. ${m.speculative_note}.` }));
-      $("#proposed-card").hidden = !m.proposed_diff;
-      $("#proposed").textContent = m.proposed_diff || "";
+      const pool = m.pool;
+      fill($("#models-tech"), 
+        h("p", { class: "small", text: `Registry ${m.registry_version} · hardware profile ${m.profile} · backend ${m.backend}` }),
+        h("p", { class: "small", text: `GPU sharing: ${pool.tide} models loaded, switched ${plural(pool.tide_count, "time")}, ${pool.swap_queue} waiting.` }),
+        h("p", { class: "small", text: `Minimum score per difficulty: ${Object.entries(m.routing.thresholds).map(([k, v]) => `${k} ${v.toFixed(2)}`).join(", ")}.` }),
+        m.cache.length ? h("table", { class: "table" }, h("thead", {}, h("tr", {}, h("th", { text: "Cache partition" }), h("th", { text: "Requests" }), h("th", { text: "Reused" }))),
+          h("tbody", {}, m.cache.map((c) => h("tr", {}, h("td", {}, labelTag(c.label || "Unclassified", c.label)), h("td", { text: c.requests }), h("td", { text: `${Math.round((c.hit_rate || 0) * 100)}%` }))))) : null,
+        m.proposed_diff ? h("details", {}, h("summary", { text: "Proposed score changes" }), h("pre", { class: "code", text: m.proposed_diff })) : null);
     };
     await render();
-    setInterval(render, 5000);
+    setInterval(() => { if (!$$("#model-list details[open]").length) render(); }, 8000);
   }
 
-  // ---------------------------------------------------------------------------------------------
-  // Security page
+  // -------------------------------------------------------------------------------------------
+  // Security
 
   async function pageSecurity() {
     const me = shell.me;
-    const stats = async () => {
+    let testResult = null;
+
+    const status = async () => {
       const snap = await api("/egress");
+      const box = $("#net-status");
       if (snap.status !== "ok") {
-        $("#egress-stats").replaceChildren(h("div", { class: "stat bad" }, h("b", { text: "offline" }), h("span", { text: "egressd is not reachable" })));
+        fill(box, h("div", { class: "status-card warn" }, icon("alert"), h("div", {}, h("strong", { text: "The network monitor is not running" }))));
         return;
       }
-      const packets = snap.blocked_packets === null ? "n/a" : snap.blocked_packets;
-      $("#egress-stats").replaceChildren(
-        h("div", { class: `stat ${snap.external_connections ? "bad" : "good"}` }, h("b", { text: snap.external_connections }), h("span", { text: "External connections" })),
-        h("div", { class: "stat" }, h("b", { text: packets }), h("span", { text: `Blocked packets${packets === "n/a" ? " (no nftables in dev mode)" : ""}` })),
-        h("div", { class: "stat" }, h("b", { text: snap.blocked_connect_host }), h("span", { text: "Blocked connect(), host" })),
-        h("div", { class: "stat" }, h("b", { text: snap.blocked_connect_sandbox }), h("span", { text: "Blocked connect(), sandbox" })),
-        h("div", { class: `stat ${snap.breach ? "bad" : ""}` }, h("b", { text: snap.mode }), h("span", { text: snap.breach ? "BREACH reported" : "Monitor mode" })));
+      const leaked = snap.external_connections || snap.breach;
+      const blocked = (snap.blocked_connect_host || 0) + (snap.blocked_connect_sandbox || 0);
+      fill(box, ...[
+        h("div", { class: `status-card ${leaked ? "bad" : "good"}` }, icon(leaked ? "alert" : "check"),
+          h("div", {}, h("strong", { text: leaked ? "Outbound connections were detected" : "Nothing has left this server" }),
+            h("div", { class: "small", text: `${snap.external_connections} outbound · ${plural(blocked, "attempt")} blocked · counting since ${fmtTime(snap.since)}` })),
+          h("span", { class: "grow" }),
+          button("Run a test", async () => { testResult = await api("/egress/test", { method: "POST" }); await status(); })),
+        testResult ? h("ul", { class: "test-list" }, testResult.checks.map((c) => h("li", {},
+          h("span", { class: `check-mark ${c.pass ? "pass" : "mismatch"}` }, icon(c.pass ? "check" : "cross")),
+          h("div", {}, h("span", { class: "strong", text: c.name.replace(/_/g, " ").replace("host", "server").replace(/\bip\b/, "IP").replace("dns", "DNS") }),
+            c.simulated ? h("span", { class: "muted small", text: " (simulated on this development machine)" }) : null,
+            h("div", { class: "muted small", text: c.observed })))) ) : null].filter(Boolean));
       const ev = await api("/egress/events?limit=50");
-      $("#events").replaceChildren(ev.events.length ? h("table", {},
-        h("thead", {}, h("tr", {}, h("th", { text: "#" }), h("th", { text: "Time" }), h("th", { text: "Origin" }), h("th", { text: "Destination" }), h("th", { text: "Source" }))),
-        h("tbody", {}, ev.events.slice().reverse().map((e) => h("tr", {}, h("td", { class: "num", text: e.seq }), h("td", { text: fmtTime(e.ts) }), h("td", {}, badge(e.origin === "sandbox" ? "derived" : "running", e.origin)), h("td", { class: "mono", text: e.addr }), h("td", { class: "muted", text: e.source || "" })))))
-        : h("div", { class: "empty", text: "No blocked attempts recorded yet." }));
+      fill($("#events"), ev.events.length ? h("table", { class: "table" },
+        h("thead", {}, h("tr", {}, h("th", { text: "When" }), h("th", { text: "From" }), h("th", { text: "Destination" }))),
+        h("tbody", {}, ev.events.slice().reverse().map((e) => h("tr", {}, h("td", { text: fmtTime(e.ts) }), h("td", { text: e.origin === "sandbox" ? "Script sandbox" : "Server" }), h("td", { class: "mono", text: e.addr })))))
+        : h("p", { class: "muted", text: "No attempts so far." }));
     };
-    $("#run-test").addEventListener("click", (e) => guarded(e.target, async () => {
-      const res = await api("/egress/test", { method: "POST" });
-      $("#test-note").textContent = `${res.pass ? "All checks passed" : "A check failed"} · mode ${res.mode}`;
-      $("#test-results").replaceChildren(...res.checks.map((c) => {
-        const before = c.counters_before || {};
-        const after = c.counters_after || {};
-        const deltas = Object.keys(after).filter((k) => typeof after[k] === "number").map((k) => `${k.replace("blocked_", "")} ${before[k] ?? "?"}→${after[k]}`);
-        return h("div", { class: "check-card" },
-          h("span", { class: `mark ${c.pass ? "pass" : "fail"}` }, icon(c.pass ? "check" : "cross")),
-          h("div", {}, h("strong", { text: c.name.replace(/_/g, " ") }), c.simulated ? h("span", { class: "muted small", text: " (simulated in dev mode)" }) : null,
-            h("div", { class: "small", text: `Expected: ${c.expected}. Observed: ${c.observed}` }),
-            deltas.length ? h("div", { class: "delta", text: deltas.join(" · ") }) : null));
-      }));
-      await stats();
-    }));
+
     const audit = async () => {
       const v = await api("/audit/verify");
-      $("#audit-status").replaceChildren(h("div", { class: "meta-row" }, badge(v.ok ? "pass" : "failed", v.ok ? "chain intact" : `broken at entry ${v.broken_at}`),
-        h("span", { text: `${v.entries} entries` }), h("span", { class: "mono small", title: v.latest_hash, text: `head ${v.latest_hash.slice(0, 16)}…` })));
+      const parts = [h("p", { class: "row tight" }, icon(v.ok ? "check" : "alert"), v.ok ? `Intact, ${plural(v.entries, "entry", "entries")}` : `Tampering detected at entry ${v.broken_at}`)];
       try {
-        const tail = await api("/audit/tail?n=40");
-        $("#audit-tail").replaceChildren(...tail.reverse().map((e) => h("li", {}, h("span", { class: "h", text: `#${e.seq}` }),
-          h("span", {}, h("strong", { text: e.event.type }), " ", h("span", { class: "muted", text: Object.entries(e.event).filter(([k]) => !["type", "log", "health", "checks", "record_ids", "spec"].includes(k)).slice(0, 4).map(([k, val]) => `${k}=${typeof val === "object" ? JSON.stringify(val) : val}`).join(" ").slice(0, 140) })),
-          h("span", { class: "h", text: e.hash.slice(0, 8) }))));
+        const tail = await api("/audit/tail?n=30");
+        parts.push(h("table", { class: "table" }, h("tbody", {}, tail.reverse().map((e) => h("tr", {},
+          h("td", { class: "nowrap muted", text: fmtTime(e.ts) }),
+          h("td", { text: e.event.type.replace(/[._]/g, " ") }),
+          h("td", { class: "muted", text: e.event.by || e.event.user || e.event.task || "" }))))));
       } catch (err) {
-        $("#audit-tail").replaceChildren(h("li", { class: "audit-note muted small", text: err.status === 403 ? `Entry details are hidden: this view ${err.message}.` : err.message }));
+        if (err.status !== 403) throw err;
       }
+      fill($("#audit"), ...parts);
     };
-    $("#verify-audit").addEventListener("click", (e) => guarded(e.target, audit));
-    const downgrades = async () => {
-      const list = await api("/downgrades");
-      const can = me.roles.some((r) => ["security_officer", "document_owner"].includes(r));
-      $("#downgrades").replaceChildren(list.length ? list.map((d) => h("div", { class: "item" },
-        h("div", { class: "item-top" }, h("strong", { text: d.file.name }), badge(d.status === "pending" ? "awaiting_action" : d.status, d.status)),
-        h("div", { class: "meta-row" }, labelChip(d.before), "→", labelChip(d.after), h("span", { text: `requested by ${d.requester}` })),
-        h("div", { class: "muted small", text: `Reason: ${d.reason}` }),
-        d.status === "pending" && can && d.requester !== me.id ? h("div", { class: "item-actions" },
-          h("button", { class: "btn btn-primary btn-sm", type: "button", text: "Approve", onclick: (e) => guarded(e.target, async () => { await api(`/downgrades/${d.id}/decision`, { method: "POST", json: { approve: true } }); toast("Downgrade approved and re-stamped"); downgrades(); }) }),
-          h("button", { class: "btn btn-danger btn-sm", type: "button", text: "Reject", onclick: (e) => guarded(e.target, async () => { await api(`/downgrades/${d.id}/decision`, { method: "POST", json: { approve: false } }); downgrades(); }) }))
-          : d.status === "pending" ? h("div", { class: "muted small", text: d.requester === me.id ? "Waiting for a second authorised person." : "Needs a security officer or document owner." }) : null))
-        : h("div", { class: "empty", text: "No downgrade requests." }));
+    $("#verify-audit").addEventListener("click", (e) => guarded(e.currentTarget, async () => { await audit(); toast("Audit log verified"); }));
+
+    const requests = async () => {
+      const [downs, tpl] = await Promise.all([api("/downgrades"), api("/templates")]);
+      const canDown = me.roles.some((r) => ["security_officer", "document_owner"].includes(r));
+      const canTpl = me.roles.some((r) => ["admin", "document_owner"].includes(r));
+      const rows = [];
+      downs.filter((d) => d.status === "pending").forEach((d) => rows.push(h("div", { class: "request" },
+        h("div", {}, h("div", { class: "strong", text: `Lower ${d.file.name}` }),
+          h("div", { class: "row tight small" }, labelTag(d.before), "to", labelTag(d.after), h("span", { class: "muted", text: `asked by ${d.requester}: ${d.reason}` }))),
+        canDown && d.requester !== me.id ? h("div", { class: "row tight" },
+          button("Approve", async () => { await api(`/downgrades/${d.id}/decision`, { method: "POST", json: { approve: true } }); requests(); }, "primary small"),
+          button("Reject", async () => { await api(`/downgrades/${d.id}/decision`, { method: "POST", json: { approve: false } }); requests(); }, "ghost small"))
+          : h("span", { class: "muted small", text: d.requester === me.id ? "Needs another person" : "Needs a security officer" }))));
+      tpl.drafts.forEach((name) => rows.push(h("div", { class: "request" },
+        h("div", {}, h("div", { class: "strong", text: `New saved plan: ${name.replace(/\.ya?ml$/, "").replace(/_/g, " ")}` })),
+        canTpl ? button("Approve", async () => { await api(`/templates/drafts/${encodeURIComponent(name)}/approve`, { method: "POST" }); requests(); }, "primary small")
+          : h("span", { class: "muted small", text: "Needs an administrator" }))));
+      fill($("#requests"), ...(rows.length ? rows : [h("p", { class: "muted", text: "Nothing is waiting." })]));
     };
-    const drafts = async () => {
-      const t = await api("/templates");
-      const can = me.roles.some((r) => ["admin", "document_owner"].includes(r));
-      $("#template-drafts").replaceChildren(
-        h("div", { class: "side-label", text: "Active templates" }),
-        h("div", { class: "chips" }, t.templates.map((x) => h("span", { class: "chip", text: `${x.name} v${x.version}` }))),
-        t.drafts.length ? t.drafts.map((name) => h("div", { class: "item" }, h("div", { class: "item-top" }, h("span", { class: "mono", text: name }),
-          can ? h("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Approve", onclick: (e) => guarded(e.target, async () => { const r = await api(`/templates/drafts/${encodeURIComponent(name)}/approve`, { method: "POST" }); toast(`Added ${r.template}`); drafts(); }) }) : null)))
-          : h("p", { class: "muted small", text: "No template drafts awaiting review." }));
-    };
+
     $("#impact-form").addEventListener("submit", (e) => {
       e.preventDefault();
       guarded(null, async () => {
         const r = await api(`/kb/impact/${encodeURIComponent($("#impact-doc").value)}/${encodeURIComponent($("#impact-rev").value)}`);
-        $("#impact").replaceChildren(h("div", { class: "markdown" },
-          h("h1", { text: `${r.doc_number}: Rev ${r.previous} to Rev ${r.revision}` }),
-          h("h2", { text: "Clause changes" }), h("ul", {}, r.clauses.filter((c) => c.status !== "unchanged").map((c) => h("li", { text: `${c.clause} ${c.heading}: ${c.status}${c.limits.length ? ` (${c.limits.map((l) => `${l.old} to ${l.new} ${l.unit || ""}`).join(", ")})` : ""}` }))),
-          h("h2", { text: "Past notes citing changed clauses" }), h("ul", {}, r.notes.map((n) => h("li", { text: `${n.note}: ${n.title} (clause ${n.clause}, ${n.status})` }))),
-          h("h2", { text: "Equipment governed" }), h("p", { text: r.equipment.join(", ") || "None" })));
+        const changed = r.clauses.filter((c) => c.status !== "unchanged");
+        fill($("#impact"), 
+          h("p", { class: "strong", text: `${r.doc_number}, revision ${r.previous} to ${r.revision}` }),
+          h("p", { class: "small", text: "Changed clauses" }),
+          h("ul", { class: "plain" }, changed.map((c) => h("li", { text: `${c.clause} ${c.heading}: ${c.status}${c.limits.length ? ` (${c.limits.map((l) => `${l.old} to ${l.new} ${l.unit || ""}`).join(", ")})` : ""}` }))),
+          h("p", { class: "small", text: "Earlier notes that cite them" }),
+          h("ul", { class: "plain" }, r.notes.length ? r.notes.map((n) => h("li", { text: `${n.note}: ${n.title} (clause ${n.clause})` })) : h("li", { class: "muted", text: "None" })),
+          h("p", { class: "small", text: `Equipment affected: ${r.equipment.join(", ") || "none"}` }));
       });
     });
-    await Promise.all([stats(), audit(), downgrades(), drafts()]);
-    setInterval(stats, 8000);
+
+    await Promise.all([status(), audit(), requests()]);
+    setInterval(status, 8000);
   }
 
-  // ---------------------------------------------------------------------------------------------
+  // -------------------------------------------------------------------------------------------
 
   const PAGES = { home: pageHome, task: pageTask, review: pageReview, models: pageModels, security: pageSecurity };
 
