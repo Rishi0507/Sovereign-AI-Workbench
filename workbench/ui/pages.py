@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 from pathlib import Path
 
@@ -16,8 +17,20 @@ router = APIRouter(include_in_schema=False)
 TASK_RE = re.compile(r"^T[0-9A-F]{8}$")
 
 
+STATIC = Path(__file__).resolve().parent / "static"
+
+
+def asset_version() -> str:
+    """Content hash of the static bundle, so browsers never keep a stale script."""
+    h = hashlib.sha256(__version__.encode())
+    for name in ("app.js", "app.css"):
+        h.update((STATIC / name).read_bytes())
+    return h.hexdigest()[:12]
+
+
 def _page(request: Request, name: str, page: str, **ctx: object) -> HTMLResponse:
-    return TEMPLATES.TemplateResponse(request, name, {"page": page, "version": __version__, **ctx})
+    return TEMPLATES.TemplateResponse(request, name, {"page": page, "version": __version__,
+                                                      "asset_version": asset_version(), **ctx})
 
 
 @router.get("/", response_class=HTMLResponse)

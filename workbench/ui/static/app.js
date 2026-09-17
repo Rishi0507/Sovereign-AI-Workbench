@@ -336,7 +336,7 @@
       $("#content").replaceChildren(h("div", { class: "card empty", text: "This user has no workspace access." }));
       return;
     }
-    $("#hero-ws").textContent = `${ws.title} · ceiling ${ws.ceiling_display}`;
+    $("#hero-ws").textContent = ws.title;
     const attached = new Set();
     let files = [];
     let area = "inputs";
@@ -1077,7 +1077,7 @@
       $("#model-grid").replaceChildren(...m.models.map((x) => {
         const routes = Object.entries(x.quality);
         const admin = me.roles.includes("admin");
-        return h("article", { class: `model${x.status === "shadow" ? " shadow" : ""}` },
+        return h("article", { class: `model-card${x.status === "shadow" ? " shadow" : ""}` },
           h("div", { class: "model-top" }, h("div", {}, h("div", { class: "model-name", text: x.name }), h("div", { class: "muted small", text: x.weights || "" })), badge(x.status === "active" ? "completed" : x.status === "shadow" ? "awaiting_plan" : "failed", x.status)),
           h("div", { class: "meta-row" }, x.serves.map((s) => h("span", { class: "pill", text: s })), h("span", { class: "pill", text: x.modalities.join("+") })),
           routes.length ? h("div", {}, routes.map(([r, q]) => h("div", { class: "qrow" }, h("span", { class: "muted", text: r }), h("div", { class: "qbar" }, h("i", { style: `width:${q * 100}%` })), h("span", { class: "mono small", text: q.toFixed(2) }))))
@@ -1137,7 +1137,7 @@
       const ev = await api("/egress/events?limit=50");
       $("#events").replaceChildren(ev.events.length ? h("table", {},
         h("thead", {}, h("tr", {}, h("th", { text: "#" }), h("th", { text: "Time" }), h("th", { text: "Origin" }), h("th", { text: "Destination" }), h("th", { text: "Source" }))),
-        h("tbody", {}, ev.events.slice().reverse().map((e) => h("tr", {}, h("td", { class: "num", text: e.seq }), h("td", { text: fmtTime(e.ts) }), h("td", {}, badge(e.origin === "sandbox" ? "derived" : "running", e.origin)), h("td", { class: "mono", text: e.addr }), h("td", { class: "muted", text: e.source || "" }))))))
+        h("tbody", {}, ev.events.slice().reverse().map((e) => h("tr", {}, h("td", { class: "num", text: e.seq }), h("td", { text: fmtTime(e.ts) }), h("td", {}, badge(e.origin === "sandbox" ? "derived" : "running", e.origin)), h("td", { class: "mono", text: e.addr }), h("td", { class: "muted", text: e.source || "" })))))
         : h("div", { class: "empty", text: "No blocked attempts recorded yet." }));
     };
     $("#run-test").addEventListener("click", (e) => guarded(e.target, async () => {
@@ -1165,7 +1165,7 @@
           h("span", {}, h("strong", { text: e.event.type }), " ", h("span", { class: "muted", text: Object.entries(e.event).filter(([k]) => !["type", "log", "health", "checks", "record_ids", "spec"].includes(k)).slice(0, 4).map(([k, val]) => `${k}=${typeof val === "object" ? JSON.stringify(val) : val}`).join(" ").slice(0, 140) })),
           h("span", { class: "h", text: e.hash.slice(0, 8) }))));
       } catch (err) {
-        $("#audit-tail").replaceChildren(h("li", { class: "muted", text: err.message }));
+        $("#audit-tail").replaceChildren(h("li", { class: "audit-note muted small", text: err.status === 403 ? `Entry details are hidden: this view ${err.message}.` : err.message }));
       }
     };
     $("#verify-audit").addEventListener("click", (e) => guarded(e.target, audit));
@@ -1186,6 +1186,7 @@
       const t = await api("/templates");
       const can = me.roles.some((r) => ["admin", "document_owner"].includes(r));
       $("#template-drafts").replaceChildren(
+        h("div", { class: "side-label", text: "Active templates" }),
         h("div", { class: "chips" }, t.templates.map((x) => h("span", { class: "chip", text: `${x.name} v${x.version}` }))),
         t.drafts.length ? t.drafts.map((name) => h("div", { class: "item" }, h("div", { class: "item-top" }, h("span", { class: "mono", text: name }),
           can ? h("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Approve", onclick: (e) => guarded(e.target, async () => { const r = await api(`/templates/drafts/${encodeURIComponent(name)}/approve`, { method: "POST" }); toast(`Added ${r.template}`); drafts(); }) }) : null)))

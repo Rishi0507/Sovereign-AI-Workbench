@@ -26,11 +26,30 @@ def _as_of(value: Any, ctx: ToolContext) -> date:
 
 
 def _existing(ctx: ToolContext, kind: str) -> dict[str, str]:
+    """Records of this kind already in the task, keyed by their source key (no duplicates)."""
     out = {}
     for r in ctx.rt.ledger.for_task(ctx.task_id):
-        if r.kind == kind:
-            out[r.summary.split(" :: ", 1)[0]] = r.id
+        if r.kind == kind and "source_key" in r.fields:
+            out[r.fields["source_key"].raw] = r.id
     return out
+
+
+def _key_field(key: str) -> TypedValue:
+    return TypedValue(kind="text", raw=key, normalised=key)
+
+
+def _preview(text: str, limit: int = 160) -> str:
+    """Passage text without its markdown heading lines, flattened to one line."""
+    lines = [ln for ln in text.splitlines() if not ln.lstrip().startswith("#")]
+    return " ".join(" ".join(lines).split())[:limit]
+
+
+FILTER_NAMES = {"revision": "not in force", "acl": "outside your groups", "label": "above the ceiling",
+                "workspace": "from other workspaces"}
+
+
+def _filtered(counts: dict[str, int]) -> str:
+    return ", ".join(f"{n} {FILTER_NAMES.get(k, k)}" for k, n in counts.items() if n)
 
 
 def add_graph_facts(ctx: ToolContext, nodes: list[Any]) -> list[str]:
@@ -46,14 +65,16 @@ def add_graph_facts(ctx: ToolContext, nodes: list[Any]) -> list[str]:
         value = f"{p.get('value')} {p.get('unit')}"
         rec = ctx.rt.ledger.add(
             ctx.task_id, "graph_fact",
-            summary=f"{key} :: {p.get('quantity')} {value} ({p.get('report')})",
+            summary=f"Earlier reading of {p.get('tag')} on {p.get('date')}: {p.get('quantity')} {value} "
+                    f"at {p.get('location')} ({p.get('report')})",
             body={k: p.get(k) for k in ("tag", "date", "quantity", "value", "unit", "location", "report")},
             label=n.label, anchor=anchor, confidence="high", produced_by=ctx.call_id,
             fields={"quantity": TypedValue(kind="quantity", raw=value, normalised=value,
                                            magnitude=float(p.get("value")), unit="millimeter"
                                            if p.get("unit") == "mm" else p.get("unit"), anchor=anchor),
                     "date": TypedValue(kind="date", raw=str(p.get("date")), normalised=str(p.get("date"))),
-                    "tag": TypedValue(kind="tag", raw=str(p.get("tag")), normalised=norm_tag(str(p.get("tag"))))},
+                    "tag": TypedValue(kind="tag", raw=str(p.get("tag")), normalised=norm_tag(str(p.get("tag")))),
+                    "source_key": _key_field(key)},
         )
         ids.append(rec.id)
     return ids
@@ -84,11 +105,12 @@ def search_kb(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
             fields = {f"quantity[{i}]": TypedValue(kind="quantity", raw=q.raw, normalised=f"{q.magnitude:g} {q.unit}",
                                                    magnitude=q.magnitude, unit=q.unit, anchor=anchor)
                       for i, q in enumerate(find_quantities(c.text)) if q.unit}
+            fields["source_key"] = _key_field(key)
             for cl in c.clause_ids:
                 fields[f"clause:{cl}"] = TypedValue(kind="clause", raw=cl, normalised=cl, anchor=anchor)
             rec = rt.ledger.add(
                 ctx.task_id, "kb_chunk",
-                summary=f"{key} :: {c.cite()} {heading}: {' '.join(c.text.split())[:160]}",
+                summary=f"{c.cite()} · {heading}: {_preview(c.text)}",
                 body=c.text, label=c.label, anchor=anchor, confidence="high", produced_by=ctx.call_id,
                 fields=fields,
             )
@@ -101,7 +123,7 @@ def search_kb(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
         ok=True,
         summary=(f"{len(hits)} passage(s) as of {as_of.isoformat()}"
                  + (f", {len(fact_ids)} earlier reading(s) from the plant graph" if fact_ids else "")
-                 + (f"; filtered {result.filtered_out}" if result.filtered_out else "")),
+                 + (f"; filtered out {_filtered(result.filtered_out)}" if result.filtered_out else "")),
         records=ids + fact_ids,
         body={"records": ids + fact_ids, "hits": hits, "graph_facts": fact_ids, "as_of": as_of.isoformat(),
               "expanded_tags": result.expanded_tags, "filtered_out": result.filtered_out},
