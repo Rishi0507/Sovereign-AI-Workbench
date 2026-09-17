@@ -373,3 +373,43 @@ def test_follow_ups_join_the_conversation(api_default: tuple[TestClient, Runtime
     assert [f["id"] for f in root["followups"]] == [second["id"], third["id"]]
     assert "words" in root["followups"][0]["result"]["answer"]["answer"][0]["text"]
     assert root["followups"][0]["label_display"] == "Restricted"
+
+
+def test_small_talk_and_vague_requests_get_useful_replies(api_default: tuple[TestClient, Runtime]) -> None:
+    client, _rt = api_default
+    root = client.post("/api/tasks", headers=ENG, json={"workspace": "plant-a", "text": "hello"}).json()
+    done = wait_for(client, root["id"], lambda t: t["status"] == "completed")
+    reply = done["result"]["reply"]
+    assert reply["text"].startswith("Hello!") and "approval notes" in reply["text"]
+    assert any(s["label"] == "Summarise the contract" for s in reply["suggestions"])
+    assert "answer" not in done["result"] and done["label_display"] == "Restricted"
+
+    turns = {}
+    for text in ["summarise any document", "continue", "summarize!"]:
+        child = client.post(f"/api/tasks/{root['id']}/followup", headers=ENG, json={"text": text}).json()
+        turns[text] = wait_for(client, child["id"], lambda t: t["status"] == "completed")["result"]["reply"]
+    ask = turns["summarise any document"]
+    assert ask["text"].startswith("Which document should I summarise?")
+    assert {s["attachments"][0] for s in ask["suggestions"]} <= {
+        "inputs/inspection_P101A_clean.pdf", "inputs/inspection_P101A_injected.pdf", "inputs/inspection_P108B.pdf",
+        "inputs/vendor_contract.pdf"}
+    assert "summarise any document" in turns["continue"]["text"]
+    assert turns["summarize!"]["text"].startswith("Which document should I summarise?")
+
+    # Picking a suggestion runs the real task with that file, in the same conversation.
+    pick = next(s for s in ask["suggestions"] if s["attachments"] == ["inputs/vendor_contract.pdf"])
+    child = client.post(f"/api/tasks/{root['id']}/followup", headers=ENG,
+                        json={"text": pick["text"], "attachments": pick["attachments"]}).json()
+    assert child["attachments"] == ["inputs/vendor_contract.pdf"] and child["followup_of"] == root["id"]
+    task = wait_for(client, child["id"], gate_is("plan"))
+    assert task["plan"]["template"] == "contract_summary"
+
+
+def test_a_named_file_is_attached_automatically(api_default: tuple[TestClient, Runtime]) -> None:
+    client, _rt = api_default
+    task = client.post("/api/tasks", headers=ENG, json={"workspace": "plant-a",
+                                                         "text": "Summarise the vendor contract"}).json()
+    assert task["attachments"] == ["inputs/vendor_contract.pdf"]
+    other = client.post("/api/tasks", headers=ENG, json={"workspace": "plant-a",
+                                                          "text": "Which pumps are governed by SOP-MECH-014?"}).json()
+    assert other["attachments"] == []

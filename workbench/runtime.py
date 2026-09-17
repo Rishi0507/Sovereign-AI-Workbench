@@ -95,7 +95,7 @@ class Runtime:
         self.kb = KnowledgeBase(s.path(s.kb_dir), self.db)
         self.checks = CheckEngine(load_rules(s.root / "rules" / "consistency"), s.path(s.asset_register))
         self.files = FileStore(s.path(s.workspaces_root), self.db, self.policy, self.clock)
-        self.templates = TemplateLibrary(s.root / "templates")
+        self.templates = TemplateLibrary(s.root / "templates", self.approved_templates_dir)
         self.tasks = TaskStore(self.db, self.clock)
         self.reader = CompositeReader()
         if egress is None:
@@ -118,6 +118,14 @@ class Runtime:
         if start_threads:
             self.pool.start_ticker()
             self.jobs.start()
+
+    @property
+    def approved_templates_dir(self) -> Path:
+        return self.settings.path(self.settings.data_dir) / "templates"
+
+    @property
+    def template_drafts_dir(self) -> Path:
+        return self.approved_templates_dir / "drafts"
 
     def evidence_dir(self, task_id: str) -> Path:
         return self.settings.path(self.settings.data_dir) / "evidence" / task_id

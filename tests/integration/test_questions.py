@@ -81,3 +81,11 @@ def test_word_count_ignores_marking_lines() -> None:
 
     assert count_words("CONFIDENTIAL\nThe pump's casing is 5.6 mm thick.\nCONFIDENTIAL") == 7
     assert count_words("A well-known price: 4,85,00,000") == 4
+
+
+def test_summary_points_are_returned_for_the_conversation(rt: Runtime) -> None:
+    task = rt.orchestrator.create_task("plant-a", "engineer1", "Summarise this document", ["inputs/vendor_contract.pdf"])
+    state = rt.jobs.run_inline(task.id)
+    points = state.result["summary"]["points"]
+    assert 1 <= len(points) <= 6
+    assert all("[R-" in p["text"] for p in points)

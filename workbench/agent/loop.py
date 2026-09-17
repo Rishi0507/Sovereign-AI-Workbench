@@ -771,6 +771,11 @@ class Orchestrator:
             return self._summarise(state, step, focus, cancelled)
         schema = load_schema(mt.schema_name or "")
         kwargs = {"record_ids": ", ".join(sorted(focus)), "question": state.text, "doc": ""}
+        if mt.name == "chat_reply":
+            convo = self.conversation_context(state)
+            extra_meta = {**(extra_meta or {}), **convo, "attachments": state.attachments}
+            kwargs.update(files=", ".join(f"{f['name']} ({f['path']})" for f in convo["files"]) or "none",
+                          history="; ".join(h["text"] for h in convo["history"]) or "nothing yet")
         instruction = render_prompt(mt.prompt, **kwargs)
         ctx = self._context(state, step, focus, instruction)
         req = LLMRequest(model=state.model or "", purpose=mt.purpose, messages=ctx.all_messages(),
@@ -794,6 +799,20 @@ class Orchestrator:
                                                                                resp.usage.get("sim_cached_tokens", 0))),
                     prompt_tokens=int(resp.usage.get("sim_prompt_tokens", 0)), spec=resp.spec)
         return value, rec.id
+
+    def conversation_context(self, state: TaskState) -> dict[str, Any]:
+        """Workspace inputs the user may read, and the earlier turns of this conversation."""
+        policy = self.rt.policy
+        user = policy.user(state.user)
+        ws = policy.workspace(state.workspace)
+        files = [{"name": f.name, "path": f.relpath} for f in self.rt.files.list(state.workspace, "inputs")
+                 if policy.can_read(user, ws, f.label)]
+        history: list[dict[str, Any]] = []
+        root = state.meta.get("followup_of")
+        if root:
+            earlier = [self.rt.tasks.get(str(root)), *self.rt.tasks.followups(str(root))]
+            history = [{"text": t.text, "status": t.status} for t in earlier if t.id != state.id]
+        return {"files": files, "history": history}
 
     def _model_step(self, state: TaskState, step: PlanStep, cancelled: Callable[[], bool]) -> str:
         mt = MODEL_TASKS[step.model_task or ""]
@@ -961,6 +980,14 @@ class Orchestrator:
                                       self.rt.kb.revisions, self.s.date_dayfirst)
             state.result["answer"] = answer
             state.result["claims"] = [c.model_dump() for c in claims]
+        replies = [state.outputs[st.id].get("value") for st in (state.plan.steps if state.plan else [])
+                   if st.model_task == "chat_reply" and isinstance(state.outputs.get(st.id), dict)]
+        if replies and isinstance(replies[-1], dict):
+            state.result["reply"] = replies[-1]
+        summaries = [state.outputs[st.id].get("value") for st in (state.plan.steps if state.plan else [])
+                     if st.model_task == "summarise_document" and isinstance(state.outputs.get(st.id), dict)]
+        if summaries and isinstance(summaries[-1], dict) and summaries[-1].get("overall"):
+            state.result["summary"] = {"title": summaries[-1].get("title"), "points": summaries[-1]["overall"][:6]}
         facts = [{"record": r.id, "text": r.body["statement"]} for r in self.rt.ledger.for_task(state.id)
                  if r.kind == "calc_result" and isinstance(r.body, dict) and "statement" in r.body]
         if facts:

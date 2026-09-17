@@ -92,6 +92,8 @@ ALLOWED_META = {"report_date", "equipment_tag", "templates_disabled"}
 def create_task(body: CreateTask, user: User = Depends(current_user), rt: Runtime = Depends(get_rt)) -> dict[str, Any]:
     workspace_for(rt, user, body.workspace)
     meta = {k: v for k, v in body.meta.items() if k in ALLOWED_META}
+    if not body.attachments:
+        body.attachments = _named_files(rt, user, body.workspace, body.text)
     try:
         state = rt.orchestrator.create_task(body.workspace, user.id, body.text, body.attachments, meta)
     except (PolicyError, NotFound) as exc:
@@ -412,7 +414,13 @@ def draft_decision(task_id: str, body: DraftDecisionBody, user: User = Depends(c
 
 
 class FollowUp(BaseModel):
-    text: str = Field(min_length=3, max_length=2000)
+    text: str = Field(min_length=1, max_length=2000)
+    attachments: list[str] | None = None
+
+
+def _named_files(rt: Runtime, user: User, workspace: str, text: str) -> list[str]:
+    ws = rt.policy.workspace(workspace)
+    return [f.relpath for f in rt.files.mentioned(workspace, text) if rt.policy.can_read(user, ws, f.label)]
 
 
 @router.post("/tasks/{task_id}/followup", status_code=201)
@@ -427,7 +435,9 @@ def followup(task_id: str, body: FollowUp, user: User = Depends(current_user),
         floor = floor.join(rt.ledger.high_water(earlier.id, earlier.label_floor))
     try:
         # Follow-ups join the conversation's root and start at its classification.
-        child = rt.orchestrator.create_task(root.workspace, user.id, body.text, root.attachments,
+        attachments = body.attachments if body.attachments is not None else (
+            root.attachments or _named_files(rt, user, root.workspace, body.text))
+        child = rt.orchestrator.create_task(root.workspace, user.id, body.text, attachments,
                                             meta={"followup_of": root.id}, parent_id=root.id, label_floor=floor)
     except PolicyError as exc:
         raise HTTPException(403, str(exc)) from exc
