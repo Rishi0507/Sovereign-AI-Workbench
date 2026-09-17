@@ -249,6 +249,23 @@ coming from the workspace files the user may read. Questions about the outside w
 answered with a plain statement that the workbench cannot know them rather than with a document search. If the
 model server is unreachable, the deterministic reply is used and the interface says so.
 
+The same model also sorts each new message before planning: one that needs none of the user's documents
+(arithmetic, the time, general knowledge) is answered directly instead of being searched. A message naming plant or
+document work goes to the documents without asking the model, and any router answer that does not clearly say
+otherwise is treated as document work, so a wrong sort cannot silence a real question.
+
 **Why:** The rules gave the same sentence to every greeting, which reads like a script rather than an assistant.
 A 1.5B model on a CPU is good enough for conversation and far too weak for planning or for figures that must be
 traced, so only the conversation was given to it. Code: `workbench/llm/chat_model.py`.
+
+### D39. Documents are read in place, and only decision makers are told what is waiting
+
+**Decision:** `GET /api/files/{id}/preview` returns the readable content of a stored file: paragraphs, headings and
+tables for Word files, PDFs, spreadsheets, Markdown and scripts, capped so a large document cannot fill the browser.
+The library and the task page open that preview when a file is clicked, with the download beside it. The library
+lists a task as waiting only for the person who can actually decide it, which is the task owner or an approver;
+everyone else sees the task and its files as before, subject to clearance.
+
+**Why:** Checking a draft meant downloading it and opening Word. The waiting list was also shown to people with no
+authority to act on it, such as the internal developer account, which invited them to open approvals they cannot
+give. Code: `workbench/documents/preview.py`, `workbench/api/routes_library.py`.

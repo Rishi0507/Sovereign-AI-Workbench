@@ -143,6 +143,7 @@ Approval returns `409` with the blockers while mismatches are unacknowledged or 
 | `GET /api/workspaces/{ws}/files?area=inputs` | Files in `inputs`, `drafts` or `final` that your clearance allows. |
 | `POST /api/workspaces/{ws}/files` | Multipart upload: `file`, optional `level` and `compartments` (comma-separated). Markings found in the file raise the label; a label above the workspace ceiling is refused. |
 | `GET /api/files/{file_id}` | File metadata and label. |
+| `GET /api/files/{file_id}/preview` | The readable content of the file (paragraphs, headings and tables) so it can be read without downloading: `{kind, blocks, truncated, name}` where `kind` is `text`, `image` or `binary`. Same clearance check as the download, and recorded in the audit log. |
 | `GET /api/files/{file_id}/download` | The file, if your clearance allows it. |
 | `POST /api/files/{file_id}/share` | Copy a file into another workspace: `{"workspace": "proc"}`. Refused if the label is above that workspace's ceiling. |
 

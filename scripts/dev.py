@@ -125,7 +125,7 @@ def task_chat_model() -> None:
         server.chmod(0o755)
     threads = str(max(1, os.cpu_count() or 1))
     run([str(server), "--model", str(model), "--alias", "qwen2.5-1.5b-instruct", "--host", "127.0.0.1",
-         "--port", "8010", "--ctx-size", "4096", "--threads", threads, "--parallel", "1"], cwd=server.parent)
+         "--port", "8010", "--ctx-size", "8192", "--threads", threads, "--parallel", "2"], cwd=server.parent)
 
 
 def task_eval() -> None:
