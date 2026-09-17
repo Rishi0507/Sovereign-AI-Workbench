@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ title }} · Workbench</title>
   <link rel="icon" href="/static/mark.svg" type="image/svg+xml">
+  <link rel="preload" href="/static/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="/static/app.css?v={{ asset_version }}">
   <script src="/static/app.js?v={{ asset_version }}" defer></script>
 </head>
@@ -36,7 +37,7 @@
         <button class="icon-btn menu-btn" id="menu-btn" type="button" aria-label="Open sidebar">
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 6h14M3 10h14M3 14h14"/></svg>
         </button>
-        <label class="ws-picker">
+        <label class="ws-picker"{% if page != "home" %} hidden{% endif %}>
           <span class="sr-only">Workspace</span>
           <select id="ws-select"></select>
         </label>

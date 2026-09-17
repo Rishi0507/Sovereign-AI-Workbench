@@ -43,6 +43,7 @@ def task_view(rt: Runtime, state: TaskState, user: User, full: bool = True) -> d
         "model": state.model,
         "label": label.model_dump(mode="json"), "label_display": label.display(), "marking": label.marking(),
         "parent_id": state.parent_id, "children": state.children, "error": state.error,
+        "followup_of": state.meta.get("followup_of"),
     }
     if not full:
         return data
@@ -61,8 +62,20 @@ def task_view(rt: Runtime, state: TaskState, user: User, full: bool = True) -> d
         "can_approve": "approver" in user.roles, "is_owner": user.id == state.user,
         "draft_summary": rt.orchestrator.draft_summary(state) if state.deliverables else None,
         "blockers": rt.orchestrator.approval_blockers(state) if state.deliverables else [],
+        "followups": [] if state.meta.get("followup_of") else _followup_views(rt, state, user),
     })
     return data
+
+
+def _followup_views(rt: Runtime, state: TaskState, user: User) -> list[dict[str, Any]]:
+    """The rest of the conversation: follow-ups the viewer may read, oldest first."""
+    ws = rt.policy.workspace(state.workspace)
+    out = []
+    for f in rt.tasks.followups(state.id):
+        label = f.label or rt.ledger.high_water(f.id, f.label_floor)
+        if rt.policy.can_read(user, ws, label):
+            out.append(task_view(rt, f, user))
+    return out
 
 
 class CreateTask(BaseModel):
@@ -406,9 +419,16 @@ class FollowUp(BaseModel):
 def followup(task_id: str, body: FollowUp, user: User = Depends(current_user),
              rt: Runtime = Depends(get_rt)) -> dict[str, Any]:
     parent = task_for(rt, user, task_id)
+    root = parent
+    while root.meta.get("followup_of"):
+        root = task_for(rt, user, str(root.meta["followup_of"]))
+    floor = rt.ledger.high_water(root.id, root.label_floor)
+    for earlier in rt.tasks.followups(root.id):
+        floor = floor.join(rt.ledger.high_water(earlier.id, earlier.label_floor))
     try:
-        child = rt.orchestrator.create_task(parent.workspace, user.id, body.text, parent.attachments,
-                                            meta={"followup_of": task_id}, parent_id=task_id)
+        # Follow-ups join the conversation's root and start at its classification.
+        child = rt.orchestrator.create_task(root.workspace, user.id, body.text, root.attachments,
+                                            meta={"followup_of": root.id}, parent_id=root.id, label_floor=floor)
     except PolicyError as exc:
         raise HTTPException(403, str(exc)) from exc
     rt.jobs.submit(child.id)

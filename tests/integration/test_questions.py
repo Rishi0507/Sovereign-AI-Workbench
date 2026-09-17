@@ -51,3 +51,33 @@ def test_every_save_changes_the_revision_even_within_a_second(rt: Runtime) -> No
     rt.tasks.save(stale)  # an older copy saved later must still move the counter forward
     seen = rt.tasks.get(task.id)
     assert seen.revision_no > first.revision_no
+
+
+def test_summary_that_also_asks_for_a_word_count_gets_one(rt: Runtime) -> None:
+    from workbench.tools.document_stats import count_words
+
+    text = "Summarise this vendor contract and also let me know number of words in it"
+    task = rt.orchestrator.create_task("plant-a", "engineer1", text, ["inputs/vendor_contract.pdf"])
+    state = rt.jobs.run_inline(task.id)
+    assert state.status == "completed"
+    assert [s.tool or s.model_task for s in state.plan.steps][:2] == ["read_document", "document_stats"]
+    pages = rt.reader.read(rt.files.resolve("plant-a", "inputs/vendor_contract.pdf"))
+    words = count_words("\n".join(p.text for p in pages))
+    assert words > 1000
+    facts = state.result["facts"]
+    assert facts and f"{words:,} words" in facts[0]["text"] and "40 pages" in facts[0]["text"]
+    assert rt.ledger.get(facts[0]["record"]).kind == "calc_result"
+
+
+def test_question_about_counts_is_answered_from_the_counted_fact(rt: Runtime) -> None:
+    state, answer = ask(rt, "How many pages and words are in this contract?", ["inputs/vendor_contract.pdf"])
+    assert state.status == "completed"
+    assert any(s.tool == "document_stats" for s in state.plan.steps)
+    assert "vendor_contract.pdf has 40 pages and" in answer[0]
+
+
+def test_word_count_ignores_marking_lines() -> None:
+    from workbench.tools.document_stats import count_words
+
+    assert count_words("CONFIDENTIAL\nThe pump's casing is 5.6 mm thick.\nCONFIDENTIAL") == 7
+    assert count_words("A well-known price: 4,85,00,000") == 4

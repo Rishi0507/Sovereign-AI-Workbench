@@ -9,6 +9,7 @@ def builtin_specs() -> list[ToolSpec]:
     from workbench.tools import (
         calculate,
         check_consistency,
+        document_stats,
         files,
         misc,
         read_document,
@@ -20,8 +21,8 @@ def builtin_specs() -> list[ToolSpec]:
     )
 
     specs: list[ToolSpec] = []
-    for module in (files, run_python, read_document, search_kb, check_consistency, calculate, render_docx,
-                   render_xlsx, render_pptx, misc):
+    for module in (files, run_python, read_document, document_stats, search_kb, check_consistency, calculate,
+                   render_docx, render_xlsx, render_pptx, misc):
         specs.extend(module.SPECS)
     return specs
 

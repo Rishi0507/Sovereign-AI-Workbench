@@ -463,7 +463,7 @@
   async function refreshRecent() {
     let tasks = [];
     try { tasks = await api("/tasks"); } catch { return; }
-    const slim = tasks.filter((t) => t.user === USER).slice(0, 40)
+    const slim = tasks.filter((t) => t.user === USER && !t.followup_of).slice(0, 40)
       .map((t) => ({ id: t.id, text: t.text, status: t.status, created_at: t.created_at, user: t.user }));
     cache.set("recent", { user: USER, tasks: slim });
     paintRecent(slim);
@@ -671,6 +671,7 @@
   function sourceParts(rec, rid) {
     const summary = rec ? rec.summary : rid;
     if (rec && rec.kind === "graph_fact") return { title: "Plant records", body: summary };
+    if (rec && rec.kind === "calc_result") return { title: "Counted from the document", body: summary };
     const page = summary.match(/^(.+?) p\.(\d+) \([^)]*\): (.*)$/);
     if (page) return { title: `${page[1]} · page ${page[2]}`, body: page[3].replace(/^#+\s*/, "") };
     const cut = summary.search(/ · |: /);
@@ -680,27 +681,56 @@
 
   async function pageTask() {
     const id = document.body.dataset.task;
-    const view = { task: null, editing: null, stamp: "", ledger: [] };
+    const view = { root: null, editing: null, stamp: "", ledgers: {}, fetched: new Set(), stick: true };
     const follow = $("#followup");
-    autosize($("#followup-text"));
+    const box = $("#followup-text");
+    const scroller = $("#content");
+    autosize(box);
+
+    const convo = () => (view.root ? [view.root, ...(view.root.followups || [])] : []);
+    const latest = () => convo()[convo().length - 1];
+    const findTask = (tid) => convo().find((x) => x.id === tid);
+    const nearBottom = () => scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 160;
+    const toBottom = (smooth) => scroller.scrollTo({ top: scroller.scrollHeight, behavior: smooth ? "smooth" : "auto" });
 
     const load = async () => {
       let task;
       try { task = await api(`/tasks/${id}`); } catch (e) {
         fill($("#thread"), h("div", { class: "notice", text: e.status === 403 ? "You do not have access to this task." : e.message }));
+        follow.hidden = true;
         return false;
       }
-      const stamp = `${task.revision_no}|${task.status}|${task.trace ? task.trace.length : 0}`;
-      if (stamp !== view.stamp) {
-        view.task = task;
-        view.stamp = stamp;
-        renderHead(task);
-        if (!view.editing) renderThread(task);
-        setMarking(task.label, task.label_display);
-        follow.hidden = task.status !== "completed" || !task.attachments.length;
+      if (task.followup_of) {
+        location.replace(`/t/${task.followup_of}`);
+        return false;
       }
-      return !TERMINAL.has(task.status);
+      const all = [task, ...(task.followups || [])];
+      const stamp = all.map((x) => `${x.id}:${x.revision_no}:${x.status}:${x.trace ? x.trace.length : 0}`).join("|");
+      if (stamp !== view.stamp) {
+        const stick = view.stick || nearBottom();
+        view.root = task;
+        view.stamp = stamp;
+        const last = latest();
+        renderHead(all.find((x) => NEEDS_YOU.has(x.status)) || last);
+        if (!view.editing) renderThread();
+        setMarking(last.label, last.label_display);
+        updateComposer();
+        if (stick) requestAnimationFrame(() => toBottom(view.stamp !== "" && !view.first));
+        view.first = false;
+        view.stick = false;
+      }
+      return all.some((x) => !TERMINAL.has(x.status));
     };
+
+    function updateComposer() {
+      const last = latest();
+      const busy = last && !TERMINAL.has(last.status);
+      follow.hidden = false;
+      box.disabled = busy;
+      box.placeholder = busy ? (last.pending_gate ? "Answer the question above to continue" : "Working on it...")
+        : "Ask a follow-up";
+      $("button[type=submit]", follow).disabled = busy || !box.value.trim();
+    }
     // Poll quickly while work runs, slowly while waiting for the user, and at once after a click.
     let timer = null;
     let burst = 0;
@@ -709,12 +739,13 @@
       let again = true;
       try { again = await load(); } catch { again = true; }
       if (!again) return;
-      const waiting = view.task && view.task.pending_gate;
+      const waiting = latest() && latest().pending_gate;
       const delay = burst > 0 ? 250 : waiting ? 2000 : 500;
       burst = Math.max(0, burst - 1);
       timer = setTimeout(poll, delay);
     };
     const refresh = () => { view.stamp = ""; burst = 12; return poll(); };
+    view.first = true;
 
     function renderHead(t) {
       const job = t.job;
@@ -722,23 +753,32 @@
       fill($("#thread-head"),
         h("div", { class: "head-left" },
           h("span", { class: `status-pill ${statusTone(t)}` }, h("span", { class: "status-dot" }), statusLabel(t)),
-          h("div", { class: "thread-title", text: t.text })),
+          h("div", { class: "thread-title", text: view.root ? view.root.text : t.text })),
         h("div", { class: "row" },
           running && !t.pending_gate ? button("Stop", async () => { await api(`/jobs/${job.id}`, { method: "DELETE" }); toast("Stopping"); }, "ghost") : null,
           h("button", { class: "btn ghost", type: "button", onclick: () => openDetails(t) }, icon("info"), "Details")));
     }
 
-    function assistant(...children) {
-      return h("div", { class: "turn assistant", "data-key": "assistant" }, h("img", { class: "turn-avatar", src: "/static/mark.svg", alt: "" }),
-        h("div", { class: "turn-body" }, children));
+    function assistant(t, children) {
+      return h("div", { class: "turn assistant", "data-key": `assistant-${t.id}` }, h("img", { class: "turn-avatar", src: "/static/mark.svg", alt: "" }),
+        h("div", { class: "turn-body" }, children,
+          TERMINAL.has(t.status) && latest() && t.id !== latest().id ? h("div", { class: "turn-tools" },
+            h("button", { class: "link-btn quiet", type: "button", onclick: () => openDetails(t) }, icon("info"), "Details")) : null));
     }
 
-    function renderThread(t) {
+    function renderThread() {
       const items = [];
-      items.push(h("div", { class: "turn user", "data-key": "user" }, h("div", { class: "bubble" },
-        h("p", { text: t.text }),
-        t.attachments.length ? h("div", { class: "row wrap" }, t.attachments.map((a) => h("span", { class: "file-chip", title: a }, icon("file"), shortName(a)))) : null)));
+      convo().forEach((t, index) => {
+        items.push(h("div", { class: "turn user", "data-key": `user-${t.id}` }, h("div", { class: "bubble" },
+          h("p", { text: t.text }),
+          index === 0 && t.attachments.length ? h("div", { class: "row wrap" }, t.attachments.map((a) => h("span", { class: "file-chip", title: a }, icon("file"), shortName(a)))) : null)));
+        const body = turnBody(t);
+        if (body.length) items.push(assistant(t, body));
+      });
+      fill($("#thread"), ...items);
+    }
 
+    function turnBody(t) {
       const body = [];
       const gate = t.pending_gate;
       const step = t.plan && t.plan.steps.find((s) => s.status === "running");
@@ -755,8 +795,7 @@
       if (t.plan) body.push(gate && gate.kind === "plan" ? planGate(t, gate) : progress(t));
       if (gate && gate.kind === "action") body.push(actionGate(t, gate));
       body.push(...results(t));
-      if (body.length) items.push(assistant(body));
-      fill($("#thread"), ...items);
+      return body;
     }
 
     function choiceBlock(t, gate) {
@@ -780,9 +819,9 @@
         h("span", { class: "plan-text", text: stepSummary(s) }),
         s.side_effect ? h("span", { class: "chip", text: "creates a file" }) : null,
         editing ? h("span", { class: "row tight" },
-          h("button", { class: "icon-btn", type: "button", "aria-label": "Move up", disabled: i === 0, onclick: () => { [steps[i - 1], steps[i]] = [steps[i], steps[i - 1]]; renderThread(t); } }, icon("up")),
-          h("button", { class: "icon-btn", type: "button", "aria-label": "Move down", disabled: i === steps.length - 1, onclick: () => { [steps[i + 1], steps[i]] = [steps[i], steps[i + 1]]; renderThread(t); } }, icon("down")),
-          h("button", { class: "icon-btn", type: "button", "aria-label": "Remove step", onclick: () => { steps.splice(i, 1); renderThread(t); } }, icon("trash"))) : null)));
+          h("button", { class: "icon-btn", type: "button", "aria-label": "Move up", disabled: i === 0, onclick: () => { [steps[i - 1], steps[i]] = [steps[i], steps[i - 1]]; renderThread(); } }, icon("up")),
+          h("button", { class: "icon-btn", type: "button", "aria-label": "Move down", disabled: i === steps.length - 1, onclick: () => { [steps[i + 1], steps[i]] = [steps[i], steps[i + 1]]; renderThread(); } }, icon("down")),
+          h("button", { class: "icon-btn", type: "button", "aria-label": "Remove step", onclick: () => { steps.splice(i, 1); renderThread(); } }, icon("trash"))) : null)));
       const eta = plan.est_time_s ? (plan.est_time_s < 60 ? ", under a minute" : `, about ${Math.round(plan.est_time_s / 60)} min`) : "";
       const parts = [h("p", { text: `Here is my plan${eta}:` }), list];
       if (plan.errors && plan.errors.length) {
@@ -795,7 +834,7 @@
             view.editing = null;
             await refresh();
           }, "primary"),
-          h("button", { class: "btn ghost", type: "button", text: "Discard changes", onclick: () => { view.editing = null; renderThread(t); } })));
+          h("button", { class: "btn ghost", type: "button", text: "Discard changes", onclick: () => { view.editing = null; renderThread(); } })));
       } else {
         parts.push(h("div", { class: "row" },
           h("button", { class: "btn primary", type: "button", disabled: !plan.valid, onclick: (e) => guarded(e.currentTarget, async () => {
@@ -804,7 +843,7 @@
           }) }, "Start"),
           h("button", { class: "btn", type: "button", text: "Edit", onclick: () => {
             view.editing = { steps: plan.steps.map((s) => ({ ...s })) };
-            renderThread(t);
+            renderThread();
           } }),
           button("Cancel", async () => {
             await api(`/tasks/${t.id}/plan/decision`, { method: "POST", json: { decision: "reject" } });
@@ -867,7 +906,7 @@
         const answer = r.answer;
         out.push(h("div", { class: "answer" }, answer.answer.map((a) => h("p", {}, citeText(a.text, sources, showRecord)))));
         if (sources.length) {
-          const recs = new Map(view.ledger.map((x) => [x.id, x]));
+          const recs = new Map((view.ledgers[t.id] || []).map((x) => [x.id, x]));
           out.push(h("div", { class: "source-cards" }, sources.map((rid, i) => {
             const rec = recs.get(rid);
             const { title, body } = sourceParts(rec, rid);
@@ -875,11 +914,17 @@
               h("span", { class: "source-n", text: i + 1 }),
               h("span", { class: "source-main" }, h("span", { class: "source-title", text: title }), h("span", { class: "source-body", text: body })));
           })));
-          if (!view.ledgerLoaded) {
-            view.ledgerLoaded = true;
-            api(`/tasks/${t.id}/ledger`).then((l) => { view.ledger = l; renderThread(t); }).catch(() => {});
+          if (!view.fetched.has(t.id)) {
+            view.fetched.add(t.id);
+            api(`/tasks/${t.id}/ledger`).then((l) => { view.ledgers[t.id] = l; renderThread(); }).catch(() => {});
           }
         }
+      }
+      const cited = new Set(((r.answer && r.answer.answer) || []).flatMap((a) => (a.text.match(/R-[A-Za-z0-9]+-\d+/g) || [])));
+      const facts = (r.facts || []).filter((f) => !cited.has(f.record));
+      if (facts.length) {
+        out.push(h("div", { class: "facts" }, facts.map((f) => h("button", { class: "fact", type: "button", title: "Show how this was counted", onclick: () => showRecord(f.record) },
+          h("span", { class: "fact-icon" }, icon("calc")), h("span", { text: f.text })))));
       }
       if (r.code) {
         const res = r.code.result;
@@ -966,7 +1011,7 @@
       const seg = tabs(items, tab, (key, d) => { tab = key; dir = d; render(); });
       const put = (...content) => swapPanel(holder, content, dir);
       const render = async () => {
-        const task = view.task;
+        const task = findTask(t.id) || t;
         if (tab === "activity") {
           put(h("ol", { class: "log" }, task.trace.map((r) => h("li", { class: r.ok ? "" : "bad" },
             h("span", { class: "log-k", text: [r.kind, r.step_id].filter(Boolean).join(" · ") }),
@@ -1009,19 +1054,23 @@
 
     follow.addEventListener("submit", (e) => {
       e.preventDefault();
-      const text = $("#followup-text").value.trim();
-      if (!text) return;
+      const text = box.value.trim();
+      if (!text || box.disabled) return;
       guarded(e.submitter, async () => {
-        const child = await api(`/tasks/${id}/followup`, { method: "POST", json: { text } });
-        location.href = `/t/${child.id}`;
+        await api(`/tasks/${id}/followup`, { method: "POST", json: { text } });
+        box.value = "";
+        box.dispatchEvent(new Event("input"));
+        view.stick = true;
+        await refresh();
       });
     });
-    $("#followup-text").addEventListener("keydown", (e) => {
+    box.addEventListener("input", () => { $("button[type=submit]", follow).disabled = box.disabled || !box.value.trim(); });
+    box.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); follow.requestSubmit(); }
     });
 
     await poll();
-    if (location.hash === "#details" && view.task) openDetails(view.task);
+    if (location.hash === "#details" && view.root) openDetails(latest());
   }
 
   // -------------------------------------------------------------------------------------------
