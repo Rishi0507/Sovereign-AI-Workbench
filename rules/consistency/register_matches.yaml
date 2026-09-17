@@ -1,6 +1,6 @@
 # The purchase order on the report must match the asset register entry for the tag.
 name: po_matches_register
-description: Purchase order matches the asset register
+description: Purchase order number
 applies_to: [inspection_report]
 left: fact.po_number
 right: {source: asset_register, field: po_number, key: "{fact.equipment_tag}"}
@@ -9,7 +9,7 @@ on_fail: mismatch
 ---
 # The vendor named on the report must match the registered vendor (fuzzy party match).
 name: vendor_matches_register
-description: Vendor matches the asset register
+description: Vendor name
 applies_to: [inspection_report]
 left: fact.vendor
 right: {source: asset_register, field: vendor, key: "{fact.equipment_tag}"}

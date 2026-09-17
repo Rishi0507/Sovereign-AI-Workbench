@@ -15,13 +15,13 @@ steps:
     default_args: {path: "{attachments[0]}"}
     output_type: document
   - id: inputs
-    title: Extract the formula and inputs
+    title: Find the formula and inputs
     model_task: extract_calc_inputs
     output_schema: schemas/calc_inputs.json
     inputs: [read]
     output_type: calc_inputs
   - id: calc
-    title: Evaluate with units
+    title: Calculate with units
     tool: calculate
     default_args:
       expression: "{inputs.expression}"
@@ -32,14 +32,14 @@ steps:
     inputs: [inputs]
     output_type: calc_result
   - id: sheet
-    title: Spreadsheet with live formulas
+    title: Create the spreadsheet
     tool: make_xlsx
     default_args: {kind: calc_sheet, data: {calc: "{calc}"}, name: calc-sheet.xlsx}
     inputs: [calc]
     output_type: file
     side_effect: true
   - id: note
-    title: Calculation sheet document
+    title: Create the calculation sheet
     tool: make_docx
     default_args: {template: calc_sheet, data: {calc: "{calc}", record: "{calc.records.0}"}, name: calc-sheet.docx}
     inputs: [calc]

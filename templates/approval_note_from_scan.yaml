@@ -9,13 +9,13 @@ deliverables:
   - {type: docx, name: approval-note.docx}
 steps:
   - id: extract
-    title: Read the report and extract findings
+    title: Read the report
     tool: read_document
     default_args: {path: "{attachments[0]}", mode: findings}
     output_schema: schemas/findings.json
     output_type: findings
   - id: ground
-    title: Ground in the procedure in force and the tag history
+    title: Look up the procedure and past readings
     tool: search_kb
     default_args:
       queries: ["approval note structure and evidence", "minimum casing wall thickness acceptance criteria", "past approval notes {equipment_tag}"]
@@ -25,19 +25,19 @@ steps:
     inputs: [extract]
     output_type: kb_passages
   - id: check
-    title: Cross-check facts against the register, limits and history
+    title: Check the facts against the register and limits
     tool: check_consistency
     default_args: {facts: "{extract}", against: [asset_register, "{ground}"]}
     inputs: [extract, ground]
     output_type: check_results
   - id: draft
-    title: Draft cited sections
+    title: Write the note with sources
     model_task: draft_sections
     output_schema: schemas/approval_note.json
     inputs: [extract, ground, check]
     output_type: note
   - id: render
-    title: Render the approval note
+    title: Create the Word document
     tool: make_docx
     default_args: {template: org/approval_note.dotx, data: "{draft}"}
     inputs: [draft]

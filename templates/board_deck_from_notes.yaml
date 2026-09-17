@@ -20,7 +20,7 @@ steps:
     inputs: [read]
     output_type: deck
   - id: render
-    title: Render the deck
+    title: Create the slide deck
     tool: make_pptx
     default_args: {data: "{outline}", name: board-deck.pptx}
     inputs: [outline]

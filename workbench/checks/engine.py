@@ -190,11 +190,12 @@ class CheckEngine:
             return "not_checked", "reference value is uncertain"
         if op == "eq_normalised":
             ok = _norm_generic(left.value) == _norm_generic(right.value)
-            return ("pass" if ok else "mismatch", "values match" if ok else "values differ after normalisation")
+            return ("pass" if ok else "mismatch", "the values match" if ok else "the values do not match")
         if op == "fuzzy_party":
             sim = party_similarity(str(left.value), str(right.value))
             thr = rule.threshold if rule.threshold is not None else ctx.party_threshold
-            return ("pass" if sim >= thr else "mismatch", f"similarity {sim:.2f} (threshold {thr:.2f})")
+            return ("pass" if sim >= thr else "mismatch",
+                    f"names match ({sim:.0%} similar)" if sim >= thr else f"names differ ({sim:.0%} similar)")
         if op in {"gte", "lte"}:
             lmag, lunit = self._quantity(left)
             rmag, runit = self._quantity(right)
@@ -203,8 +204,12 @@ class CheckEngine:
                     return "not_checked", f"incompatible units {lunit} and {runit}"
                 lmag = convert((lmag, lunit), runit)
             ok = lmag >= rmag if op == "gte" else lmag <= rmag
-            sym = ">=" if op == "gte" else "<="
-            return ("pass" if ok else "mismatch", f"{lmag:g} {sym} {rmag:g} is {'true' if ok else 'false'}")
+            unit = f" {self._unit_symbol(runit or lunit)}" if (runit or lunit) else ""
+            if op == "gte":
+                note = f"{lmag:g}{unit} meets the minimum of {rmag:g}{unit}" if ok else f"{lmag:g}{unit} is below the minimum of {rmag:g}{unit}"
+            else:
+                note = f"{lmag:g}{unit} is within the maximum of {rmag:g}{unit}" if ok else f"{lmag:g}{unit} is above the maximum of {rmag:g}{unit}"
+            return ("pass" if ok else "mismatch", note)
         if op in {"lte_date", "gte_date"}:
             try:
                 ld = norm_date(str(left.value), ctx.dayfirst)
@@ -212,8 +217,11 @@ class CheckEngine:
             except ValueError:
                 return "not_checked", "date could not be normalised"
             ok = ld <= rd if op == "lte_date" else ld >= rd
-            return ("pass" if ok else "mismatch", f"{ld} {'<=' if op == 'lte_date' else '>='} {rd} is "
-                    f"{'true' if ok else 'false'}")
+            if op == "lte_date":
+                note = f"{ld} is on or before {rd}" if ok else f"{ld} is after {rd}"
+            else:
+                note = f"{ld} is on or after {rd}" if ok else f"{ld} is before {rd}"
+            return ("pass" if ok else "mismatch", note)
         return "not_checked", f"unknown comparator {op}"
 
     def _fmt(self, item: Item | None) -> str | None:
@@ -384,8 +392,9 @@ class CheckEngine:
             "right_value": f"{float(limit.value):g} mm",
             "left_record": calc.id, "right_record": limit.record,
             "left_anchor": None, "right_anchor": self._record_anchor(ctx, limit.record),
-            "note": (f"{len(points)} readings, slope {trend.slope_per_year:+.2f} mm/yr; projection "
-                     f"{'stays above' if ok else 'falls below'} the minimum before the next inspection"),
+            "note": (f"Based on {len(points)} readings, the wall {'thins' if trend.slope_per_year < 0 else 'changes'} by "
+                     f"{abs(trend.slope_per_year):.2f} mm a year and is expected to "
+                     f"{'stay above' if ok else 'fall below'} the minimum before the next inspection"),
             "extra": {"calc_record": calc.id, "points": [p.model_dump(mode="json") for p in trend.points]},
         })
         return self._record(ctx, res, [calc.id, limit.record or ""])

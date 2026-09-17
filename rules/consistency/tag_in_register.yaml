@@ -1,6 +1,6 @@
 # Every extracted equipment tag must exist in the asset register (normalised match).
 name: tag_in_register
-description: Equipment tag exists in the asset register
+description: Equipment tag in the asset register
 applies_to: [inspection_report]
 left: fact.equipment_tag
 right: {source: asset_register, field: tag}

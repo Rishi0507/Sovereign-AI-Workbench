@@ -1,6 +1,6 @@
 # Project the thickness at the next inspection from earlier readings (plant graph history).
 name: thickness_trend
-description: Projected thickness at the next inspection stays above the SOP minimum
+description: Projected wall thickness at the next inspection
 type: trend
 applies_to: [inspection_report]
 quantity: wall_thickness

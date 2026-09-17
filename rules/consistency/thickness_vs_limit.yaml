@@ -1,6 +1,6 @@
 # Measured wall thickness must not be below the minimum in the governing SOP clause.
 name: thickness_vs_limit
-description: Minimum measured wall thickness is at or above the SOP minimum
+description: Minimum measured wall thickness
 applies_to: [inspection_report]
 left: fact.measurements[quantity=wall_thickness].value
 aggregate: min

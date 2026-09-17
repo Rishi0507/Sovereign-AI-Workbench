@@ -1,6 +1,6 @@
 # The UT gauge calibration must be valid on the inspection date.
 name: calibration_valid
-description: Gauge calibration valid on the inspection date
+description: Gauge calibration date
 applies_to: [inspection_report]
 left: fact.inspection_date
 right: {source: fact, field: calibration_valid_until}

@@ -3,47 +3,50 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ title }} · Sovereign Workbench</title>
+  <title>{{ title }} · Workbench</title>
   <link rel="icon" href="/static/mark.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/app.css?v={{ asset_version }}">
   <script src="/static/app.js?v={{ asset_version }}" defer></script>
 </head>
 <body data-page="{{ page }}" {% block data %}{% endblock %}>
-  <div class="shell">
-    <aside class="side" id="side">
-      <a class="brand" href="/">
-        <img src="/static/mark.svg" alt="" width="26" height="26">
-        <span class="brand-text"><strong>Sovereign</strong><span>Workbench</span></span>
-      </a>
-      <button class="btn btn-primary btn-block" id="new-task" type="button">
-        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>New task
-      </button>
-      <label class="side-label" for="ws-select">Workspace</label>
-      <select id="ws-select" class="select"></select>
-      <nav class="side-nav">
-        <a href="/" data-nav="home"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 9l7-6 7 6v8H3z"/></svg>Workspace</a>
-        <a href="/models" data-nav="models"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="6" height="6" rx="1"/><rect x="11" y="3" width="6" height="6" rx="1"/><rect x="3" y="11" width="6" height="6" rx="1"/><rect x="11" y="11" width="6" height="6" rx="1"/></svg>Models</a>
-        <a href="/security" data-nav="security"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2l6 3v5c0 4-3 7-6 8-3-1-6-4-6-8V5z"/></svg>Security</a>
-      </nav>
-      <div class="side-label">Recent tasks</div>
-      <ul class="recent" id="recent"></ul>
-      <div class="side-foot">
-        <label class="side-label" for="user-select">Signed in as <span class="dev-tag" title="Development authentication: the directory adapter replaces this">dev</span></label>
-        <select id="user-select" class="select"></select>
-        <div class="version">v{{ version }} · air-gapped</div>
+  <div class="app">
+    <aside class="sidebar" id="sidebar">
+      <a class="brand" href="/"><img src="/static/mark.svg" alt="" width="22" height="22"><span>Workbench</span></a>
+      <a class="new-task" href="/"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12"/></svg>New task</a>
+      <div class="side-heading">Recent</div>
+      <nav class="recent" id="recent" aria-label="Recent tasks"></nav>
+      <div class="account">
+        <button class="account-btn" id="account-btn" type="button" aria-haspopup="menu" aria-expanded="false">
+          <span class="avatar" id="avatar"></span>
+          <span class="account-name" id="account-name"></span>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 12l4-4 4 4"/></svg>
+        </button>
+        <div class="menu" id="account-menu" role="menu" hidden>
+          <label class="menu-label" for="user-select">Signed in as <span class="dev" title="Development sign-in">dev</span></label>
+          <select id="user-select" class="select"></select>
+          <div class="menu-sep"></div>
+          <a class="menu-item" href="/models" role="menuitem">Models</a>
+          <a class="menu-item" href="/security" role="menuitem">Security</a>
+        </div>
       </div>
     </aside>
+    <div class="scrim" id="scrim" hidden></div>
     <div class="main">
-      <header class="top">
-        <button class="icon-btn menu-btn" id="menu-btn" type="button" aria-label="Menu">
+      <header class="topbar">
+        <button class="icon-btn menu-btn" id="menu-btn" type="button" aria-label="Open sidebar">
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 6h14M3 10h14M3 14h14"/></svg>
         </button>
-        <div class="banner" id="banner"><span class="banner-dot"></span><span id="banner-text">Loading classification…</span></div>
-        <div class="egress" id="egress">
-          <button class="egress-pill" id="egress-pill" type="button" aria-haspopup="dialog">
-            <span class="pulse" id="egress-dot"></span><span id="egress-text">Egress monitor</span>
+        <label class="ws-picker">
+          <span class="sr-only">Workspace</span>
+          <select id="ws-select"></select>
+        </label>
+        <span class="grow"></span>
+        <span class="marking" id="marking" hidden></span>
+        <div class="net">
+          <button class="net-btn" id="net-btn" type="button" aria-haspopup="dialog">
+            <span class="net-dot" id="net-dot"></span><span id="net-text">Local only</span>
           </button>
-          <div class="popover" id="egress-pop" hidden></div>
+          <div class="popover" id="net-pop" hidden></div>
         </div>
       </header>
       <main class="content" id="content">
@@ -51,11 +54,18 @@
       </main>
     </div>
   </div>
-  <div class="drawer" id="drawer" hidden>
-    <div class="drawer-scrim" data-close></div>
-    <section class="drawer-panel" role="dialog" aria-modal="true" aria-labelledby="drawer-title">
-      <header class="drawer-head"><h2 id="drawer-title">Record</h2><button class="icon-btn" data-close type="button" aria-label="Close"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg></button></header>
-      <div class="drawer-body" id="drawer-body"></div>
+  <div class="panel" id="panel" hidden>
+    <div class="panel-scrim" data-close></div>
+    <section class="panel-body" role="dialog" aria-modal="true" aria-labelledby="panel-title">
+      <header class="panel-head"><h2 id="panel-title"></h2><button class="icon-btn" data-close type="button" aria-label="Close"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg></button></header>
+      <div class="panel-content" id="panel-content"></div>
+    </section>
+  </div>
+  <div class="modal" id="modal" hidden>
+    <div class="modal-scrim" data-close></div>
+    <section class="modal-body" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <header class="panel-head"><h2 id="modal-title"></h2><button class="icon-btn" data-close type="button" aria-label="Close"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5L5 15"/></svg></button></header>
+      <div class="panel-content" id="modal-content"></div>
     </section>
   </div>
   <div class="toasts" id="toasts" aria-live="polite"></div>

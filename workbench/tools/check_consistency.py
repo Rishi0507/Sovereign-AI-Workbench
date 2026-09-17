@@ -7,6 +7,9 @@ from typing import Any
 from workbench.checks.engine import CheckContext, CheckResult
 from workbench.tools.registry import ToolContext, ToolResult, ToolSpec, obj
 
+FIELD_NAMES = {"tag": "equipment tag", "date": "date", "po": "reference number", "quantity": "reading",
+               "stamp": "stamp", "handwriting": "handwritten note"}
+
 SCHEMA = obj({
     "facts": {"type": "object"},
     "against": {"type": "array", "items": {"type": ["string", "object"]}},
@@ -40,12 +43,13 @@ def check_consistency(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
     for rec in all_records:
         if rec.kind == "vlm_read" and rec.confidence == "uncertain" and rec.id not in used:
             body = rec.body if isinstance(rec.body, dict) else {}
+            kind = str(body.get("field_kind"))
             res = CheckResult(
-                id=f"C{len(results) + 1}", rule="dual_read", description="Critical field read by OCR and VLM",
+                id=f"C{len(results) + 1}", rule="dual_read", description=f"Unclear {FIELD_NAMES.get(kind, kind)} on the scan",
                 status="not_checked", left_value=str(body.get("ocr_value")), right_value=str(body.get("vlm_value")),
                 left_anchor=rec.anchor, left_record=rec.id,
-                note=f"OCR and VLM disagree on {body.get('field_kind')}; zoomed re-read chose "
-                     f"{body.get('zoomed_choice')}. Not used in any check.",
+                note=(f"The text reader saw {body.get('ocr_value')} and the image reader saw {body.get('vlm_value')}. "
+                      "Check the scan; this value was not used."),
                 extra={"crop": body.get("crop"), "zoomed_crop": body.get("zoomed_crop")},
             )
             results.append(rt.checks._record(cctx, res, [rec.id]))
