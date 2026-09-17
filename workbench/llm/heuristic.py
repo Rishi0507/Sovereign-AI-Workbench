@@ -31,6 +31,7 @@ from workbench.core.normalise import (
 )
 from workbench.documents.readers import TEXT_EXTS
 from workbench.kb.rerank import LexicalReranker
+from workbench.llm import conversation
 from workbench.llm.base import LLMRequest, LLMResponse, last_user
 
 CODE_WORDS = re.compile(r"\b(script|python|code|function|debug|traceback|program|sql|query)\b", re.I)
@@ -49,6 +50,9 @@ KEY_TERMS = ("price", "payment", "deliver", "warranty", "liquidated", "damages",
 GOVERNED_Q = re.compile(r"\b(?:govern(?:ed|s)?|appl(?:y|ies))\b.*?\b(?P<doc>[A-Z]{2,}(?:-[A-Z0-9]+){1,3})\b")
 QUESTION_FILLER = frozenset({"what", "which", "who", "when", "where", "how", "why", "does", "do", "did", "say",
                              "says", "about", "tell", "me", "please", "there", "any"})
+# Page footers, table rows and repeated classification markings are not part of the prose.
+PAGE_FURNITURE = re.compile(r"^\s*(page\s+\d+\s+of\s+\d+|table\s+p?\d+[-\w]*:|\||(unclassified|restricted|confidential|secret)\s*$)"
+                            r"|\s\|\s", re.IGNORECASE)
 NUMBERED_HEADING = re.compile(r"^\d+(\.\d+)*\.?\s+\w")
 SIGNAL = re.compile(r"\d|shall|must|liable|warrant|payable", re.I)
 
@@ -269,6 +273,9 @@ class HeuristicBackend:
         docs = [a for a in atts if a.lower().endswith((".pdf", ".ocr.json"))]
         s = self._step
         route = req.meta.get("route")
+        if conversation.intent(text, atts):
+            steps = [s("reply", task="chat_reply", out="reply", title="Reply")]
+            return _json({"goal": text, "steps": steps, "deliverables": []})
         if route == "code" or (CODE_WORDS.search(text) and re.search(r"\b(write|fix|debug)\b", text, re.I)):
             steps = [s("code", task="write_code", inputs=[("attachment", a) for a in atts], out="code", side=True,
                        title="Write the script and test it safely")]
@@ -648,7 +655,7 @@ class HeuristicBackend:
                     if current:
                         blocks.append((current, " ".join(buffer)))
                     current, buffer = m.group(2).strip(), []
-                elif current:
+                elif current and not PAGE_FURNITURE.search(line):
                     buffer.append(line.strip())
             if current:
                 blocks.append((current, " ".join(buffer)))
@@ -685,6 +692,12 @@ class HeuristicBackend:
         return _json({"title": f"Summary of {req.meta.get('doc', 'the document')}",
                       "overall": overall, "sections": list(merged.values())})
 
+    def _chat_reply(self, req: LLMRequest) -> LLMResponse:
+        text = str(req.meta.get("task_text") or last_user(req))
+        kind = conversation.intent(text, list(req.meta.get("attachments") or [])) or "help"
+        return _json(conversation.reply(text, kind, list(req.meta.get("files") or []),
+                                        list(req.meta.get("history") or [])))
+
     def _answer_question(self, req: LLMRequest) -> LLMResponse:
         question = str(req.meta.get("task_text") or last_user(req))
         recs = [r for r in self._records(req) if r.kind in {"kb_chunk", "ocr_text", "graph_fact", "calc_result"}]
@@ -696,7 +709,8 @@ class HeuristicBackend:
             if all(x[1] != b[1] and x[2].id != b[2].id for b in best):
                 best.append(x)
         if not best:
-            return _json({"answer": [{"text": "The retrieved passages do not answer this question."}],
+            return _json({"answer": [{"text": "I could not find this in the attached files or the procedures "
+                                              "library. Try naming the document or attaching it."}],
                           "not_found": True})
         return _json({"answer": [{"text": _cite(sent, r.id)} for _s, sent, r in best], "not_found": False})
 

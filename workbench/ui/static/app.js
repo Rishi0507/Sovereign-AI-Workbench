@@ -727,7 +727,9 @@
       const busy = last && !TERMINAL.has(last.status);
       follow.hidden = false;
       box.disabled = busy;
-      box.placeholder = busy ? (last.pending_gate ? "Answer the question above to continue" : "Working on it...")
+      const waitingText = { plan: "Approve the plan above to continue", action: "Answer the question above to continue",
+        deliverable: "Approve or review the draft above to continue", template_choice: "Choose an approach above to continue" };
+      box.placeholder = busy ? (last.pending_gate ? waitingText[last.pending_gate.kind] || "Waiting for you above" : "Working on it...")
         : "Ask a follow-up";
       $("button[type=submit]", follow).disabled = busy || !box.value.trim();
     }
@@ -771,7 +773,7 @@
       convo().forEach((t, index) => {
         items.push(h("div", { class: "turn user", "data-key": `user-${t.id}` }, h("div", { class: "bubble" },
           h("p", { text: t.text }),
-          index === 0 && t.attachments.length ? h("div", { class: "row wrap" }, t.attachments.map((a) => h("span", { class: "file-chip", title: a }, icon("file"), shortName(a)))) : null)));
+          t.attachments.length && (index === 0 || t.attachments.join() !== view.root.attachments.join()) ? h("div", { class: "row wrap" }, t.attachments.map((a) => h("span", { class: "file-chip", title: a }, icon("file"), shortName(a)))) : null)));
         const body = turnBody(t);
         if (body.length) items.push(assistant(t, body));
       });
@@ -792,7 +794,8 @@
         body.push(h("div", { class: "working" }, h("span", { class: "shimmer", text: note })));
       }
       if (gate && gate.kind === "template_choice") body.push(choiceBlock(t, gate));
-      if (t.plan) body.push(gate && gate.kind === "plan" ? planGate(t, gate) : progress(t));
+      const replyOnly = t.plan && t.plan.steps.every((st) => st.model_task === "chat_reply");
+      if (t.plan && !replyOnly) body.push(gate && gate.kind === "plan" ? planGate(t, gate) : progress(t));
       if (gate && gate.kind === "action") body.push(actionGate(t, gate));
       body.push(...results(t));
       return body;
@@ -901,10 +904,24 @@
     function results(t) {
       const out = [];
       const r = t.result || {};
-      if (r.answer) {
+      if (r.reply) {
+        const idle = !convo().some((x) => !TERMINAL.has(x.status));
+        out.push(h("div", { class: "answer" }, h("p", { text: r.reply.text })));
+        if ((r.reply.suggestions || []).length) {
+          out.push(h("div", { class: "suggest-row" }, r.reply.suggestions.map((sg) => h("button", {
+            class: "starter", type: "button", disabled: !idle,
+            onclick: (e) => guarded(e.currentTarget, () => sendFollowup(sg.text, sg.attachments || [])),
+          }, icon((sg.attachments || []).length ? "file" : "chevron"), sg.label))));
+        }
+      }
+      const lines = r.answer ? r.answer.answer : r.summary ? r.summary.points : null;
+      if (lines) {
         const sources = [];
-        const answer = r.answer;
-        out.push(h("div", { class: "answer" }, answer.answer.map((a) => h("p", {}, citeText(a.text, sources, showRecord)))));
+        if (r.summary && !r.answer) out.push(h("p", { class: "lead-in", text: "Here are the key points. The full summary is in the document below." }));
+        out.push(h("div", { class: `answer${r.summary && !r.answer ? " points" : ""}` },
+          r.summary && !r.answer
+            ? h("ul", {}, lines.map((a) => h("li", {}, citeText(a.text, sources, showRecord))))
+            : lines.map((a) => h("p", {}, citeText(a.text, sources, showRecord)))));
         if (sources.length) {
           const recs = new Map((view.ledgers[t.id] || []).map((x) => [x.id, x]));
           out.push(h("div", { class: "source-cards" }, sources.map((rid, i) => {
@@ -980,7 +997,7 @@
             h("a", { href: `/t/${t.id}/review`, text: "View" })));
         }
       }
-      if (t.status === "completed" && !(t.deliverables || []).length && !r.answer && !r.code) {
+      if (t.status === "completed" && !(t.deliverables || []).length && !r.answer && !r.code && !r.reply) {
         out.push(h("p", { class: "done-line" }, icon("check"), "Done."));
       }
       if (["failed", "handed_back", "rejected", "cancelled"].includes(t.status)) {
@@ -1052,16 +1069,21 @@
       render();
     }
 
+    async function sendFollowup(text, attachments) {
+      const json = attachments === undefined ? { text } : { text, attachments };
+      await api(`/tasks/${id}/followup`, { method: "POST", json });
+      view.stick = true;
+      await refresh();
+    }
+
     follow.addEventListener("submit", (e) => {
       e.preventDefault();
       const text = box.value.trim();
       if (!text || box.disabled) return;
       guarded(e.submitter, async () => {
-        await api(`/tasks/${id}/followup`, { method: "POST", json: { text } });
         box.value = "";
         box.dispatchEvent(new Event("input"));
-        view.stick = true;
-        await refresh();
+        await sendFollowup(text);
       });
     });
     box.addEventListener("input", () => { $("button[type=submit]", follow).disabled = box.disabled || !box.value.trim(); });

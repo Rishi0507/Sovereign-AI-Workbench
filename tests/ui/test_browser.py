@@ -182,3 +182,31 @@ def test_conversation_continues_on_the_same_page(page: Any) -> None:
     expect(page.locator(".turn.user")).to_have_count(2)
     left_after = page.evaluate("document.querySelector('.thread').getBoundingClientRect().left")
     assert left_before == left_other == left_after, (left_before, left_other, left_after)
+
+
+def test_small_talk_then_choosing_a_document(page: Any) -> None:
+    expect = playwright_api.expect
+    page.goto(page.base + "/")
+    page.locator("#task-text").fill("hello")
+    page.locator("#task-text").press("Enter")
+    page.wait_for_url("**/t/T*")
+    expect(page.locator(".answer").first).to_contain_text("Hello!", timeout=15_000)
+    expect(page.locator(".suggest-row").first).to_contain_text("Summarise the contract")
+    expect(page.locator(".steps-wrap")).to_have_count(0)
+
+    box = page.locator("#followup-text")
+    box.fill("summarise any document")
+    box.press("Enter")
+    expect(page.locator(".answer").nth(1)).to_contain_text("Which document should I summarise?", timeout=15_000)
+    page.locator(".suggest-row").nth(1).get_by_role("button", name="Summarise vendor_contract.pdf").click()
+    expect(page.locator(".turn.user")).to_have_count(3)
+    expect(page.locator(".turn.user").nth(2)).to_contain_text("vendor_contract.pdf")
+    expect(page.get_by_role("button", name="Start")).to_be_visible(timeout=15_000)
+
+    # Consecutive turns sit close together: no empty band between an answer and the next message.
+    gap = page.evaluate("""() => {
+      const answer = document.querySelectorAll('.turn.assistant')[0].getBoundingClientRect();
+      const next = document.querySelectorAll('.turn.user')[1].getBoundingClientRect();
+      return next.top - answer.bottom;
+    }""")
+    assert 0 <= gap <= 40, gap

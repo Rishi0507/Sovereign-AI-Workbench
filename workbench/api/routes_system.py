@@ -163,7 +163,7 @@ class TemplateDraftBody(BaseModel):
 @router.get("/templates")
 def templates(user: User = Depends(current_user), rt: Runtime = Depends(get_rt)) -> dict[str, Any]:
     rt.templates.reload()
-    drafts_dir = rt.settings.root / "templates" / "drafts"
+    drafts_dir = rt.template_drafts_dir
     drafts = sorted(p.name for p in drafts_dir.glob("*.v*.yaml")) if drafts_dir.is_dir() else []
     return {"templates": [{"name": t.name, "version": t.version, "description": t.description,
                            "match": t.match.model_dump(), "steps": [s.id for s in t.steps]}
@@ -180,7 +180,7 @@ def save_template(body: TemplateDraftBody, user: User = Depends(current_user), r
     route = str((state.route or {}).get("profile", {}).get("task_type", "general"))
     try:
         path = save_as_template(state.plan, state.text, route, state.attachments,
-                                rt.settings.root / "templates" / "drafts", user.id, body.name)
+                                rt.template_drafts_dir, user.id, body.name)
     except PolicyError as exc:
         raise HTTPException(409, str(exc)) from exc
     rt.audit.append({"type": "template.draft", "task": state.id, "draft": path.name, "by": user.id})
@@ -192,7 +192,7 @@ def approve_template(name: str, user: User = Depends(current_user), rt: Runtime 
     from workbench.planning.promotion import approve_template as approve
 
     require_role(user, "admin", "document_owner")
-    drafts = rt.settings.root / "templates" / "drafts"
+    drafts = rt.template_drafts_dir
     path = drafts / Path(name).name
     author = None
     for entry in reversed(rt.audit.tail(500)):
@@ -200,7 +200,7 @@ def approve_template(name: str, user: User = Depends(current_user), rt: Runtime 
             author = entry.event.get("by")
             break
     try:
-        target = approve(path, rt.settings.root / "templates", user.id, author)
+        target = approve(path, rt.approved_templates_dir, user.id, author)
     except (NotFound, PolicyError) as exc:
         raise HTTPException(409, str(exc)) from exc
     rt.templates.reload()

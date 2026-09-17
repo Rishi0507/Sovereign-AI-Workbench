@@ -8,6 +8,7 @@ workspace; paths are resolved with symlink and escape checks.
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import unicodedata
 from pathlib import Path, PurePosixPath
@@ -195,6 +196,19 @@ class FileStore:
             path.unlink()
             raise PolicyError(f"label {final.display()} is above the ceiling of workspace {workspace}")
         return self.register(workspace, f"inputs/{name}", final, user=user)
+
+    def mentioned(self, workspace: str, text: str) -> list[FileRecord]:
+        """Input files the text names, by file name or by all the words of its name."""
+        words = set(re.findall(r"[a-z0-9]+", text.lower()))
+        low = text.lower()
+        found = []
+        for rec in self.list(workspace, "inputs"):
+            name = rec.name.lower()
+            stem = name.split(".")[0]
+            parts = [w for w in re.split(r"[^a-z0-9]+", stem) if len(w) > 2]
+            if name in low or stem in low or (parts and all(p in words for p in parts)):
+                found.append(rec)
+        return found
 
     def write_draft(self, workspace: str, name: str, data: bytes, label: Label, task_id: str,
                     overwrite_ok: bool) -> FileRecord:

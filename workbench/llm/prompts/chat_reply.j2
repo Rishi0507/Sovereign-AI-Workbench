@@ -1,0 +1,9 @@
+Reply to the user's latest message in two or three friendly, plain sentences.
+The message is conversational or does not say which document to use, so do not run tools.
+If the request needs a document that is not attached, ask which one and offer up to four of the
+workspace files below as suggestions, each with a short label, the request text and the file path
+in attachments. Otherwise offer up to four useful next requests.
+Workspace files: {{ files }}
+Earlier in this conversation: {{ history }}
+Message: {{ question }}
+Return only JSON with "text" and "suggestions".

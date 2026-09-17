@@ -65,14 +65,23 @@ def attachment_kind(name: str) -> str:
 
 
 class TemplateLibrary:
-    def __init__(self, directory: Path) -> None:
+    """Built-in templates from the repository plus templates approved on this server.
+
+    Approved templates live with the runtime data, so promoting a plan never edits the code tree.
+    """
+
+    def __init__(self, directory: Path, approved: Path | None = None) -> None:
         self.directory = directory
+        self.approved = approved
         self.templates: dict[str, PlanTemplate] = {}
         self.reload()
 
     def reload(self) -> None:
         self.templates = {}
-        for path in sorted(self.directory.glob("*.yaml")):
+        paths = sorted(self.directory.glob("*.yaml"))
+        if self.approved is not None and self.approved.is_dir():
+            paths += sorted(self.approved.glob("*.yaml"))
+        for path in paths:
             data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
             try:
                 tpl = PlanTemplate.model_validate({**data, "path": path.name})
