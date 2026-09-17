@@ -110,6 +110,7 @@ class TaskState(BaseModel):
     revisions: int = 0
     children: list[str] = Field(default_factory=list)
     steps_used: int = 0
+    revision_no: int = 0  # increases on every save; clients use it to notice changes
 
     def gate(self, gate_id: str) -> Gate:
         for g in self.gates:
@@ -156,6 +157,8 @@ class TaskStore:
     def save(self, state: TaskState) -> TaskState:
         state.updated_at = self.now()
         with self._lock, self.db.tx() as conn:
+            cached = self._cache.get(state.id)
+            state.revision_no = max(state.revision_no, cached.revision_no if cached else 0) + 1
             conn.execute(tasks_table.update().where(tasks_table.c.id == state.id).values(
                 status=state.status, updated_at=state.updated_at, data=state.model_dump_json()))
             self._cache[state.id] = state.model_copy(deep=True)

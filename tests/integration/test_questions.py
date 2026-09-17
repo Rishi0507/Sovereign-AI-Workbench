@@ -40,3 +40,14 @@ def test_governed_equipment_comes_from_the_plant_graph(rt: Runtime, doc: str) ->
     assert state.plan.steps[0].tool == "graph_lookup"
     assert "P-101A, P-101B, P-108A, P-108B" in answer[0]
     assert f"{doc} Rev 5" in answer[0]
+
+
+def test_every_save_changes_the_revision_even_within_a_second(rt: Runtime) -> None:
+    # Timestamps have one-second resolution, so clients watch revision_no instead.
+    task = rt.orchestrator.create_task("plant-a", "engineer1", "Which pumps are governed by SOP-MECH-014?", [])
+    first = rt.tasks.get(task.id)
+    stale = rt.tasks.get(task.id)
+    rt.tasks.save(first)
+    rt.tasks.save(stale)  # an older copy saved later must still move the counter forward
+    seen = rt.tasks.get(task.id)
+    assert seen.revision_no > first.revision_no

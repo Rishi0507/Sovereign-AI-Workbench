@@ -85,6 +85,9 @@
     handed_back: "Needs a person", rejected: "Stopped", cancelled: "Cancelled",
   };
   const NEEDS_YOU = new Set(["awaiting_plan", "awaiting_action", "awaiting_deliverable"]);
+  const statusLabel = (t) => (t.status === "awaiting_deliverable" ? "Ready for your review" : STATUS[t.status] || t.status);
+  const statusTone = (t) => (t.status === "completed" ? "good" : NEEDS_YOU.has(t.status) ? "warn"
+    : ["failed", "handed_back", "rejected", "cancelled"].includes(t.status) ? "bad" : "busy");
 
   function levelOf(label) {
     if (!label) return "unclassified";
@@ -278,13 +281,18 @@
     try { tasks = await api("/tasks"); } catch { return; }
     const mine = tasks.filter((t) => t.user === USER);
     const current = document.body.dataset.task;
-    fill(list, ...mine.slice(0, 30).map((t) => {
+    const today = new Date().toDateString();
+    let group = "";
+    fill(list, ...mine.slice(0, 40).map((t) => {
+      const day = new Date(t.created_at).toDateString() === today ? "Today" : "Earlier";
+      const heading = day !== group ? h("div", { class: "side-group", text: day }) : null;
+      group = day;
       let mark = null;
       if (NEEDS_YOU.has(t.status)) mark = h("span", { class: "flag", title: STATUS[t.status] });
       else if (!TERMINAL.has(t.status)) mark = h("span", { class: "spinner tiny", title: STATUS[t.status] });
       else if (t.status !== "completed") mark = h("span", { class: "flag bad", title: STATUS[t.status] });
-      return h("a", { href: `/t/${t.id}`, class: t.id === current ? "active" : "", title: t.text },
-        h("span", { class: "recent-title", text: t.text }), mark);
+      return [heading, h("a", { href: `/t/${t.id}`, class: t.id === current ? "active" : "", title: t.text },
+        h("span", { class: "recent-title", text: t.text }), mark)];
     }));
     if (!mine.length) list.append(h("p", { class: "side-empty", text: "Your tasks will appear here." }));
   }
@@ -351,6 +359,9 @@
         h("p", { class: "muted", text: "Ask an administrator to add you to a workspace." })));
       return;
     }
+    const hour = new Date().getHours();
+    $(".greeting").textContent = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+    $(".greeting-sub").textContent = `What should we prepare in ${ws.title}?`;
     const text = $("#task-text");
     const send = $("#send-btn");
     const attached = new Set();
@@ -460,6 +471,16 @@
     return out;
   }
 
+  function sourceParts(rec, rid) {
+    const summary = rec ? rec.summary : rid;
+    if (rec && rec.kind === "graph_fact") return { title: "Plant records", body: summary };
+    const page = summary.match(/^(.+?) p\.(\d+) \([^)]*\): (.*)$/);
+    if (page) return { title: `${page[1]} · page ${page[2]}`, body: page[3].replace(/^#+\s*/, "") };
+    const cut = summary.search(/ · |: /);
+    if (cut > 0) return { title: summary.slice(0, cut), body: summary.slice(cut + 2).replace(/^[\s·:]+/, "") };
+    return { title: KIND_NAMES[rec && rec.kind] || rid, body: summary };
+  }
+
   async function pageTask() {
     const id = document.body.dataset.task;
     const view = { task: null, editing: null, stamp: "", ledger: [] };
@@ -472,9 +493,10 @@
         fill($("#thread"), h("div", { class: "notice", text: e.status === 403 ? "You do not have access to this task." : e.message }));
         return false;
       }
-      if (task.updated_at !== view.stamp) {
+      const stamp = `${task.revision_no}|${task.status}|${task.trace ? task.trace.length : 0}`;
+      if (stamp !== view.stamp) {
         view.task = task;
-        view.stamp = task.updated_at;
+        view.stamp = stamp;
         renderHead(task);
         if (!view.editing) renderThread(task);
         setMarking(task.label, task.label_display);
@@ -487,7 +509,8 @@
     let burst = 0;
     const poll = async () => {
       clearTimeout(timer);
-      const again = await load();
+      let again = true;
+      try { again = await load(); } catch { again = true; }
       if (!again) return;
       const waiting = view.task && view.task.pending_gate;
       const delay = burst > 0 ? 250 : waiting ? 2000 : 500;
@@ -499,8 +522,10 @@
     function renderHead(t) {
       const job = t.job;
       const running = job && ["queued", "running"].includes(job.state) && t.is_owner;
-      fill($("#thread-head"), 
-        h("div", { class: "thread-title", text: t.text }),
+      fill($("#thread-head"),
+        h("div", { class: "head-left" },
+          h("span", { class: `status-pill ${statusTone(t)}` }, h("span", { class: "status-dot" }), statusLabel(t)),
+          h("div", { class: "thread-title", text: t.text })),
         h("div", { class: "row" },
           running && !t.pending_gate ? button("Stop", async () => { await api(`/jobs/${job.id}`, { method: "DELETE" }); toast("Stopping"); }, "ghost") : null,
           h("button", { class: "btn ghost", type: "button", onclick: () => openDetails(t) }, icon("info"), "Details")));
@@ -606,11 +631,16 @@
     function progress(t) {
       const steps = t.plan.steps;
       const done = steps.filter((s) => s.status === "done").length;
+      const took = {};
+      (t.trace || []).forEach((r) => { if (r.step_id) took[r.step_id] = (took[r.step_id] || 0) + (r.latency_s || 0); });
       const list = h("ol", { class: "steps" }, steps.map((s) => {
         const state = s.status || "pending";
         const mark = state === "running" ? spinner() : STEP_ICON[state] ? icon(STEP_ICON[state]) : h("span", { class: "pending-dot" });
+        const secs = took[s.id];
         return h("li", { class: `st-${state}` }, h("span", { class: "step-mark" }, mark),
-          h("span", {}, stepSummary(s), s.note && state !== "done" ? h("span", { class: "muted small", text: ` · ${s.note}` }) : null));
+          h("span", { class: "step-text" }, stepSummary(s),
+            s.note && !["done", "running"].includes(state) ? h("span", { class: "muted small", text: ` · ${s.note}` }) : null),
+          state === "done" && secs ? h("span", { class: "step-time", text: secs < 1 ? `${Math.round(secs * 1000)} ms` : `${secs.toFixed(1)} s` }) : null);
       }));
       if (TERMINAL.has(t.status) || t.status === "awaiting_deliverable") {
         return h("details", { class: "steps-wrap" }, h("summary", { text: `${done} of ${plural(steps.length, "step")} completed` }), list);
@@ -641,9 +671,13 @@
         out.push(h("div", { class: "answer" }, answer.answer.map((a) => h("p", {}, citeText(a.text, sources, showRecord)))));
         if (sources.length) {
           const recs = new Map(view.ledger.map((x) => [x.id, x]));
-          const list = h("ol", { class: "sources" }, sources.map((rid) => h("li", {},
-            h("button", { class: "link-btn", type: "button", onclick: () => showRecord(rid) }, recs.get(rid) ? recs.get(rid).summary.slice(0, 110) : rid))));
-          out.push(h("details", { class: "sources-wrap" }, h("summary", { text: `${plural(sources.length, "source")}` }), list));
+          out.push(h("div", { class: "source-cards" }, sources.map((rid, i) => {
+            const rec = recs.get(rid);
+            const { title, body } = sourceParts(rec, rid);
+            return h("button", { class: "source-card", type: "button", onclick: () => showRecord(rid) },
+              h("span", { class: "source-n", text: i + 1 }),
+              h("span", { class: "source-main" }, h("span", { class: "source-title", text: title }), h("span", { class: "source-body", text: body })));
+          })));
           if (!view.ledgerLoaded) {
             view.ledgerLoaded = true;
             api(`/tasks/${t.id}/ledger`).then((l) => { view.ledger = l; renderThread(t); }).catch(() => {});
@@ -675,16 +709,30 @@
       }
       if (t.deliverables && t.deliverables.length) {
         const gate = t.pending_gate && t.pending_gate.kind === "deliverable";
-        out.push(h("div", { class: "files" }, t.deliverables.map((d) => h("div", { class: "file" },
+        const previews = t.deliverables.filter((d) => /\.svg$/i.test(d.relpath));
+        previews.forEach((d) => out.push(h("figure", { class: "preview" },
+          h("img", { src: fileUrl(d.final_file_id || d.file_id), alt: shortName(d.relpath), loading: "lazy" }))));
+        out.push(h("div", { class: "files" }, t.deliverables.map((d) => h("a", { class: "file", href: fileUrl(d.final_file_id || d.file_id), title: `Download ${shortName(d.relpath)}` },
           h("span", { class: `file-ext ext-${d.relpath.split(".").pop().toLowerCase()}`, text: d.relpath.split(".").pop() }),
           h("div", { class: "file-info" }, h("div", { class: "file-name", text: shortName(d.relpath) }),
-            h("div", { class: "row tight" }, labelTag(d.label), d.status === "approved" ? h("span", { class: "muted small", text: "Final" }) : h("span", { class: "muted small", text: "Draft" }))),
-          h("a", { class: "icon-btn", href: fileUrl(d.final_file_id || d.file_id), title: "Download", "aria-label": `Download ${shortName(d.relpath)}` }, icon("download"))))));
+            h("div", { class: "row tight" }, labelTag(d.label), h("span", { class: "muted small", text: d.status === "approved" ? "Final" : "Draft" }))),
+          h("span", { class: "file-dl" }, icon("download"))))));
         if (gate) {
           const ds = t.draft_summary || {};
           const open = (ds.unacknowledged || []).length + (ds.orphans || []).length;
-          out.push(h("div", { class: "row" }, h("a", { class: "btn primary", href: `/t/${t.id}/review`, text: "Review and approve" }),
-            open ? h("span", { class: "muted small", text: `${plural(open, "item")} to check first` }) : null));
+          const quick = !open && !(t.blockers || []).length && t.can_approve;
+          out.push(h("div", { class: `ready-card ${open ? "warn" : "good"}` },
+            h("span", { class: "ready-icon" }, icon(open ? "alert" : "check")),
+            h("div", { class: "ready-text" },
+              h("strong", { text: open ? `${plural(open, "item")} to check before approving` : "Ready for your approval" }),
+              h("span", { class: "muted small", text: open ? "Open the review to mark each issue as reviewed." : "Nothing is final until you approve it." })),
+            h("div", { class: "row tight" },
+              quick ? button("Approve", async () => {
+                await api(`/tasks/${t.id}/draft/decision`, { method: "POST", json: { decision: "approve", acknowledged: [] } });
+                toast("Approved");
+                await refresh();
+              }, "primary") : null,
+              h("a", { class: `btn ${quick ? "" : "primary"}`, href: `/t/${t.id}/review`, text: quick ? "Review" : "Review and approve" }))));
         } else if (t.status === "completed") {
           out.push(h("p", { class: "done-line" }, icon("check"), "Approved and saved to the final folder. ",
             h("a", { href: `/t/${t.id}/review`, text: "View" })));
@@ -1027,7 +1075,7 @@
     setInterval(async () => {
       if (!data) return;
       const fresh = await api(`/tasks/${id}`).catch(() => null);
-      if (fresh && fresh.updated_at !== data.task.updated_at) load();
+      if (fresh && fresh.revision_no !== data.task.revision_no) load();
     }, 3000);
   }
 

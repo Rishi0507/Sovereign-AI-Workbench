@@ -39,7 +39,8 @@ def task_view(rt: Runtime, state: TaskState, user: User, full: bool = True) -> d
     data: dict[str, Any] = {
         "id": state.id, "workspace": state.workspace, "user": state.user, "text": state.text,
         "attachments": state.attachments, "status": state.status, "status_note": state.status_note,
-        "created_at": state.created_at, "updated_at": state.updated_at, "model": state.model,
+        "created_at": state.created_at, "updated_at": state.updated_at, "revision_no": state.revision_no,
+        "model": state.model,
         "label": label.model_dump(mode="json"), "label_display": label.display(), "marking": label.marking(),
         "parent_id": state.parent_id, "children": state.children, "error": state.error,
     }

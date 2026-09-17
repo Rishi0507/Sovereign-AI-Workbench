@@ -50,7 +50,7 @@ workbench = "workbench.cli:app"
 include = ["workbench*"]
 
 [tool.setuptools.package-data]
-workbench = ["ui/templates/*.html", "ui/static/*", "llm/prompts/*.j2", "security/probe/*.py"]
+workbench = ["ui/templates/*.html", "ui/static/*", "ui/static/fonts/*", "llm/prompts/*.j2", "security/probe/*.py"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
