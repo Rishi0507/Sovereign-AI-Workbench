@@ -223,6 +223,8 @@ workbench eval                   # writes reports/eval.md and reports/eval.json
 
 The top bar always shows the classification of what you are looking at and the live egress status. The UI follows the system light or dark theme.
 
+![Dark theme](docs/images/home-dark.png)
+
 <p align="center"><img src="docs/images/models.png" width="49%" alt="Models"> <img src="docs/images/security.png" width="49%" alt="Security"></p>
 
 ## Command line
