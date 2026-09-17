@@ -8,7 +8,12 @@ from workbench.llm.base import LLMBackend
 from workbench.registry.models import ModelEntry, Registry
 from workbench.router import explain
 from workbench.router.classifier import classify
-from workbench.router.constraints import ProvenancePolicy, WaitEstimator, check_entry, filter_candidates
+from workbench.router.constraints import (
+    ProvenancePolicy,
+    WaitEstimator,
+    check_entry,
+    filter_candidates,
+)
 from workbench.router.rules import DOC_EXTENSIONS, IMAGE_EXTENSIONS, apply_rules
 from workbench.router.scorer import score, threshold_for
 from workbench.router.types import Candidate, RouteDecision, TaskInput, TaskProfile

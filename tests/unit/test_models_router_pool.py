@@ -104,7 +104,7 @@ def test_endpoint_policy() -> None:
 class _Stub(BaseHTTPRequestHandler):
     seen: list[dict[str, Any]] = []
 
-    def do_POST(self) -> None:  # noqa: N802
+    def do_POST(self) -> None:
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
         _Stub.seen.append(body)
         if body.get("tools"):

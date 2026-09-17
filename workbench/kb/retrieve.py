@@ -170,7 +170,7 @@ class KnowledgeBase:
 
     def search(self, queries: list[str], top_k: int, as_of: date, user: User, workspace: Workspace,
                policy: PolicyEngine, extra_tags: list[str] | None = None, today: date | None = None,
-               doc_filter: str | None = None) -> SearchResult:
+               doc_filter: str | None = None, expand_graph: bool = True) -> SearchResult:
         with self._lock:
             ceiling = policy.retrieval_ceiling(user, workspace)
             fused: dict[str, float] = {}
@@ -187,6 +187,8 @@ class KnowledgeBase:
                     via.setdefault(cid, set()).add("sparse")
                     best_q.setdefault(cid, q)
             tags = list(dict.fromkeys([t for q in queries for t in find_tags(q)] + list(extra_tags or [])))
+            if not expand_graph:
+                tags = []
             graph_facts: list[Node] = []
             graph_docs: set[str] = set()
             for tag in tags:

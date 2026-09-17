@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import shutil
 import subprocess
 import sys
@@ -12,11 +11,10 @@ from typing import Any
 
 import pytest
 
+from tests.helpers import ROOT, settings_for
 from workbench.agent.approvals import ApprovalGate, AutoApprove
 from workbench.core.clock import FixedClock
 from workbench.runtime import Runtime, setup_environment
-from tests.helpers import GO_MODE, ROOT, settings_for
-
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -41,10 +39,8 @@ def make_runtime(tmp_path: Path, seeded_template: Path) -> Iterator[Callable[...
     def factory(approvals: ApprovalGate | None = None, clock: FixedClock | None = None, **overrides: Any) -> Runtime:
         root = tmp_path / f"rt{len(created)}"
         shutil.copytree(seeded_template, root)
+        # In Go mode the seed already wrote into the workspace root that sandboxd guards.
         settings = settings_for(root, **overrides)
-        if GO_MODE:
-            ws_root = settings.path(settings.workspaces_root)
-            shutil.copytree(seeded_template / "var" / "workspaces", ws_root, dirs_exist_ok=True)
         rt = Runtime(settings, approvals=approvals or AutoApprove(), clock=clock)
         created.append(rt)
         return rt

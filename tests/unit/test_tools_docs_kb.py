@@ -14,7 +14,7 @@ from docx import Document
 from openpyxl import load_workbook
 from pptx import Presentation
 
-from workbench.core.errors import JailError, NotFound, PolicyError
+from workbench.core.errors import JailError, NotFound, PolicyError, ToolError
 from workbench.core.labels import Label, Level
 from workbench.documents.dual_read import normalise_field, reconcile
 from workbench.documents.pipeline import ReadContext, read_document
@@ -246,7 +246,7 @@ def test_fake_sandbox_failure_success_and_network(tmp_path: Path) -> None:
     (tmp_path / "slow.py").write_text("import time\ntime.sleep(10)\n", encoding="utf-8")
     slow = sb.run(tmp_path, "slow.py", 1, run_id="r5")
     assert slow.timed_out
-    with pytest.raises(Exception):
+    with pytest.raises(ToolError):
         sb.run(tmp_path, "../bad.py", 5)
     env_leak = tmp_path / "env.py"
     env_leak.write_text("import os, sys\nprint(sorted(k for k in os.environ if k.startswith('WB_')))\n"

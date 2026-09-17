@@ -9,7 +9,13 @@ from __future__ import annotations
 
 from typing import Any
 
-from workbench.agent.approvals import ActionDecision, AutoApprove, ChoiceDecision, DeliverableDecision, PlanDecision
+from workbench.agent.approvals import (
+    ActionDecision,
+    AutoApprove,
+    ChoiceDecision,
+    DeliverableDecision,
+    PlanDecision,
+)
 from workbench.core.errors import ToolError
 from workbench.tools.registry import ToolContext, ToolResult, ToolSpec, obj
 

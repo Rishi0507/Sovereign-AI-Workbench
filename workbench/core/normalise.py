@@ -234,8 +234,7 @@ def party_similarity(a: str, b: str) -> float:
 
 WORD_RE = re.compile(r"[A-Za-zऀ-ॿ][A-Za-zऀ-ॿ0-9]+")
 STOPWORDS = frozenset(
-    "a an and are as at be by for from has have in is it its of on or that the this to was were will with "
-    "shall per not no all any each which these those than then there their been being into over under".split()
+    ["a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "has", "have", "in", "is", "it", "its", "of", "on", "or", "that", "the", "this", "to", "was", "were", "will", "with", "shall", "per", "not", "no", "all", "any", "each", "which", "these", "those", "than", "then", "there", "their", "been", "being", "into", "over", "under"]
 )
 
 

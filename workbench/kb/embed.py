@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import itertools
 from typing import Protocol
 
 import numpy as np
@@ -26,7 +27,7 @@ class HashingEmbedder:
     def _features(self, text: str) -> list[tuple[str, float]]:
         toks = tokens(text)
         feats: list[tuple[str, float]] = [(f"w:{t}", 1.0) for t in toks]
-        feats += [(f"b:{a}_{b}", 0.7) for a, b in zip(toks, toks[1:], strict=False)]
+        feats += [(f"b:{a}_{b}", 0.7) for a, b in itertools.pairwise(toks)]
         lo, hi = self.ngram
         for t in toks:
             padded = f"<{t}>"

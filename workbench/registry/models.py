@@ -179,7 +179,7 @@ def set_field_in_yaml(path: Path, model: str, field: str, value: str) -> None:
         line = lines[j]
         stripped = line.lstrip()
         cur_indent = len(line) - len(stripped)
-        if stripped.startswith("- ") and cur_indent <= indent - 2 or (stripped and cur_indent < indent - 2):
+        if (stripped.startswith("- ") and cur_indent <= indent - 2) or (stripped and cur_indent < indent - 2):
             break
         if cur_indent == indent and stripped.startswith(f"{field}:"):
             comment = ""

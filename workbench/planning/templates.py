@@ -91,9 +91,8 @@ class TemplateLibrary:
             m = tpl.match
             if m.route and route not in m.route:
                 continue
-            if m.attachments:
-                if not attachments or not kinds <= set(m.attachments):
-                    continue
+            if m.attachments and (not attachments or not kinds <= set(m.attachments)):
+                continue
             if m.intent_keywords and not any(re.search(rf"\b{re.escape(k.lower())}\b", low)
                                              for k in m.intent_keywords):
                 continue

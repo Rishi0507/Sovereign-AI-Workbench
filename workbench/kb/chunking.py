@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import re
 import datetime as dt
+import re
 from typing import Any
 
 import yaml
@@ -106,9 +106,9 @@ def chunk_markdown(text: str, base: dict[str, Any]) -> list[Chunk]:
             flush()
             level = len(hm.group(1))
             title = hm.group(2).strip()
-            path[:] = path[: level - 1] + [title]
+            path[:] = [*path[:level - 1], title]
             nm = NUMBERED_RE.match(title)
-            clause_path[:] = clause_path[: level - 1] + [nm.group(1) if nm else ""]
+            clause_path[:] = [*clause_path[:level - 1], nm.group(1) if nm else ""]
             buf.append(line)
             continue
         buf.append(line)

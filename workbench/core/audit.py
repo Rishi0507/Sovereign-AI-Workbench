@@ -72,7 +72,7 @@ class AuditLog:
         return self.entries()[-n:]
 
     def verify(self) -> bool:
-        return self.verify_detail()["ok"]
+        return bool(self.verify_detail()["ok"])
 
     def verify_detail(self) -> dict[str, Any]:
         prev = GENESIS

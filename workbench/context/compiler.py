@@ -19,7 +19,6 @@ from workbench.llm.base import ChatMessage
 from workbench.llm.prompts import render_prompt
 from workbench.planning.plan_schema import Plan
 
-
 ALWAYS_FULL = frozenset({"model_output", "check_result", "calc_result", "graph_fact"})
 
 

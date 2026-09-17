@@ -47,9 +47,7 @@ class ScriptedBackend:
             blob = "\n".join(m.content for m in req.messages)
             if str(match["contains"]) not in blob:
                 return False
-        if "step" in match and req.meta.get("step_id") != match["step"]:
-            return False
-        return True
+        return not ("step" in match and req.meta.get("step_id") != match["step"])
 
     def chat(self, req: LLMRequest) -> LLMResponse:
         with self._lock:

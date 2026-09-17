@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import contextlib
 from dataclasses import dataclass
 from typing import Any
 
@@ -24,6 +25,11 @@ from workbench.llm.schemas import load_schema
 CRITICAL_KINDS = frozenset({"tag", "quantity", "date", "po", "stamp", "signature"})
 KIND_TO_TYPED = {"tag": "tag", "quantity": "quantity", "date": "date", "po": "po", "stamp": "text",
                  "signature": "text", "handwriting": "text"}
+
+
+def quote(text: str | None) -> str:
+    """Keep untrusted text inside its <record> block."""
+    return (text or "").replace("</record>", "&lt;/record&gt;").replace("<record", "&lt;record")
 
 
 def normalise_field(kind: str, value: str | None, dayfirst: bool = True) -> str | None:
@@ -67,10 +73,8 @@ def _request(model: str, purpose: str, region: Region, prompt: str, images: list
 def _typed(kind: str, raw: str, normalised: str, confidence: Confidence, anchor: Anchor | None) -> TypedValue:
     magnitude = unit = None
     if kind == "quantity":
-        try:
+        with contextlib.suppress(ValueError):
             magnitude, unit = norm_quantity(raw)
-        except ValueError:
-            pass
     tkind = KIND_TO_TYPED.get(kind, "text")
     return TypedValue(kind=tkind, raw=raw, normalised=normalised, magnitude=magnitude, unit=unit,  # type: ignore[arg-type]
                       confidence=confidence, anchor=anchor)
@@ -96,7 +100,7 @@ def reconcile(region: Region, backend: LLMBackend, model: str, anchor: Anchor | 
 
     choice = structured.call(backend, _request(
         model, "vlm.choose_field", region,
-        render_prompt("vlm_choose_field", field_kind=kind, a=region.ocr_value, b=vlm_raw),
+        render_prompt("vlm_choose_field", field_kind=kind, a=quote(region.ocr_value), b=quote(vlm_raw)),
         [zoomed_crop or crop] if (zoomed_crop or crop) else [], task_id, {"a": region.ocr_value, "b": vlm_raw},
     ), schema, max_retries).value
     picked = choice.get("choice", "neither")
@@ -105,7 +109,7 @@ def reconcile(region: Region, backend: LLMBackend, model: str, anchor: Anchor | 
     detail["zoomed_value"] = choice.get("value")
     if chosen_raw is not None:
         chosen_norm = normalise_field(kind, chosen_raw, dayfirst)
-        shapes_ok = kind != "tag" and kind != "po" or glyph_compatible(chosen_raw, region.ocr_value)
+        shapes_ok = (kind != "tag" and kind != "po") or glyph_compatible(chosen_raw, region.ocr_value)
         if kind in {"stamp", "signature"}:
             shapes_ok = True
         if chosen_norm is not None and shapes_ok:
@@ -125,8 +129,8 @@ def read_non_critical(region: Region, backend: LLMBackend, model: str, page_text
     schema = load_schema("field_read")
     out = structured.call(backend, _request(
         model, "vlm.read_region", region,
-        render_prompt("vlm_read_region", field_kind=region.field_kind, hint=region.ocr_value,
-                      page_excerpt=page_text[:600]),
+        render_prompt("vlm_read_region", field_kind=region.field_kind, hint=quote(region.ocr_value),
+                      page_excerpt=quote(page_text[:600])),
         [crop] if crop else [], task_id, {"hint": region.ocr_value},
     ), schema, max_retries).value
     return str(out.get("value", ""))

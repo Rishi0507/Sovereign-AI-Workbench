@@ -11,13 +11,26 @@ import json
 import math
 import time
 from collections.abc import Callable, Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from datetime import date
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Any
 
-from workbench.agent.approvals import ActionDecision, ApprovalGate, Cancelled, DeliverableDecision, PlanDecision
-from workbench.agent.state import TERMINAL, DeliverableState, FigureDecision, Gate, StepTrace, TaskState
+from workbench.agent.approvals import (
+    ActionDecision,
+    ApprovalGate,
+    Cancelled,
+    DeliverableDecision,
+    PlanDecision,
+)
+from workbench.agent.state import (
+    TERMINAL,
+    DeliverableState,
+    FigureDecision,
+    Gate,
+    StepTrace,
+    TaskState,
+)
 from workbench.checks import citations, provenance
 from workbench.context.cache_salt import cache_salt
 from workbench.context.compiler import CompiledContext, compile_context
@@ -245,6 +258,12 @@ class Orchestrator:
         self._status(state, "routing")
         started = time.perf_counter()
         decision = self.rt.router.route(self.task_input(state))
+        forced = state.meta.get("force_model")
+        if forced:
+            # Evaluation-only override (shadow onboarding); not accepted from the API.
+            self.rt.registry.get(str(forced))
+            decision = decision.model_copy(update={"chosen": str(forced),
+                                                   "log_line": decision.log_line + f" (evaluation override: {forced})"})
         state.route = decision.model_dump(mode="json")
         state.model = decision.chosen
         self._trace(state, "route", model=decision.chosen, purpose="route.classify",
@@ -352,7 +371,7 @@ class Orchestrator:
                                "parent_id": state.parent_id, "meta": state.meta})
         with self._slot(state, cancelled):
             self._count_step(state)
-            value, resp, attempts = self._structured(state, req, load_schema("typed_plan"), None)
+            value, resp, _attempts = self._structured(state, req, load_schema("typed_plan"), None)
             self._trace(state, "plan", model=state.model, purpose="plan.write", latency_s=resp.latency_s,
                         summary=f"model wrote a plan with {len(value.get('steps', []))} step(s)",
                         cached_tokens=int(resp.usage.get("sim_cached_tokens", 0)))
@@ -361,7 +380,7 @@ class Orchestrator:
             class _Bound:
                 name = "bound"
 
-                def chat(inner: Any, r: LLMRequest) -> LLMResponse:  # noqa: N805
+                def chat(inner: Any, r: LLMRequest) -> LLMResponse:
                     r = r.model_copy(update={"meta": {**r.meta, "task_text": state.text,
                                                       "attachments": state.attachments}})
                     return self._chat(state, r, None)
@@ -448,10 +467,8 @@ class Orchestrator:
                 env["equipment_tag"] = tag.get("value")
             rd = findings.get("report_date") or findings.get("inspection_date")
             if rd and rd.get("value"):
-                try:
+                with suppress(ValueError):
                     env["report_date"] = norm_date(str(rd["value"]), self.s.date_dayfirst)
-                except ValueError:
-                    pass
         for key in ("report_date", "equipment_tag"):
             if state.meta.get(key):
                 env[key] = state.meta[key]
@@ -637,7 +654,9 @@ class Orchestrator:
                 self._trace(state, "info", step_id=step.id, model=state.model,
                             summary=f"{state.model} uses the code-block protocol; the orchestrator issues the call")
             else:
-                decided = self._decide(state, step, suggested, env, cancelled)
+                # The instruction shows unresolved placeholders: resolved values carry document text,
+                # which must only reach the model inside quoted <record> blocks.
+                decided = self._decide(state, step, dict(step.args or step.default_args or {}), env, cancelled)
                 args = decided or {}
                 if decided is None:
                     if step.default_args is None:
@@ -734,6 +753,15 @@ class Orchestrator:
             value, rid = self._run_model_task(state, step, mt, focus, cancelled)
         if value is None:
             self._set_step(state, step, "incomplete", f"{mt.name} failed schema validation")
+            if mt.schema_name == "approval_note":
+                # The draft still renders, with the gap stated, so the reviewer sees what is missing.
+                state.outputs[step.id] = {"value": {
+                    "title": "Draft note (incomplete)", "subject": state.text, "summary": [], "findings": [],
+                    "consistency_findings": [], "recommendation": [],
+                    "incomplete": [f"Step '{step.title or step.id}' did not produce a valid draft after "
+                                   f"{self.s.max_retries + 1} attempts; complete these sections manually."],
+                }, "records": sorted(focus)}
+                self.rt.tasks.save(state)
             return "incomplete"
         state.outputs[step.id] = {"value": value, "records": [rid, *sorted(focus)]}
         self.rt.tasks.save(state)
@@ -791,10 +819,10 @@ class Orchestrator:
     def _code_step(self, state: TaskState, step: PlanStep, cancelled: Callable[[], bool]) -> str:
         from workbench.agent.code_protocol import run_code_task
 
-        if not any(g.step_id == step.id and g.kind == "action" and g.status == "approved" for g in state.gates):
-            if not self._action_gate(state, step, "write_code", {"writes": "drafts/"}, cancelled):
-                self._trace(state, "gate", step_id=step.id, ok=False, summary="DENIED_BY_USER")
-                return "denied"
+        already = any(g.step_id == step.id and g.kind == "action" and g.status == "approved" for g in state.gates)
+        if not already and not self._action_gate(state, step, "write_code", {"writes": "drafts/"}, cancelled):
+            self._trace(state, "gate", step_id=step.id, ok=False, summary="DENIED_BY_USER")
+            return "denied"
         with self._slot(state, cancelled):
             ok, output = run_code_task(self, state, step, cancelled)
         if ok:

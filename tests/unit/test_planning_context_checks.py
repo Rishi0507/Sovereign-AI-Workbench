@@ -311,8 +311,9 @@ def test_citation_verification() -> None:
     note = {"findings": [{"text": f"Minimum thickness at the volute bottom is 5.6 mm for P-108B [{a.id}]."},
                          {"text": f"Minimum thickness at the volute bottom is 5.6 mm for P-108B [{b.id}]."},
                          {"text": f"The minimum casing wall thickness is 5.5 mm [{b.id}]."}]}
-    from workbench.kb.revisions import RevisionIndex, RevisionInfo
     from datetime import date
+
+    from workbench.kb.revisions import RevisionIndex, RevisionInfo
 
     revs = RevisionIndex()
     revs.build([RevisionInfo(doc_number="SOP-MECH-014", revision="4", effective_from=date(2021, 4, 1)),

@@ -42,7 +42,7 @@ class Level(IntEnum):
         raise ValueError(f"cannot parse level from {value!r}")
 
     @property
-    def title(self) -> str:  # type: ignore[override]
+    def title(self) -> str:
         return self.name.capitalize()
 
 

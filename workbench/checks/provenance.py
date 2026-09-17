@@ -13,7 +13,15 @@ from pydantic import BaseModel, Field
 
 from workbench.core.ledger import Ledger
 from workbench.core.models import COMPUTE_KINDS, LedgerRecord
-from workbench.core.normalise import DATE_RE, QUANTITY_RE, TAG_RE, canonical_unit, parse_number, to_base, units_compatible
+from workbench.core.normalise import (
+    DATE_RE,
+    QUANTITY_RE,
+    TAG_RE,
+    canonical_unit,
+    parse_number,
+    to_base,
+    units_compatible,
+)
 
 PROVENANCE_KINDS = frozenset({"ocr_text", "vlm_read", "kb_chunk", "graph_fact", "sandbox_result", "calc_result"})
 MARKER_RE = re.compile(r"\[(R-[A-Za-z0-9]+-\d+(?:\s*,\s*R-[A-Za-z0-9]+-\d+)*)\]")

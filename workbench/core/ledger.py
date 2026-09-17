@@ -18,7 +18,14 @@ from workbench.core.db import Database, ledger_table
 from workbench.core.errors import NotFound
 from workbench.core.ids import record_id, sha256_json
 from workbench.core.labels import Label, high_water
-from workbench.core.models import CONTROL_KINDS, Anchor, Confidence, LedgerRecord, RecordKind, TypedValue
+from workbench.core.models import (
+    CONTROL_KINDS,
+    Anchor,
+    Confidence,
+    LedgerRecord,
+    RecordKind,
+    TypedValue,
+)
 
 SUMMARY_MAX = 300
 

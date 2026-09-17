@@ -24,7 +24,6 @@ from workbench.core.normalise import (
     DATE_RE,
     find_quantities,
     find_tags,
-    norm_date,
     norm_tag,
     tokens,
 )
@@ -131,9 +130,7 @@ class HeuristicBackend:
             complexity = "high"
         elif len(deliverable_kinds(task)) >= 2 or len(atts) >= 2:
             complexity = "medium"
-        elif code_like and len(atts) <= 1:
-            complexity = "low"
-        elif words <= 14 and not atts:
+        elif (code_like and len(atts) <= 1) or (words <= 14 and not atts):
             complexity = "low"
         else:
             complexity = "medium"
@@ -780,7 +777,7 @@ class HeuristicBackend:
 
 
 def _indian(value: float) -> str:
-    n = int(round(value))
+    n = round(value)
     s = str(n)
     if len(s) <= 3:
         return s

@@ -27,7 +27,7 @@ def read_file(args: dict[str, Any], ctx: ToolContext) -> ToolResult:
     rel = str(args["path"])
     path = ctx.rt.files.resolve(ctx.workspace, rel)
     suffix = path.suffix.lower()
-    if suffix == ".pdf" or sidecar_for(path) is not None and suffix != ".md":
+    if suffix == ".pdf" or (sidecar_for(path) is not None and suffix != ".md"):
         from workbench.tools.read_document import read_document
 
         return read_document({"path": rel, "mode": "full"}, ctx)

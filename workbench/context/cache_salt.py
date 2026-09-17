@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import hmac
 import secrets
@@ -21,10 +22,8 @@ def load_or_create_key(path: Path) -> bytes:
     path.parent.mkdir(parents=True, exist_ok=True)
     key = secrets.token_bytes(32)
     path.write_text(key.hex(), encoding="utf-8")
-    try:
+    with contextlib.suppress(OSError):
         path.chmod(0o600)
-    except OSError:
-        pass
     return key
 
 

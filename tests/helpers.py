@@ -26,8 +26,9 @@ def settings_for(tmp: Path, **overrides: Any) -> Settings:
     if GO_MODE:
         base["run_dir"] = os.environ.get("WB_RUN_DIR", str(ROOT / "run"))
         base["workspaces_root"] = os.environ.get("WB_GO_WORKSPACES", base["workspaces_root"])
+    root = Path(overrides.pop("root", ROOT))
     base.update(overrides)
-    return load_settings(ROOT, overrides=base)
+    return load_settings(root, overrides=base)
 
 
 TRACES = {
