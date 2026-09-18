@@ -225,6 +225,9 @@ body:not([data-page="home"]) .topbar { height: 20px; }
 .panel-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px 10px 20px; }
 .panel-head h2 { font-size: 16px; font-weight: 600; }
 .panel-content { padding: 0 20px 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+/* A long list must not squash what sits above it: nothing in the panel shrinks. */
+.panel-content > * { flex: 0 0 auto; }
+.panel-content > .seg { position: sticky; top: 0; z-index: 1; }
 .crops { display: flex; gap: 10px; flex-wrap: wrap; }
 .crop { max-width: 100%; max-height: 160px; border-radius: 8px; border: 1px solid var(--line); background: #fff; }
 .toasts { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; z-index: 60; align-items: center; }
