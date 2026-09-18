@@ -290,20 +290,28 @@ def _deliverable_preview(rt: Runtime, state: TaskState, d: Any) -> dict[str, Any
 
         deck = []
         for slide in Presentation(str(path)).slides:
-            title_shape = slide.shapes.title
-            title_id = title_shape.shape_id if title_shape is not None else None
-            bullets: list[str] = []
-            subtitle = ""
+            placeholder = slide.shapes.title
+            parts: dict[str, list[str]] = {}
             for shape in slide.shapes:
-                if not shape.has_text_frame or shape.name == "WB Marking" or shape.shape_id == title_id:
+                if not shape.has_text_frame:
                     continue
-                lines = [p.text.strip() for p in shape.text_frame.paragraphs if p.text.strip()]
-                if shape.name.startswith("Subtitle"):
-                    subtitle = " ".join(lines)
-                else:
-                    bullets += lines
-            deck.append({"title": title_shape.text if title_shape is not None else "",
-                         "subtitle": subtitle, "bullets": bullets})
+                lines = [p.text.strip().lstrip("•").strip() for p in shape.text_frame.paragraphs
+                         if p.text.strip()]
+                if not lines:
+                    continue
+                name = shape.name
+                if name in {"WB Marking", "WB Number", "WB Footer"}:
+                    continue
+                key = ({"WB Title": "title", "WB Subtitle": "subtitle", "WB Lead": "lead"}.get(name)
+                       or ("title" if placeholder is not None and shape.shape_id == placeholder.shape_id
+                           else "subtitle" if name.startswith("Subtitle") else "bullets"))
+                parts.setdefault(key, []).extend(lines)
+            notes = ""
+            if slide.has_notes_slide:
+                notes = slide.notes_slide.notes_text_frame.text.strip()
+            deck.append({"title": " ".join(parts.get("title", [])), "subtitle": " ".join(parts.get("subtitle", [])),
+                         "lead": " ".join(parts.get("lead", [])), "bullets": parts.get("bullets", []),
+                         "note": notes})
         preview["slides"] = deck
     return {**d.model_dump(mode="json"), "preview": preview, "label_display": d.label.display(),
             "marking": d.label.marking(), "name": PurePosixPath(d.relpath).name}

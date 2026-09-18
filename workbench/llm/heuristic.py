@@ -719,12 +719,16 @@ class HeuristicBackend:
         text = "\n".join(r.body_text() for r in recs)
         title = next((ln.lstrip("# ").strip() for ln in text.splitlines() if ln.startswith("#")), "Briefing")
         slides = []
+        source = ", ".join(sorted({r.anchor.doc for r in recs if r.anchor and r.anchor.doc})) or "the attached notes"
         for ln in text.splitlines():
             m = re.match(r"^\s*-\s*([^:]+):\s*(.+)$", ln)
             if m:
                 bullets = [b.strip().rstrip(".") + "." for b in re.split(r";\s*", m.group(2)) if b.strip()]
-                slides.append({"title": m.group(1).strip(), "bullets": bullets})
-        return _json({"title": title, "slides": slides or [{"title": title, "bullets": ["No notes found."]}]})
+                head = m.group(1).strip()
+                slides.append({"title": head, "lead": f"What the notes record about {head.lower()}.",
+                               "bullets": bullets, "note": f"Taken from {source}."})
+        return _json({"title": title, "subtitle": f"Prepared from {source}",
+                      "slides": slides or [{"title": title, "bullets": ["No notes found."]}]})
 
     # -- calculation ----------------------------------------------------------------------------
 
