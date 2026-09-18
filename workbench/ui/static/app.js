@@ -247,13 +247,6 @@
     },
   };
 
-  const ROLE_WORDS = { engineer: "engineer", approver: "can approve", buyer: "buyer", admin: "administrator",
-    security_officer: "security", document_owner: "document owner", developer: "developer" };
-  // The defining role only: the menu is narrow, and "approver" is secondary to what a person is.
-  const roleWords = (roles) => {
-    const named = (roles || []).filter((r) => r !== "approver");
-    return ROLE_WORDS[named[0] || (roles || [])[0]] || named[0] || "";
-  };
   const initials = (name) => String(name || "?").split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("").toUpperCase();
 
   const bytes = (n) => (n < 1024 ? `${n} B` : n < 1048576 ? `${Math.round(n / 1024)} KB` : `${(n / 1048576).toFixed(1)} MB`);
@@ -444,14 +437,6 @@
 
   const shell = { workspaces: [], ws: null, me: null, users: [] };
 
-  function setMarking(label, display) {
-    const el = $("#marking");
-    el.hidden = !display;
-    el.className = `marking lv-${levelOf(label)}`;
-    el.textContent = display || "";
-    el.title = "Classification of what you are viewing";
-  }
-
   async function initShell() {
     const page = document.body.dataset.page;
     const side = $("#sidebar");
@@ -496,11 +481,8 @@
       "aria-checked": String(u.id === USER), onclick: () => pick(u.id),
     },
       h("span", { class: "avatar sm", text: initials(u.name) }),
-      h("span", { class: "person-main" },
-        h("span", { class: "person-name", text: u.name }),
-        h("span", { class: "person-meta" },
-          h("span", { class: `tag lv-${levelOf(u.clearance)}`, title: u.clearance, text: String(u.clearance).split(" · ")[0] }),
-          h("span", { class: "muted", text: roleWords(u.roles) }))),
+      h("span", { class: "person-name", text: u.name }),
+      h("span", { class: "grow" }),
       u.id === USER ? h("span", { class: "person-tick" }, icon("check")) : null)));
     shell.me = me;
     paintIdentity(me);
@@ -798,7 +780,6 @@
         const last = latest();
         renderHead(all.find((x) => NEEDS_YOU.has(x.status)) || last);
         if (!view.editing) renderThread();
-        setMarking(last.label, last.label_display);
         updateComposer();
         if (stick) requestAnimationFrame(() => toBottom(view.stamp !== "" && !view.first));
         view.first = false;
@@ -1205,7 +1186,6 @@
         return;
       }
       const t = data.task;
-      setMarking(t.label, t.label_display);
       fill($("#review-head"), h("a", { class: "back", href: `/t/${id}`, text: "Back to task" }), h("h1", { text: t.text }));
       const holder = $("#doc-tabs");
       holder.hidden = data.deliverables.length < 2;
@@ -1526,15 +1506,16 @@
       const blocked = (snap.blocked_connect_host || 0) + (snap.blocked_connect_sandbox || 0);
       const health = await api("/health").catch(() => ({}));
       const hosted = health.hosted ? new URL(health.hosted).host : null;
+      const headline = leaked ? "Outbound connections were detected"
+        : hosted ? `Model calls go to ${hosted}` : "Nothing has left this server";
+      const detail = hosted && !leaked
+        ? `That host is on the allowlist and carries the requests and the document text they contain. Everything else, including your files and the audit log, stays here. ${plural(blocked, "attempt")} to reach anywhere else blocked since ${fmtTime(snap.since)}.`
+        : `${snap.external_connections} outbound · ${plural(blocked, "attempt")} blocked · counting since ${fmtTime(snap.since)}`;
       fill(box, ...[
-        h("div", { class: `status-card ${leaked ? "bad" : "good"}` }, icon(leaked ? "alert" : "check"),
-          h("div", {}, h("strong", { text: leaked ? "Outbound connections were detected" : "Nothing has left this server" }),
-            h("div", { class: "small", text: `${snap.external_connections} outbound · ${plural(blocked, "attempt")} blocked · counting since ${fmtTime(snap.since)}` })),
+        h("div", { class: `status-card ${leaked ? "bad" : hosted ? "warn" : "good"}` }, icon(leaked || hosted ? "alert" : "check"),
+          h("div", {}, h("strong", { text: headline }), h("div", { class: "small", text: detail })),
           h("span", { class: "grow" }),
           button("Run a test", async () => { testResult = await api("/egress/test", { method: "POST" }); await status(); })),
-        hosted ? h("div", { class: "status-card warn" }, icon("alert"),
-          h("div", {}, h("strong", { text: "Model calls leave this server" }),
-            h("div", { class: "small", text: `Requests and the document text they carry go to ${hosted}, which is on the allowlist. Everything else, including your files and the audit log, stays here.` }))) : null,
         testResult ? h("ul", { class: "test-list" }, testResult.checks.map((c) => h("li", {},
           h("span", { class: `check-mark ${c.pass ? "pass" : "mismatch"}` }, icon(c.pass ? "check" : "cross")),
           h("div", {}, h("span", { class: "strong", text: c.name.replace(/_/g, " ").replace("host", "server").replace(/\bip\b/, "IP").replace("dns", "DNS") }),
