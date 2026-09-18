@@ -40,8 +40,9 @@ def test_no_forbidden_imports() -> None:
 
 
 def test_no_hardcoded_remote_urls_outside_docs() -> None:
+    # config/groq.yaml names a hosted service on purpose (D40) and is the only file allowed to.
     for path in [*python_files(), *PACKAGE.rglob("*.j2"), *PACKAGE.rglob("*.html"), *PACKAGE.rglob("*.js"),
-                 *PACKAGE.rglob("*.css"), *(ROOT / "config").glob("*.yaml")]:
+                 *PACKAGE.rglob("*.css"), *(p for p in (ROOT / "config").glob("*.yaml") if p.name != "groq.yaml")]:
         text = path.read_text(encoding="utf-8")
         hits = [m.group(0) for m in URL_RE.finditer(text) if "www.w3.org" not in m.group(0)]
         assert not hits, f"{path}: {hits}"
@@ -87,7 +88,10 @@ def test_egress_guard_blocks_and_reports() -> None:
         assert [r["addr"] for r in reports] == ["203.0.113.5:443", "198.51.100.7:80", "198.51.100.8:80"]
         assert all(r["origin"] == "host" and r["pid"] for r in reports)
         assert egress_guard.installed()
-        assert egress_guard.load_allowlist(ROOT / "config" / "egress_allowlist.yaml") == {("10.20.0.10", 636)}
+        allow = egress_guard.load_allowlist(ROOT / "config" / "egress_allowlist.yaml")
+        assert allow == {("10.20.0.10", 636), ("api.groq.com", 443)}
+        # A name is allowed only for the addresses it resolves to, and only on its own port.
+        assert not egress_guard._is_allowed(("203.0.113.5", 443), socket.AF_INET, {("api.groq.com", 443)})
     finally:
         egress_guard.uninstall()
     assert not egress_guard.installed()

@@ -85,7 +85,7 @@ class CreateTask(BaseModel):
     meta: dict[str, Any] = {}
 
 
-ALLOWED_META = {"report_date", "equipment_tag", "templates_disabled"}
+ALLOWED_META = {"report_date", "equipment_tag", "templates_disabled", "offline"}
 
 
 @router.post("/tasks", status_code=201)
@@ -416,6 +416,7 @@ def draft_decision(task_id: str, body: DraftDecisionBody, user: User = Depends(c
 class FollowUp(BaseModel):
     text: str = Field(min_length=1, max_length=2000)
     attachments: list[str] | None = None
+    meta: dict[str, Any] = Field(default_factory=dict)
 
 
 def _named_files(rt: Runtime, user: User, workspace: str, text: str) -> list[str]:
@@ -437,8 +438,10 @@ def followup(task_id: str, body: FollowUp, user: User = Depends(current_user),
         # Follow-ups join the conversation's root and start at its classification.
         attachments = body.attachments if body.attachments is not None else (
             root.attachments or _named_files(rt, user, root.workspace, body.text))
+        carried = {k: v for k, v in body.meta.items() if k in ALLOWED_META}
         child = rt.orchestrator.create_task(root.workspace, user.id, body.text, attachments,
-                                            meta={"followup_of": root.id}, parent_id=root.id, label_floor=floor)
+                                            meta={"followup_of": root.id, **carried}, parent_id=root.id,
+                                            label_floor=floor)
     except PolicyError as exc:
         raise HTTPException(403, str(exc)) from exc
     rt.jobs.submit(child.id)

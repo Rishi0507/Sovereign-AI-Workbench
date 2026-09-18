@@ -37,6 +37,18 @@ def make_backend(settings: Settings, ledger: Ledger, registry: Registry) -> LLMB
     from workbench.llm.heuristic import HeuristicBackend
 
     heuristic = HeuristicBackend(ledger)
+    if settings.llm_backend == "groq":
+        from workbench.llm.chat_model import ConversationalBackend
+        from workbench.llm.remote import RemoteBackend, RemoteConfig
+        from workbench.llm.select import BackendSelector
+
+        config = RemoteConfig.load(settings.path(settings.remote_config))
+        remote = RemoteBackend(config, timeout_s=settings.openai_timeout_s)
+        selector = BackendSelector(remote, heuristic)
+        if not config.chat:
+            return selector
+        return ConversationalBackend(selector, config.chat, config.base_url, settings.chat_timeout_s,
+                                     chat=remote, suggest=heuristic)
     if settings.llm_backend in {"heuristic", "scripted"}:
         base: LLMBackend = heuristic
         if settings.llm_backend == "scripted":
@@ -88,8 +100,10 @@ class Runtime:
             control = HttpVLLMControl(self.registry) if s.llm_backend == "openai" else \
                 FakeVLLMControl(self.registry, s.time_scale)
         self.control = control
+        # Hosted models have no local pool to wake, so nothing waits for a slot.
+        resident = s.profile_settings().all_resident or s.llm_backend == "groq"
         self.pool = PoolManager(self.registry, PoolPolicy.load(s.config_dir / "pool.yaml"), control, self.clock,
-                                s.time_scale, s.profile_settings().all_resident, self.audit)
+                                s.time_scale, resident, self.audit)
         self.pool.startup()
         self.backend = backend or make_backend(s, self.ledger, self.registry)
         self.provenance = ProvenancePolicy.load(s.config_dir / "provenance.yaml")
@@ -137,7 +151,9 @@ class Runtime:
 
     def health(self) -> dict[str, Any]:
         return {"sandboxd": self.sandbox.health(), "egressd": self.egress.health(),
-                "backend": self.settings.llm_backend, "chat_model": self.settings.chat_model,
+                "backend": self.settings.llm_backend,
+                "chat_model": getattr(self.backend, "model", None) or self.settings.chat_model,
+                "hosted": getattr(getattr(self.backend, "config", None), "base_url", None),
                 "profile": self.settings.profile,
                 "registry_version": self.registry.version}
 

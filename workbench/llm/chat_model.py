@@ -64,8 +64,11 @@ class ConversationalBackend:
     """Routes ``chat.reply`` to a chat model and everything else to ``base``."""
 
     def __init__(self, base: LLMBackend, model: str, endpoint: str, timeout_s: float = 90.0,
-                 max_tokens: int = 110, chat: OpenAICompatBackend | None = None) -> None:
+                 max_tokens: int = 110, chat: LLMBackend | None = None,
+                 suggest: LLMBackend | None = None) -> None:
         self.base = base
+        # Suggestion buttons always come from the rules, so no model can invent a file or a path.
+        self.suggest = suggest or base
         self.name = base.name
         self.model = model
         self.max_tokens = max_tokens
@@ -76,16 +79,18 @@ class ConversationalBackend:
         return getattr(self.base, item)
 
     def chat(self, req: LLMRequest) -> LLMResponse:
+        if req.meta.get("offline"):
+            return self.base.chat(req)
         if req.purpose == "plan.write":
             return self.base.chat(self.routed(req))
         if req.purpose != "chat.reply":
             return self.base.chat(req)
-        fallback = self.base.chat(req)
+        fallback = self.suggest.chat(req)
         value = dict(fallback.parsed or json.loads(fallback.text))
         try:
             resp = self.client.chat(self.request(req, value))
         except ServiceUnavailable:
-            value["note"] = "The local chat model is not running, so this is a standard reply."
+            value["note"] = "The chat model could not be reached, so this is a standard reply."
             return LLMResponse(text=json.dumps(value, ensure_ascii=False), parsed=value)
         text = clean(resp.text)
         if not text:

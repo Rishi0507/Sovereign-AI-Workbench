@@ -11,6 +11,7 @@ import ipaddress
 import os
 import socket
 import threading
+import time
 import traceback
 from collections.abc import Callable
 from pathlib import Path
@@ -30,6 +31,24 @@ def load_allowlist(path: Path) -> set[tuple[str, int]]:
     return {(str(a["host"]), int(a["port"])) for a in data.get("allow") or []}
 
 
+_names: dict[tuple[str, int], tuple[float, set[str]]] = {}
+NAME_TTL_S = 300.0
+
+
+def _addresses_of(host: str, port: int) -> set[str]:
+    """Addresses an allowlisted name currently resolves to, remembered for a few minutes."""
+    now = time.monotonic()
+    cached = _names.get((host, port))
+    if cached and now - cached[0] < NAME_TTL_S:
+        return cached[1]
+    try:
+        found = {str(info[4][0]) for info in socket.getaddrinfo(host, port, proto=socket.IPPROTO_TCP)}
+    except OSError:
+        found = set()
+    _names[(host, port)] = (now, found)
+    return found
+
+
 def _is_allowed(address: Any, family: int, allow: set[tuple[str, int]]) -> bool:
     if family == getattr(socket, "AF_UNIX", -1):
         return True
@@ -45,8 +64,12 @@ def _is_allowed(address: Any, family: int, allow: set[tuple[str, int]]) -> bool:
         if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped and ip.ipv4_mapped.is_loopback:
             return True
     except ValueError:
-        return False
-    return (host, port) in allow
+        return (host, port) in allow
+    if (host, port) in allow:
+        return True
+    # An allowlisted name is matched by the addresses it resolves to, since that is what a socket sees.
+    return any(host in _addresses_of(name, allowed_port)
+               for name, allowed_port in allow if allowed_port == port and not name.replace(".", "").isdigit())
 
 
 def install(allowlist: set[tuple[str, int]], reporter: Callable[[dict[str, Any]], None] | None = None) -> None:
