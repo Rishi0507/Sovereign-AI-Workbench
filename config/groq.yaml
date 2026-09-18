@@ -13,13 +13,16 @@ pacing:
   max_retries: 4            # on a 429, wait for the time the service asks for, then retry
   max_wait_s: 45            # give up waiting beyond this and fall back to the offline rules
 
+# Thinking models spend tokens before they answer; "low" keeps that short. Empty to leave it alone.
+reasoning_effort: low
+
 models:
-  qwen3-vl-8b: meta-llama/llama-4-scout-17b-16e-instruct
-  qwen2.5-coder-7b: qwen/qwen3-32b
-  gpt-oss-20b: openai/gpt-oss-20b
-  granite-3.3-8b: llama-3.1-8b-instant
-  qwen2.5-1.5b-instruct: llama-3.1-8b-instant
-default: llama-3.3-70b-versatile
+  qwen3-vl-8b: openai/gpt-oss-120b
+  qwen2.5-coder-7b: qwen/qwen3.8-27b
+  gpt-oss-20b: openai/gpt-oss-120b
+  granite-3.3-8b: openai/gpt-oss-20b
+  qwen2.5-1.5b-instruct: openai/gpt-oss-20b
+default: openai/gpt-oss-20b
 
 # The model that writes conversational replies and sorts incoming messages.
-chat: llama-3.1-8b-instant
+chat: openai/gpt-oss-20b
