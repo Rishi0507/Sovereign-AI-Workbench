@@ -2203,6 +2203,9 @@
       mark(tags) {
         $$("[data-tag]", holder).forEach((el) => el.classList.toggle("pid-selected", tags.includes(el.dataset.tag)));
       },
+      image(src, alt) {
+        holder.replaceChildren(h("img", { class: "sheet-image", src, alt }));
+      },
     };
   }
 
@@ -2388,9 +2391,19 @@
       fill(sheetList, ...sheets.map((sh) => h("button", {
         class: `filter${sh.id === sheetId ? " active" : ""}`, type: "button", "data-key": sh.id,
         onclick: () => showSheet(sh),
-      }, sh.name.replace(/\.svg$/i, ""))));
+      }, sh.name.replace(/\.(svg|png|jpe?g)$/i, ""))));
       fill(sheetPanel, sheetSide(null, null));
       sheetStage.replaceChildren(h("div", { class: "loading" }, spinner()));
+      if (!/\.svg$/i.test(file.name)) {
+        // A scanned sheet: it can be read and measured by eye, but nothing on it is clickable.
+        sheetBox = sheetView(sheetStage, "", { onTag: () => {}, onHover: () => {} });
+        sheetBox.image(fileUrl(file.id), file.name);
+        fill(sheetPanel, h("div", { class: "plant-panel empty" },
+          h("p", { class: "muted", text: `${file.name} is a scanned sheet, so its tags are pictures rather than text and cannot be clicked.` }),
+          h("p", { class: "muted small", text: "The generated sheets in this list carry their tags, and reading tags off a scan needs the vision model described in the documentation." }),
+          h("div", { class: "row" }, h("a", { class: "btn ghost", href: fileUrl(file.id), download: "" }, icon("download"), "Download"))));
+        return;
+      }
       const text = await fetch(fileUrl(file.id), { credentials: "same-origin" }).then((r) => r.text());
       sheetBox = sheetView(sheetStage, text, {
         onTag: async (tag) => {
@@ -2405,7 +2418,8 @@
       queueMicrotask(async () => {
         if (!sheets) {
           const files = await api(`/workspaces/${encodeURIComponent(data.workspace)}/files?area=inputs`).catch(() => []);
-          sheets = files.filter((f) => /\.svg$/i.test(f.name) && /^PID/i.test(f.name));
+          sheets = files.filter((f) => /\.(svg|png|jpe?g)$/i.test(f.name)
+            && (/^PID/i.test(f.name) || /(pid|p&id)/i.test(f.name)));
         }
         if (!sheets.length) {
           fill(sheetStage, emptyState("file", "No drawings yet", "Sheets placed in the workspace appear here."));

@@ -579,6 +579,28 @@ def build_pid_sheets(ws_inputs: Path) -> None:
             json.dumps({"label": {"level": marking, "compartments": []}}, indent=2), encoding="utf-8")
 
 
+def copy_public_samples(fixtures: Path, ws_inputs: Path) -> int:
+    """Publicly available documents, copied in beside the generated ones.
+
+    They are real files with real licences, recorded in ``fixtures/public/SOURCES.md``. They are
+    labelled Unclassified because they are published documents, so they also show that a workspace
+    can hold material of more than one classification.
+    """
+    public = fixtures / "public"
+    if not public.is_dir():
+        return 0
+    copied = 0
+    for path in sorted(public.iterdir()):
+        if path.name.startswith("_") or path.suffix.lower() in {".md"}:
+            continue
+        target = ws_inputs / path.name
+        shutil.copy2(path, target)
+        (ws_inputs / f"{path.name}.label.json").write_text(
+            json.dumps({"label": {"level": "Unclassified", "compartments": []}}, indent=2), encoding="utf-8")
+        copied += 1
+    return copied
+
+
 def build_asset_register(root: Path) -> None:
     rows = [
         ["P-101A", "centrifugal_pump", "Process water pump A", "Deccan Hydraulics Pvt Ltd", "PO-4500118820", "PID-PW-001"],
@@ -880,6 +902,7 @@ def main() -> None:
     build_offers(proc)
     build_kb(fixtures / "kb")
     build_pid_sheets(plant)
+    copy_public_samples(fixtures, plant)
     build_asset_register(fixtures)
     build_org_templates(root / "org_templates")
     print(f"fixtures written under {fixtures}")

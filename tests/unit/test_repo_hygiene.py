@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import shutil
 import subprocess
 from pathlib import Path
@@ -36,3 +37,20 @@ def test_ui_script_parses() -> None:
     script = ROOT / "workbench" / "ui" / "static" / "app.js"
     result = subprocess.run(["node", "--check", str(script)], capture_output=True, text=True, check=False)
     assert result.returncode == 0, result.stderr
+
+
+def test_public_samples_are_attributed() -> None:
+    """Every publicly sourced file records where it came from and under what licence."""
+    public = ROOT / "fixtures" / "public"
+    if not public.is_dir():
+        return
+    sources = (public / "SOURCES.md").read_text(encoding="utf-8")
+    files = [p for p in public.iterdir() if p.suffix.lower() not in {".md"} and not p.name.startswith("_")]
+    assert files, "the public sample folder is empty"
+    for path in files:
+        assert f"## {path.name}" in sources, f"{path.name} is not listed in SOURCES.md"
+        block = sources.split(f"## {path.name}", 1)[1].split("\n## ", 1)[0]
+        for field in ("**Title:**", "**Author:**", "**Licence:**", "**Source:**", "**SHA-256:**"):
+            assert field in block, f"{path.name} has no {field} line"
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        assert digest in block, f"{path.name} does not match the digest recorded for it"

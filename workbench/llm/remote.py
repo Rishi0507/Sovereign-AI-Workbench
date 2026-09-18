@@ -43,6 +43,7 @@ class RemoteConfig:
     default: str = ""
     chat: str = ""
     reasoning_effort: str = ""
+    cache_salt: bool = False
     pacing: Pacing = field(default_factory=Pacing)
 
     @classmethod
@@ -52,7 +53,8 @@ class RemoteConfig:
         return cls(base_url=str(data.get("base_url", "")), key_env=str(data.get("key_env", "")),
                    models={str(k): str(v) for k, v in (data.get("models") or {}).items()},
                    default=str(data.get("default", "")), chat=str(data.get("chat", "")),
-                   reasoning_effort=str(data.get("reasoning_effort") or ""), pacing=pacing)
+                   reasoning_effort=str(data.get("reasoning_effort") or ""),
+                   cache_salt=bool(data.get("cache_salt", False)), pacing=pacing)
 
     def api_key(self) -> str:
         return os.environ.get(self.key_env, "").strip()
@@ -116,6 +118,11 @@ def _model_missing(message: str) -> bool:
     return "404" in lowered and ("does not exist" in lowered or "model_not_found" in lowered)
 
 
+def _tool_conflict(message: str) -> bool:
+    lowered = message.lower()
+    return "tool_use_failed" in lowered or "model called a tool" in lowered or "tool/function calling" in lowered
+
+
 def _schema_refused(message: str) -> bool:
     lowered = message.lower()
     return "400" in lowered and ("schema" in lowered or "response_format" in lowered or "tool" in lowered)
@@ -130,6 +137,7 @@ class RemoteBackend:
                  timeout_s: float = 120.0, transport: httpx.BaseTransport | None = None) -> None:
         self.config = config
         self._no_schema: set[str] = set()
+        self._plain: set[str] = set()
         self._missing: set[str] = set()
         self.usage = usage or Usage()
         self.throttle = throttle or Throttle(config.pacing)
@@ -154,19 +162,30 @@ class RemoteBackend:
         return self.config.default or model
 
     def _prepared(self, req: LLMRequest, hosted: str) -> LLMRequest:
-        """The request as this hosted model wants it."""
+        """The request as this hosted model wants it, after what it has already refused."""
         meta = req.meta
         if self.config.reasoning_effort:
             meta = {**meta, "reasoning_effort": self.config.reasoning_effort}
-        prepared = req.model_copy(update={"model": hosted, "meta": meta})
-        if prepared.json_schema is None or hosted not in self._no_schema:
+        update: dict[str, Any] = {"model": hosted, "meta": meta}
+        if not self.config.cache_salt:
+            # A hosted service has no partitioned prefix cache to salt, and refuses the field.
+            update["cache_salt"] = None
+        if req.json_schema is not None and req.tools:
+            # Asking for JSON and offering tools at the same time is refused; the JSON is what is read.
+            update["tools"] = None
+        prepared = req.model_copy(update=update)
+        if prepared.json_schema is None or (hosted not in self._no_schema and hosted not in self._plain):
             return prepared
-        # This model refuses strict schemas, so ask for plain JSON and state the shape in the prompt.
+        # The shape goes in the prompt instead: either the model refuses strict schemas, or it answers
+        # a JSON request with a tool call, which the service rejects.
         schema = json.dumps(prepared.json_schema, separators=(",", ":"))
         messages = [*prepared.messages,
-                    ChatMessage(role="user", content=f"Return only JSON matching this schema: {schema}")]
-        return prepared.model_copy(update={"json_schema": None, "messages": messages,
-                                           "meta": {**prepared.meta, "json_object": True}})
+                    ChatMessage(role="user", content=f"Return only JSON matching this schema, and never a "
+                                                     f"tool call: {schema}")]
+        meta = dict(prepared.meta)
+        if hosted not in self._plain:
+            meta["json_object"] = True
+        return prepared.model_copy(update={"json_schema": None, "messages": messages, "meta": meta})
 
     def chat(self, req: LLMRequest) -> LLMResponse:
         hosted = self.hosted_name(req.model)
@@ -183,6 +202,10 @@ class RemoteBackend:
                     # Everything else waits too: the allowance is shared by the whole service.
                     self.throttle.hold(max(pause, 0.0))
                 except ServiceUnavailable as exc:
+                    if _tool_conflict(str(exc)) and hosted not in self._plain:
+                        # Asked for JSON, answered with a tool call: ask in words instead.
+                        self._plain.add(hosted)
+                        return self.client.chat(self._prepared(req, hosted))
                     if _model_missing(str(exc)) and hosted != self.config.default and self.config.default:
                         # The service does not offer this model to this account: use the default instead.
                         self._missing.add(hosted)
