@@ -333,6 +333,44 @@
     try { return await fn(); } catch (e) { toast(e.message, true); return undefined; } finally { if (button) button.disabled = false; }
   }
 
+  // Longest common subsequence over words: what was removed, what was added, in order.
+  function wordDiff(before, after) {
+    const a = String(before).split(/(\s+)/);
+    const b = String(after).split(/(\s+)/);
+    const table = Array.from({ length: a.length + 1 }, () => new Uint32Array(b.length + 1));
+    for (let i = a.length - 1; i >= 0; i -= 1) {
+      for (let j = b.length - 1; j >= 0; j -= 1) {
+        table[i][j] = a[i] === b[j] ? table[i + 1][j + 1] + 1 : Math.max(table[i + 1][j], table[i][j + 1]);
+      }
+    }
+    const parts = [];
+    const push = (kind, text) => {
+      const last = parts[parts.length - 1];
+      if (last && last.kind === kind) last.text += text;
+      else parts.push({ kind, text });
+    };
+    let i = 0;
+    let j = 0;
+    while (i < a.length && j < b.length) {
+      if (a[i] === b[j]) { push("same", a[i]); i += 1; j += 1; }
+      else if (table[i + 1][j] >= table[i][j + 1]) { push("del", a[i]); i += 1; }
+      else { push("ins", b[j]); j += 1; }
+    }
+    while (i < a.length) { push("del", a[i]); i += 1; }
+    while (j < b.length) { push("ins", b[j]); j += 1; }
+    return parts.filter((p) => p.text !== "");
+  }
+
+  // Both sentences in full: the old one with what went, the new one with what arrived.
+  function diffView(before, after) {
+    const parts = wordDiff(before, after);
+    const side = (drop, cls, label) => h("div", { class: "diff-side" },
+      h("span", { class: "diff-label", text: label }),
+      h("p", { class: `diff diff-${cls}-line` }, parts.filter((p) => p.kind !== drop).map((p) =>
+        (p.kind === "same" ? p.text : h("span", { class: `diff-${p.kind}`, text: p.text })))));
+    return h("div", { class: "diff-pair" }, side("ins", "old", "Before"), side("del", "new", "After"));
+  }
+
   function button(text, onclick, kind = "") {
     return h("button", { class: `btn ${kind}`.trim(), type: "button", onclick: (e) => guarded(e.currentTarget, () => onclick(e)) }, text);
   }
@@ -1314,9 +1352,10 @@
             h("p", { class: "slide-marking", text: d.marking }),
             h("h3", { class: "slide-title", text: s.title || `Slide ${i + 1}` }),
             s.subtitle ? h("p", { class: "slide-sub", text: s.subtitle }) : null,
+            s.lead ? h("p", { class: "slide-lead", text: s.lead }) : null,
             h("ul", { class: "slide-bullets" }, (s.bullets || []).map((x) => h("li", { text: x }))),
             h("span", { class: "slide-no", text: i + 1 })),
-          h("figcaption", { class: "muted small", text: s.title || `Slide ${i + 1}` })))),
+          s.note ? h("figcaption", { class: "slide-note" }, h("span", { class: "note-tag", text: "Speaker note" }), s.note) : null))),
         ];
       }
       return h("pre", { class: "code tall", text: p.text || "This file cannot be previewed. Download it instead." });
@@ -1397,9 +1436,9 @@
         parts.push(h("section", { class: "side-block" }, h("h3", { text: "Edited by hand" }),
           h("p", { class: "muted small", text: "The checks cannot vouch for text a person rewrote. An approver accepts each edit." }),
           edits.map((e) => h("div", { class: `issue${e.accepted ? "" : " mismatch"}`, "data-key": `edit-${e.key}` },
-            h("div", { class: "strong", text: `Paragraph ${e.key.split(":")[1]}` }),
-            h("div", { class: "muted small strike", text: e.before.slice(0, 120) }),
-            h("div", { class: "small", text: e.after.slice(0, 160) }),
+            h("div", { class: "row tight" }, h("span", { class: "strong", text: `Paragraph ${e.key.split(":")[1]}` }),
+              h("span", { class: "muted small", text: `by ${e.by}` })),
+            diffView(e.before, e.after),
             e.accepted
               ? h("span", { class: "chip ok", text: "Accepted" })
               : button("Accept this edit", async (ev) => {
