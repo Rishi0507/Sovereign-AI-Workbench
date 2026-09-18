@@ -23,8 +23,9 @@
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 12l4-4 4 4"/></svg>
         </button>
         <div class="menu" id="account-menu" role="menu" hidden>
-          <label class="menu-label" for="user-select">Signed in as <span class="dev" title="Development sign-in">dev</span></label>
-          <select id="user-select" class="select"></select>
+          <p class="menu-head">Signed in as</p>
+          <div class="people" id="user-list"></div>
+          <p class="menu-note">Development sign-in. On a real server this comes from the directory.</p>
           <div class="menu-sep"></div>
           <a class="menu-item" href="/models" role="menuitem">Models</a>
           <a class="menu-item" href="/security" role="menuitem">Security</a>
