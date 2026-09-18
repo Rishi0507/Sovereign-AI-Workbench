@@ -63,6 +63,7 @@ flowchart LR
         S[scripted<br/>YAML responses,<br/>heuristic fallback]
         O[openai<br/>vLLM or any<br/>OpenAI-compatible server<br/>on loopback]
         C[WB_CHAT_MODEL<br/>small instruct model<br/>writes chat replies]
+        G[groq<br/>hosted models,<br/>paced, rules as backup]
     end
     H --> C
     S --> C
@@ -86,6 +87,11 @@ flowchart LR
   `python scripts/dev.py chat-model` downloads llama.cpp and Qwen2.5-1.5B-Instruct once into `models/`
   (or `WB_MODELS_DIR`) and serves them on `127.0.0.1:8010`. On a two-core laptop a reply takes about three to
   six seconds.
+- **groq** sends the same calls to a hosted OpenAI-compatible service described in `config/groq.yaml`, with the key
+  read from the environment variable that file names (`GROQ_API_KEY` in `.env`). Calls go out one at a time with a
+  gap between them, a refusal is waited out, and the offline rules answer if the service gives up, so a rate limit
+  cannot fail a task. Each model's remaining allowance appears in the model panel. This is the one backend that
+  sends data off the machine; the host is on the egress allowlist and the security page says so.
 - **openai** talks to the endpoints in `config/models.yaml`. The OpenAI-compatible client refuses endpoints that are neither loopback nor on the egress allowlist.
 
 To run the real daemons locally:

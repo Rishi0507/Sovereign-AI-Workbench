@@ -280,7 +280,12 @@ All configuration lives in plain files under [`config/`](config), and every top-
 | `rules/consistency/*.yaml` | Consistency rules applied to every deliverable. |
 | `schemas/*.json` | JSON Schemas for every structured model output. |
 
-The workbench needs no API keys. To use real models, start vLLM on loopback with the commands from `workbench registry render-serve` and set `WB_LLM_BACKEND=openai`. To keep the deterministic pipeline but let a local model write the conversational replies, set `WB_CHAT_MODEL` (and `WB_CHAT_ENDPOINT` if it is not on `127.0.0.1:8010`).
+To use hosted models instead of a GPU, set `WB_LLM_BACKEND=groq` and put your key in `.env` as `GROQ_API_KEY`;
+`config/groq.yaml` says which hosted model answers for each entry in the registry, and how far apart calls are
+spaced. Model calls then leave the machine, which the security page states plainly, and the offline rules still
+answer whenever the service is unreachable or out of allowance.
+
+The workbench needs no API keys for the offline and loopback backends. To use real models, start vLLM on loopback with the commands from `workbench registry render-serve` and set `WB_LLM_BACKEND=openai`. To keep the deterministic pipeline but let a local model write the conversational replies, set `WB_CHAT_MODEL` (and `WB_CHAT_ENDPOINT` if it is not on `127.0.0.1:8010`).
 
 ## Repository layout
 

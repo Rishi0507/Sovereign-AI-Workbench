@@ -263,6 +263,23 @@ time the model is reached on loopback only, so the offline rule still holds.
 A 1.5B model on a CPU is good enough for conversation and far too weak for planning or for figures that must be
 traced, so only the conversation was given to it. Code: `workbench/llm/chat_model.py`.
 
+### D40. Hosted models can answer, paced and with the offline rules kept
+
+**Decision:** `llm_backend: groq` sends model calls to an OpenAI-compatible hosted service described in
+`config/groq.yaml`: the base URL, the environment variable holding the key, and which hosted model answers for each
+name in `config/models.yaml`, so routing, the quality table and the model panel are unchanged. Calls are made one at
+a time with a minimum gap between them; a refusal is waited out for the time the service asks, and the whole process
+waits, since the allowance is shared. A model that refuses strict JSON schemas is asked for plain JSON with the
+schema stated in the prompt, and that is remembered. The allowance each model reports is shown in the model panel.
+The offline rules stay loaded: they answer when the service cannot be reached or gives up, so a task never fails
+because of a rate limit. The host is on the egress allowlist, and the security page says plainly that model calls
+leave the server.
+
+**Why:** The workbench had no GPU, so every answer came from rules. This gives real model quality without a GPU. It
+is a deviation from "nothing leaves the premises", which is why it is opt-in, off by default, listed in the
+allowlist, stated in the interface, and reversible by one setting. Code: `workbench/llm/remote.py`,
+`workbench/llm/select.py`.
+
 ### D39. Documents are read in place, and only decision makers are told what is waiting
 
 **Decision:** `GET /api/files/{id}/preview` returns the readable content of a stored file: paragraphs, headings and

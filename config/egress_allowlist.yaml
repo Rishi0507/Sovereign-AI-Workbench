@@ -3,3 +3,5 @@
 lan_cidrs: ["10.20.0.0/24"]
 allow:
   - {host: 10.20.0.10, port: 636, proto: tcp, purpose: "directory server (LDAPS)"}
+  # Only reached when llm_backend is "groq". Remove this line to keep every model call on the premises.
+  - {host: api.groq.com, port: 443, proto: tcp, purpose: "hosted models (Groq)"}

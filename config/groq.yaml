@@ -1,0 +1,25 @@
+# Hosted models, used when llm_backend is "groq".
+#
+# The workbench keeps its own model names (config/models.yaml) so routing, quality tables and the
+# model panel stay unchanged. This file only says which hosted model answers for each of them.
+# The key is read from the environment variable named below; it never appears in this file.
+base_url: https://api.groq.com/openai/v1
+key_env: GROQ_API_KEY
+
+# Calls are spaced out and never sent in parallel, so a free plan is not exhausted in a burst.
+pacing:
+  min_interval_s: 1.5       # shortest gap between two calls
+  max_concurrency: 1        # one call at a time
+  max_retries: 4            # on a 429, wait for the time the service asks for, then retry
+  max_wait_s: 45            # give up waiting beyond this and fall back to the offline rules
+
+models:
+  qwen3-vl-8b: meta-llama/llama-4-scout-17b-16e-instruct
+  qwen2.5-coder-7b: qwen/qwen3-32b
+  gpt-oss-20b: openai/gpt-oss-20b
+  granite-3.3-8b: llama-3.1-8b-instant
+  qwen2.5-1.5b-instruct: llama-3.1-8b-instant
+default: llama-3.3-70b-versatile
+
+# The model that writes conversational replies and sorts incoming messages.
+chat: llama-3.1-8b-instant
