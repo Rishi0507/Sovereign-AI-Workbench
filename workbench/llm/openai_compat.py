@@ -94,6 +94,9 @@ class OpenAICompatBackend:
             "seed": req.seed,
             "max_tokens": req.max_tokens,
         }
+        if req.meta.get("reasoning_effort"):
+            # Thinking models spend output tokens before answering; keep that budget short.
+            body["reasoning_effort"] = req.meta["reasoning_effort"]
         if req.meta.get("json_object"):
             body["response_format"] = {"type": "json_object"}
         elif req.json_schema is not None:

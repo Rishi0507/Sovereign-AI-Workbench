@@ -42,6 +42,7 @@ class RemoteConfig:
     models: dict[str, str] = field(default_factory=dict)
     default: str = ""
     chat: str = ""
+    reasoning_effort: str = ""
     pacing: Pacing = field(default_factory=Pacing)
 
     @classmethod
@@ -50,7 +51,8 @@ class RemoteConfig:
         pacing = Pacing(**{k: v for k, v in (data.get("pacing") or {}).items() if k in Pacing.__annotations__})
         return cls(base_url=str(data.get("base_url", "")), key_env=str(data.get("key_env", "")),
                    models={str(k): str(v) for k, v in (data.get("models") or {}).items()},
-                   default=str(data.get("default", "")), chat=str(data.get("chat", "")), pacing=pacing)
+                   default=str(data.get("default", "")), chat=str(data.get("chat", "")),
+                   reasoning_effort=str(data.get("reasoning_effort") or ""), pacing=pacing)
 
     def api_key(self) -> str:
         return os.environ.get(self.key_env, "").strip()
@@ -109,6 +111,11 @@ class Usage:
             return sorted((dict(v) for v in self._models.values()), key=lambda e: str(e["model"]))
 
 
+def _model_missing(message: str) -> bool:
+    lowered = message.lower()
+    return "404" in lowered and ("does not exist" in lowered or "model_not_found" in lowered)
+
+
 def _schema_refused(message: str) -> bool:
     lowered = message.lower()
     return "400" in lowered and ("schema" in lowered or "response_format" in lowered or "tool" in lowered)
@@ -123,6 +130,7 @@ class RemoteBackend:
                  timeout_s: float = 120.0, transport: httpx.BaseTransport | None = None) -> None:
         self.config = config
         self._no_schema: set[str] = set()
+        self._missing: set[str] = set()
         self.usage = usage or Usage()
         self.throttle = throttle or Throttle(config.pacing)
         key = config.api_key()
@@ -135,6 +143,10 @@ class RemoteBackend:
         return {(host, 443), (host, 80)}
 
     def hosted_name(self, model: str) -> str:
+        name = self._hosted_name(model)
+        return self.config.default if name in self._missing and self.config.default else name
+
+    def _hosted_name(self, model: str) -> str:
         if model in self.config.models:
             return self.config.models[model]
         if model in set(self.config.models.values()) or model == self.config.chat:
@@ -143,7 +155,10 @@ class RemoteBackend:
 
     def _prepared(self, req: LLMRequest, hosted: str) -> LLMRequest:
         """The request as this hosted model wants it."""
-        prepared = req.model_copy(update={"model": hosted})
+        meta = req.meta
+        if self.config.reasoning_effort:
+            meta = {**meta, "reasoning_effort": self.config.reasoning_effort}
+        prepared = req.model_copy(update={"model": hosted, "meta": meta})
         if prepared.json_schema is None or hosted not in self._no_schema:
             return prepared
         # This model refuses strict schemas, so ask for plain JSON and state the shape in the prompt.
@@ -168,6 +183,11 @@ class RemoteBackend:
                     # Everything else waits too: the allowance is shared by the whole service.
                     self.throttle.hold(max(pause, 0.0))
                 except ServiceUnavailable as exc:
+                    if _model_missing(str(exc)) and hosted != self.config.default and self.config.default:
+                        # The service does not offer this model to this account: use the default instead.
+                        self._missing.add(hosted)
+                        hosted = self.config.default
+                        return self.client.chat(self._prepared(req, hosted))
                     if req.json_schema is None or hosted in self._no_schema or not _schema_refused(str(exc)):
                         raise
                     self._no_schema.add(hosted)
