@@ -172,6 +172,9 @@ Approval returns `409` with the blockers while mismatches are unacknowledged or 
 
 | Endpoint | Purpose |
 |---|---|
+| `GET /api/graph?workspace=&tag=&depth=` | The plant graph: equipment, the drawings it appears on, the clauses that govern it, its inspections, vendor and order. Without `tag` the whole graph the user may read; with one, that tag's neighbourhood. Nodes and edges are filtered by the reading ceiling. |
+| `POST /api/tasks/{id}/draft/edit` | Rewrite one paragraph of a draft: `{file_id, paragraph, text}`. Reference markers are kept, the figures in the file are checked again, and the edit is recorded. Refused for an approved file. |
+| `POST /api/tasks/{id}/draft/edits/{key}/accept` | An approver takes responsibility for an edited paragraph. Until then the edit blocks approval. |
 | `GET /api/models` | Adds `hosted_as` per model and an `allowance` list (requests and tokens left, when each resets) when hosted models are in use. |
 | `GET /api/health` | `ok` or `degraded`, with the state of `sandboxd`, `egressd` and the in-process egress guard, the model backend and the chat model (`chat_model` is `null` when replies come from the rules). |
 | `GET /api/me`, `GET /api/users` | The current user; the development user list. |

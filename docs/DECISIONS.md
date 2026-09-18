@@ -305,3 +305,28 @@ a badge beside them.
 **Why:** A banner reading CONFIDENTIAL above a conversation about the weather trains people to ignore markings,
 which is the opposite of what a marking is for. Enforcement is unchanged: clearance still decides what is listed,
 what can be opened and what a share or downgrade may do.
+
+### D42. The plant graph and its drawings are part of the interface
+
+**Decision:** `GET /api/graph` exposes the plant graph that the knowledge base already builds, and the Plant page
+draws it: equipment at the centre, with the drawings, clauses, inspections, vendors and orders attached to it.
+Selecting a tag narrows the view to its neighbourhood and lists what is recorded against it. A second tab shows the
+P&ID sheets themselves, drawn as SVG with each tag as a clickable item that opens the same record panel. Nodes,
+edges and sheets are filtered by the reading ceiling of the signed-in user, so the shape of the graph reveals
+nothing above their clearance.
+
+**Why:** An inspection engineer starts from a tag or a drawing, not from a search box. The retrieval already
+understood equipment; the interface did not show it. The sheets are synthetic fixtures generated from the asset
+register, and say so in their title block.
+
+### D43. A draft can be rewritten by hand, and the machine says it cannot vouch for it
+
+**Decision:** Any paragraph of a Word draft can be rewritten in the review page while it is still a draft. The
+superscript reference markers the renderer placed are left where they are, the file is saved in place, and the
+number provenance check runs again, so a figure typed in by hand with no record behind it is flagged at once.
+Every edit is written to the audit log with the text before and after. An edited paragraph blocks approval until an
+approver accepts it; accepting is recorded with the approver's name. Approved files cannot be edited.
+
+**Why:** Reviewers rewrite a sentence; that is normal engineering practice. What must not happen is edited text
+quietly inheriting the machine's assurances. Recording the edit, re-checking the figures and requiring an approver
+to own the wording keeps the traceability claim honest.

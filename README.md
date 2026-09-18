@@ -233,9 +233,10 @@ The interface is deliberately plain: a sidebar with your recent tasks, one box t
 | Screen | What you do there |
 |---|---|
 | **Home** | Type a request, attach files with the paperclip (or upload new ones), or pick a suggestion. |
+| **Plant** | The equipment map: a tag with the drawings it appears on, the clauses that govern it, its inspections, vendor and order. Click a node to see what is recorded against it. The Drawings tab shows the P&ID sheets, where every tag is clickable. |
 | **Library** | Every generated file grouped by task and day, every decision in a timeline, and everything waiting on your decision. Click a file to read it in place, with the download beside it. Search across all of it and filter documents by type. |
 | **Task** | A conversation: approve, edit or cancel the plan, follow progress, read answers with numbered sources, see counted facts such as page and word totals, download files, and keep asking follow-ups in the box at the bottom. **Details** opens the technical record: activity log, evidence, model choice and checks. |
-| **Review** | Read the draft, click any figure or source number to see where it came from, mark issues as reviewed, fix figures without a source, then approve or request changes. |
+| **Review** | Read the draft, click any figure or source number to see where it came from, mark issues as reviewed, fix figures without a source, then approve or request changes. Click any paragraph to rewrite it: reference markers stay, the figures are checked again, and an approver has to accept the edit before the file can be approved. A slide deck is shown slide by slide. |
 | **Models** | See which models are ready, asleep or being evaluated, and how well each does per kind of work. |
 | **Security** | See that nothing has left the server, run a network test, check the audit log and handle approval requests. |
 
@@ -343,6 +344,7 @@ The layer is complete, but a laptop has no GPU, no container runtime and no fire
 | Stand-in | Replaces | Where |
 |---|---|---|
 | `HeuristicBackend` | The LLM and VLM calls, unless a real model is configured. Setting `WB_CHAT_MODEL` gives the conversational replies to a small local instruct model (`python scripts/dev.py chat-model`); plans, documents and checks stay with the rules below. It is deterministic, reads only the records it is given, and deliberately fails the first Trace E plan and the first Trace B script so the repair paths run. | `workbench/llm/heuristic.py` |
+| P&ID sheets (`PID-*.svg`) | Real drawings. The sheets are generated from the asset register so the tags on them match the plant graph, and each title block says it is a synthetic drawing. A real deployment loads the site's own sheets. | `scripts/make_fixtures.py` |
 | OCR sidecars (`*.ocr.json`) | PaddleOCR output for scanned fixtures. Text PDFs are read for real with PyMuPDF. | `workbench/documents/readers.py` |
 | `FakeSandbox`, `FakeEgressd` | The Go daemons, when `WB_SANDBOX=fake` / `WB_EGRESS=fake`. | `workbench/tools/sandbox.py`, `workbench/security/egressd_client.py` |
 | `dev` sandbox backend | Docker. Scripts run as a subprocess with a network probe; isolation is only real with the `docker` backend. | `go/internal/sandbox/dev.go` |
