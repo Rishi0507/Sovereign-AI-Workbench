@@ -259,3 +259,30 @@ def test_the_plant_map_and_a_drawing_open_what_is_recorded(page: Any) -> None:
     sheet_tag.click()
     expect(page.locator(".plant-panel .panel-name")).to_have_text("P-108B", timeout=15_000)
     assert "pid-selected" in (sheet_tag.get_attribute("class") or "")
+
+
+def test_a_reviewer_can_rewrite_a_paragraph_and_the_edit_must_be_accepted(page: Any) -> None:
+    expect = playwright_api.expect
+    page.goto(page.base + "/")
+    page.get_by_role("button", name="Summarise a contract").click()
+    page.locator("#task-text").press("Enter")
+    page.wait_for_url("**/t/T*")
+    page.get_by_role("button", name="Start").click()
+    expect(page.locator(".ready-card")).to_be_visible(timeout=60_000)
+    page.locator('a[href$="/review"]').first.click()
+    para = page.locator(".paper p.editable").first
+    expect(para).to_be_visible(timeout=30_000)
+
+    para.click()
+    editor = page.locator(".paper-edit")
+    expect(editor).to_be_visible(timeout=10_000)
+    editor.fill("The reviewer rewrote this line and typed 99.9 mm, which no record supports.")
+    page.get_by_role("button", name="Save").click()
+
+    expect(page.locator(".edit-mark").first).to_be_visible(timeout=30_000)
+    side = page.locator("#review-side")
+    expect(side).to_contain_text("Edited by hand")
+    expect(side).to_contain_text("Figures without a source")
+    expect(page.get_by_role("button", name="Approve")).to_be_disabled()
+    page.get_by_role("button", name="Accept this edit").click()
+    expect(page.locator(".edit-mark.ok").first).to_be_visible(timeout=20_000)

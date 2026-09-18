@@ -256,6 +256,15 @@ class FileStore:
         restamp(path, label)
         return self.register(rec.workspace, rec.relpath, label, task_id=rec.task_id)
 
+    def refresh(self, file_id: str) -> FileRecord:
+        """Record the new size and digest after a file has been written in place."""
+        rec = self.get(file_id)
+        path = self.resolve(rec.workspace, rec.relpath)
+        with self.db.tx() as conn:
+            conn.execute(files_table.update().where(files_table.c.id == file_id).values(
+                sha256=sha256_file(path), size=path.stat().st_size))
+        return self.get(file_id)
+
     def open_path(self, file_id: str) -> Path:
         rec = self.get(file_id)
         return self.resolve(rec.workspace, rec.relpath)
