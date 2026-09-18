@@ -344,13 +344,18 @@ The layer is complete, but a laptop has no GPU, no container runtime and no fire
 | Stand-in | Replaces | Where |
 |---|---|---|
 | `HeuristicBackend` | The LLM and VLM calls, unless a real model is configured. Setting `WB_CHAT_MODEL` gives the conversational replies to a small local instruct model (`python scripts/dev.py chat-model`); plans, documents and checks stay with the rules below. It is deterministic, reads only the records it is given, and deliberately fails the first Trace E plan and the first Trace B script so the repair paths run. | `workbench/llm/heuristic.py` |
-| P&ID sheets (`PID-*.svg`) | Real drawings. The sheets are generated from the asset register so the tags on them match the plant graph, and each title block says it is a synthetic drawing. A real deployment loads the site's own sheets. | `scripts/make_fixtures.py` |
+| P&ID sheets (`PID-*.svg`) | Site drawings. The sheets are generated from the asset register so the tags on them match the plant graph, and each title block says it is a synthetic drawing. A real deployment loads the site's own sheets. | `scripts/make_fixtures.py` |
 | OCR sidecars (`*.ocr.json`) | PaddleOCR output for scanned fixtures. Text PDFs are read for real with PyMuPDF. | `workbench/documents/readers.py` |
 | `FakeSandbox`, `FakeEgressd` | The Go daemons, when `WB_SANDBOX=fake` / `WB_EGRESS=fake`. | `workbench/tools/sandbox.py`, `workbench/security/egressd_client.py` |
 | `dev` sandbox backend | Docker. Scripts run as a subprocess with a network probe; isolation is only real with the `docker` backend. | `go/internal/sandbox/dev.go` |
 | Hosted models (`WB_LLM_BACKEND=groq`) | The on-premises inference layer, when no GPU is present. The same OpenAI-compatible client and the same registry names are used; only the endpoint differs. Calls are paced and fall back to the rules, and the destination is on the egress allowlist. Not part of the target deployment. | `workbench/llm/remote.py`, `config/groq.yaml` |
 | Seed quality values | Measured model quality. The values in `config/models.yaml` are illustrative until `workbench eval --write-registry` runs on real models. | `config/models.yaml` |
 | Development sign-in | The directory adapter. The user switcher sets an `X-User` header or cookie. | `workbench/api/deps.py` |
+
+Two publicly available documents sit beside the generated ones so the workbench can be seen working on material
+this project did not write: a NASA report on corrosion risk in underground piping, and a scanned P&ID published by
+the United States Atomic Energy Commission. Both are public domain. `fixtures/public/SOURCES.md` records the
+title, author, licence, source, retrieval date and checksum of each, and a test refuses a file that is not listed.
 
 Everything else (routing, planning, the ledger, labels, checks, rendering, retrieval, the audit chain, the daemons' protocols) is the production code path.
 

@@ -15,15 +15,18 @@ pacing:
   min_interval_s: 1.5       # shortest gap between two calls
   max_concurrency: 1        # one call at a time
   max_retries: 4            # on a 429, wait for the time the service asks for, then retry
-  max_wait_s: 45            # give up waiting beyond this and fall back to the offline rules
+  max_wait_s: 90            # give up waiting beyond this and fall back to the offline rules
 
 # Thinking models spend tokens before they answer; "low" keeps that short. Empty to leave it alone.
 reasoning_effort: low
 
+# The label-salted prefix cache belongs to a local vLLM; a hosted service refuses the field.
+cache_salt: false
+
 models:
-  qwen3-vl-8b: openai/gpt-oss-120b
+  qwen3-vl-8b: openai/gpt-oss-20b        # reading and summarising: the lighter model, and its own rate limit
   qwen2.5-coder-7b: qwen/qwen3.8-27b
-  gpt-oss-20b: openai/gpt-oss-120b
+  gpt-oss-20b: openai/gpt-oss-120b       # the escalation model, for reasoning and comparison
   granite-3.3-8b: openai/gpt-oss-20b
   qwen2.5-1.5b-instruct: openai/gpt-oss-20b
 default: openai/gpt-oss-20b

@@ -334,3 +334,28 @@ one that replaced it with the added words marked.
 quietly inheriting the machine's assurances. Recording the edit, re-checking the figures and requiring an approver
 to own the wording keeps the traceability claim honest. Showing the whole of both sentences, rather than a clipped
 summary, is what lets the approver judge the change.
+
+### D44. Public documents sit beside the generated fixtures
+
+**Decision:** `fixtures/public/` holds publicly available documents that this project did not write, currently a
+NASA report on corrosion risk in underground piping and a scanned P&ID published by the United States Atomic
+Energy Commission, both public domain. `fixtures/public/SOURCES.md` records for each file the title, author,
+licence, source, retrieval date, size, checksum and any change made to it, and a hygiene test fails if a file is
+present without that record or if its checksum no longer matches. They are labelled Unclassified, copied into the
+demo workspace beside the generated fixtures, and the scanned sheet appears in the Drawings tab with a note that
+its tags are pictures and cannot be clicked.
+
+**Why:** The brief asks for open models and publicly available document samples. The generated fixtures stay,
+because they carry the seeded faults the demo has to catch, but a reviewer should also see the workbench read a
+document nobody here controls.
+
+### D45. A hosted service is met on its own terms
+
+**Decision:** The remote backend adapts to what a hosted service accepts: it drops the label-salted cache field,
+which belongs to a local vLLM; it does not offer tools on a request that asks for JSON; and when a model refuses a
+strict schema, or answers a JSON request with a tool call, the shape is stated in the prompt instead. Each of those
+is remembered per model, so it is tried once. Every fall back to the offline rules is written to the audit log with
+its reason and counted in `GET /api/health`.
+
+**Why:** These refusals were silent. The pipeline kept working because the rules answered, so a summary looked
+plausible while no model had been near it. A fallback is now a recorded event rather than an invisible one.
