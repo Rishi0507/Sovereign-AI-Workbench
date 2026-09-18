@@ -238,3 +238,24 @@ def test_the_network_chip_stays_out_of_the_way_while_nothing_leaks(page: Any) ->
     playwright_api.expect(page.locator("#account-name")).to_have_text("Plant engineer")
     page.wait_for_timeout(500)
     playwright_api.expect(page.locator("#net")).to_be_hidden()
+
+
+def test_the_plant_map_and_a_drawing_open_what_is_recorded(page: Any) -> None:
+    expect = playwright_api.expect
+    page.goto(page.base + "/plant")
+    expect(page.locator(".graph-canvas")).to_be_visible(timeout=20_000)
+    page.get_by_role("button", name="P-108B", exact=True).click()
+    panel = page.locator(".plant-panel")
+    expect(panel.locator(".panel-name")).to_have_text("P-108B", timeout=15_000)
+    expect(panel).to_contain_text("Narmada Pumps Ltd")
+    expect(panel).to_contain_text("PID-CW-003")
+
+    # The same equipment on its drawing sheet.
+    page.get_by_role("tab", name="Drawings").click()
+    expect(page.locator(".sheet-holder svg")).to_be_visible(timeout=20_000)
+    page.get_by_role("button", name="PID-CW-003").click()
+    sheet_tag = page.locator("[data-tag='P-108B']")
+    expect(sheet_tag).to_be_visible(timeout=15_000)
+    sheet_tag.click()
+    expect(page.locator(".plant-panel .panel-name")).to_have_text("P-108B", timeout=15_000)
+    assert "pid-selected" in (sheet_tag.get_attribute("class") or "")

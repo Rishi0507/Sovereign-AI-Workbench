@@ -213,6 +213,9 @@
     open: "M11 3.5h5.5V9M16.5 3.5L9.5 10.5M8 5H4.5v10.5H15V12",
     chevron: "M8 5l5 5-5 5",
     dot: "M10 11a1 1 0 100-2 1 1 0 000 2z",
+    plus: "M10 5v10M5 10h10",
+    minus: "M5 10h10",
+    target: "M10 3v3M10 14v3M3 10h3M14 10h3M10 14.2a4.2 4.2 0 100-8.4 4.2 4.2 0 000 8.4z",
     note: "M6 2.5h5.5l3.5 3.5v11.5H6zM8.5 10h4M8.5 13h4",
     contract: "M5 3h10v14H5zM7.5 6.5h5M7.5 9.5h5M7.5 12.5h2.5",
     chart: "M3.5 16.5h13M6 13.5V9M10 13.5V5.5M14 13.5V11",
@@ -1760,7 +1763,563 @@
     setInterval(async () => { await load().catch(() => {}); render(null); }, 5000);
   }
 
-  const PAGES = { home: pageHome, task: pageTask, review: pageReview, models: pageModels, security: pageSecurity, library: pageLibrary };
+  // -------------------------------------------------------------------------------------------
+  // Plant: the equipment map and the drawings behind it
+
+  const GRAPH_KINDS = [["tag", "Equipment"], ["document", "Documents"], ["clause", "Clauses"],
+    ["inspection", "Inspections"], ["vendor", "Vendors"], ["po", "Orders"], ["class", "Classes"]];
+
+  function graphColours() {
+    const css = getComputedStyle(document.documentElement);
+    const pick = (name, fallback) => (css.getPropertyValue(name) || fallback).trim();
+    return {
+      tag: pick("--g-tag", "#7c6cf0"), document: pick("--g-document", "#3d8bfd"),
+      clause: pick("--g-clause", "#c98a17"), inspection: pick("--g-inspection", "#2f9e5f"),
+      vendor: pick("--g-vendor", "#8a8f98"), po: pick("--g-po", "#8a8f98"), class: pick("--g-class", "#8a8f98"),
+      line: pick("--g-edge", "#c9ccd2"), text: pick("--text", "#111"), muted: pick("--muted", "#888"),
+      surface: pick("--bg", "#fff"),
+    };
+  }
+
+  // A small force layout: equipment repels, every edge pulls, and the whole thing drifts to the centre.
+  function layout(nodes, edges, width, height) {
+    const index = new Map(nodes.map((n, i) => [n.id, i]));
+    nodes.forEach((n, i) => {
+      const angle = (i / nodes.length) * Math.PI * 2;
+      const radius = n.kind === "tag" ? Math.min(width, height) * 0.16 : Math.min(width, height) * 0.34;
+      n.x = width / 2 + Math.cos(angle) * radius;
+      n.y = height / 2 + Math.sin(angle) * radius;
+      n.vx = 0;
+      n.vy = 0;
+      n.degree = 0;
+    });
+    const links = edges.map((e) => ({ a: index.get(e.source), b: index.get(e.target), kind: e.kind }))
+      .filter((l) => l.a !== undefined && l.b !== undefined);
+    links.forEach((l) => { nodes[l.a].degree += 1; nodes[l.b].degree += 1; });
+    return {
+      links,
+      step(alpha) {
+        for (let i = 0; i < nodes.length; i += 1) {
+          const a = nodes[i];
+          for (let j = i + 1; j < nodes.length; j += 1) {
+            const b = nodes[j];
+            let dx = b.x - a.x;
+            let dy = b.y - a.y;
+            let d2 = dx * dx + dy * dy;
+            if (d2 < 1) { dx = (Math.random() - 0.5); dy = (Math.random() - 0.5); d2 = 1; }
+            const force = 2600 / d2;
+            const d = Math.sqrt(d2);
+            const fx = (dx / d) * force;
+            const fy = (dy / d) * force;
+            a.vx -= fx; a.vy -= fy;
+            b.vx += fx; b.vy += fy;
+          }
+        }
+        links.forEach((l) => {
+          const a = nodes[l.a];
+          const b = nodes[l.b];
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const d = Math.max(1, Math.hypot(dx, dy));
+          const pull = (d - 120) * 0.012;
+          const fx = (dx / d) * pull;
+          const fy = (dy / d) * pull;
+          a.vx += fx; a.vy += fy;
+          b.vx -= fx; b.vy -= fy;
+        });
+        nodes.forEach((n) => {
+          n.vx += (width / 2 - n.x) * 0.002;
+          n.vy += (height / 2 - n.y) * 0.002;
+          if (n.pinned) { n.vx = 0; n.vy = 0; return; }
+          n.x += Math.max(-24, Math.min(24, n.vx * alpha));
+          n.y += Math.max(-24, Math.min(24, n.vy * alpha));
+          n.vx *= 0.82;
+          n.vy *= 0.82;
+        });
+      },
+    };
+  }
+
+  function graphView(host, opts) {
+    const canvas = h("canvas", { class: "graph-canvas" });
+    const zoom = (factor) => {
+      const { w, h: height } = size();
+      const next = Math.max(0.4, Math.min(2.6, view.k * factor));
+      view.x = w / 2 - ((w / 2 - view.x) / view.k) * next;
+      view.y = height / 2 - ((height / 2 - view.y) / view.k) * next;
+      view.k = next;
+    };
+    const tool = (name, title, onclick) => h("button", { class: "graph-tool", type: "button", title, onclick }, icon(name));
+    const wrap = h("div", { class: "graph-wrap" }, canvas,
+      h("p", { class: "graph-hint", text: "Drag to move · scroll to zoom · click for details" }),
+      h("div", { class: "graph-tools" },
+        tool("plus", "Zoom in", () => zoom(1.2)),
+        tool("minus", "Zoom out", () => zoom(0.84)),
+        tool("target", "Fit to view", () => fit())));
+    host.replaceChildren(wrap);
+    const ctx = canvas.getContext("2d");
+    let nodes = [];
+    let sim = { links: [], step() {} };
+    let hover = null;
+    let picked = null;
+    let drag = null;
+    let alpha = 1;
+    let frame = null;
+    let colours = graphColours();
+    const view = { x: 0, y: 0, k: 1 };
+
+    const size = () => {
+      const rect = wrap.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.max(1, Math.floor(rect.width * dpr));
+      canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+      canvas.style.width = `${rect.width}px`;
+      canvas.style.height = `${rect.height}px`;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return { w: rect.width, h: rect.height };
+    };
+
+    const radiusOf = (n) => (n.kind === "tag" ? 13 + Math.min(6, n.degree) : 6 + Math.min(4, n.degree));
+    const toScreen = (n) => ({ x: n.x * view.k + view.x, y: n.y * view.k + view.y });
+
+    function draw() {
+      const { w, h: height } = size();
+      ctx.clearRect(0, 0, w, height);
+      const near = picked || hover;
+      const related = new Set();
+      if (near) {
+        related.add(near.id);
+        sim.links.forEach((l) => {
+          if (nodes[l.a].id === near.id) related.add(nodes[l.b].id);
+          if (nodes[l.b].id === near.id) related.add(nodes[l.a].id);
+        });
+      }
+      sim.links.forEach((l) => {
+        const a = toScreen(nodes[l.a]);
+        const b = toScreen(nodes[l.b]);
+        const lit = near && related.has(nodes[l.a].id) && related.has(nodes[l.b].id);
+        ctx.strokeStyle = colours.line;
+        ctx.globalAlpha = near ? (lit ? 0.9 : 0.12) : 0.5;
+        ctx.lineWidth = lit ? 1.6 : 1;
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+      });
+      ctx.globalAlpha = 1;
+      nodes.forEach((n) => {
+        const p = toScreen(n);
+        const r = radiusOf(n) * view.k;
+        const dim = near && !related.has(n.id);
+        ctx.globalAlpha = dim ? 0.2 : 1;
+        ctx.fillStyle = colours[n.kind] || colours.vendor;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+        ctx.fill();
+        if (picked && picked.id === n.id) {
+          ctx.strokeStyle = colours.text;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+        const showName = n.kind === "tag" || nodes.length <= 24 || (near && related.has(n.id)) || view.k > 1.25;
+        if (showName) {
+          ctx.fillStyle = n.kind === "tag" ? colours.text : colours.muted;
+          ctx.font = `${n.kind === "tag" ? 600 : 400} ${n.kind === "tag" ? 12.5 : 11.5}px var(--font, system-ui)`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "top";
+          const name = n.kind === "tag" ? n.key : shorten(n.name, 26);
+          ctx.fillText(name, p.x, p.y + r + 5);
+        }
+      });
+      ctx.globalAlpha = 1;
+    }
+
+    const shorten = (text, max) => (String(text).length > max ? `${String(text).slice(0, max - 1)}…` : String(text));
+
+    function fit(padding = 64) {
+      const { w, h: height } = size();
+      if (!nodes.length) return;
+      const xs = nodes.map((n) => n.x);
+      const ys = nodes.map((n) => n.y);
+      const minX = Math.min(...xs);
+      const maxX = Math.max(...xs);
+      const minY = Math.min(...ys);
+      const maxY = Math.max(...ys);
+      const k = Math.max(0.4, Math.min(1.6, Math.min((w - padding * 2) / Math.max(1, maxX - minX),
+                                                     (height - padding * 2) / Math.max(1, maxY - minY))));
+      view.k = k;
+      view.x = w / 2 - ((minX + maxX) / 2) * k;
+      view.y = height / 2 - ((minY + maxY) / 2) * k;
+    }
+
+    function tick() {
+      if (alpha > 0.02) {
+        sim.step(alpha);
+        alpha *= 0.985;
+        if (alpha <= 0.02) fit();
+      }
+      draw();
+      frame = requestAnimationFrame(tick);
+    }
+
+    const at = (ev) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = ev.clientX - rect.left;
+      const y = ev.clientY - rect.top;
+      let found = null;
+      nodes.forEach((n) => {
+        const p = toScreen(n);
+        if (Math.hypot(p.x - x, p.y - y) <= radiusOf(n) * view.k + 6) found = n;
+      });
+      return { x, y, node: found };
+    };
+
+    canvas.addEventListener("pointermove", (ev) => {
+      if (drag) {
+        if (drag.node) {
+          drag.node.x = (ev.clientX - drag.rect.left - view.x) / view.k;
+          drag.node.y = (ev.clientY - drag.rect.top - view.y) / view.k;
+          alpha = Math.max(alpha, 0.25);
+        } else {
+          view.x = drag.vx + (ev.clientX - drag.sx);
+          view.y = drag.vy + (ev.clientY - drag.sy);
+        }
+        return;
+      }
+      const spot = at(ev);
+      hover = spot.node;
+      canvas.style.cursor = spot.node ? "pointer" : "grab";
+    });
+    canvas.addEventListener("pointerdown", (ev) => {
+      const rect = canvas.getBoundingClientRect();
+      const spot = at(ev);
+      drag = { node: spot.node, rect, sx: ev.clientX, sy: ev.clientY, vx: view.x, vy: view.y, moved: false };
+      if (spot.node) spot.node.pinned = true;
+      canvas.setPointerCapture(ev.pointerId);
+    });
+    canvas.addEventListener("pointerup", (ev) => {
+      const moved = drag && (Math.abs(ev.clientX - drag.sx) > 4 || Math.abs(ev.clientY - drag.sy) > 4);
+      const node = drag && drag.node;
+      drag = null;
+      if (!moved) {
+        picked = node;
+        opts.onSelect(node);
+      }
+    });
+    canvas.addEventListener("wheel", (ev) => {
+      ev.preventDefault();
+      const rect = canvas.getBoundingClientRect();
+      const mx = ev.clientX - rect.left;
+      const my = ev.clientY - rect.top;
+      const next = Math.max(0.4, Math.min(2.6, view.k * (ev.deltaY < 0 ? 1.12 : 0.89)));
+      view.x = mx - ((mx - view.x) / view.k) * next;
+      view.y = my - ((my - view.y) / view.k) * next;
+      view.k = next;
+    }, { passive: false });
+
+    return {
+      set(data) {
+        const { w, h: height } = size();
+        nodes = data.nodes.map((n) => ({ ...n }));
+        sim = layout(nodes, data.edges, w, height);
+        picked = null;
+        hover = null;
+        alpha = 1;
+        view.x = 0;
+        view.y = 0;
+        view.k = 1;
+        if (!frame) frame = requestAnimationFrame(tick);
+      },
+      select(id) {
+        picked = nodes.find((n) => n.id === id) || null;
+        opts.onSelect(picked);
+      },
+      fit,
+      theme() { colours = graphColours(); },
+      stop() { if (frame) cancelAnimationFrame(frame); frame = null; },
+    };
+  }
+
+  // A drawing sheet: the SVG is shown as it is, and every tag on it opens what is recorded against it.
+  function sheetView(host, svgText, opts) {
+    const stage = h("div", { class: "sheet-stage" });
+    const holder = h("div", { class: "sheet-holder" });
+    stage.append(holder);
+    holder.innerHTML = String(svgText).replace(/<script[\s\S]*?<\/script>/gi, "");
+    host.replaceChildren(stage,
+      h("div", { class: "graph-tools sheet-tools" },
+        h("button", { class: "graph-tool", type: "button", title: "Zoom in", onclick: () => zoom(1.2) }, icon("plus")),
+        h("button", { class: "graph-tool", type: "button", title: "Zoom out", onclick: () => zoom(0.84) }, icon("minus")),
+        h("button", { class: "graph-tool", type: "button", title: "Fit to view", onclick: () => reset() }, icon("target"))));
+    const view = { x: 0, y: 0, k: 1 };
+    const apply = () => { holder.style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.k})`; };
+    const zoom = (factor) => {
+      view.k = Math.max(0.5, Math.min(4, view.k * factor));
+      apply();
+    };
+    const reset = () => { view.x = 0; view.y = 0; view.k = 1; apply(); };
+    // Panning is tracked on the window, so a click still reaches the item it landed on.
+    let drag = null;
+    let dragged = false;
+    const move = (e) => {
+      if (!drag) return;
+      if (Math.abs(e.clientX - drag.sx) > 4 || Math.abs(e.clientY - drag.sy) > 4) dragged = true;
+      view.x = e.clientX - drag.x;
+      view.y = e.clientY - drag.y;
+      apply();
+    };
+    const release = () => {
+      drag = null;
+      stage.classList.remove("grabbing");
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", release);
+      setTimeout(() => { dragged = false; }, 0);
+    };
+    stage.addEventListener("pointerdown", (e) => {
+      drag = { x: e.clientX - view.x, y: e.clientY - view.y, sx: e.clientX, sy: e.clientY };
+      stage.classList.add("grabbing");
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", release);
+    });
+    stage.addEventListener("click", (e) => { if (dragged) { e.stopPropagation(); e.preventDefault(); } }, true);
+    stage.addEventListener("wheel", (e) => { e.preventDefault(); zoom(e.deltaY < 0 ? 1.12 : 0.89); }, { passive: false });
+    $$("[data-tag]", holder).forEach((el) => {
+      const tag = el.dataset.tag;
+      el.classList.add("pid-known");
+      listen(el, "click", (e) => { e.stopPropagation(); opts.onTag(tag, el); });
+      listen(el, "pointerenter", () => opts.onHover(tag));
+      listen(el, "pointerleave", () => opts.onHover(null));
+    });
+    return {
+      mark(tags) {
+        $$("[data-tag]", holder).forEach((el) => el.classList.toggle("pid-selected", tags.includes(el.dataset.tag)));
+      },
+    };
+  }
+
+  async function pagePlant() {
+    const params = new URLSearchParams(location.search);
+    let tab = params.get("tab") === "drawings" ? "drawings" : "map";
+    let data = { nodes: [], edges: [] };
+    let focus = params.get("tag") || null;
+    let chart = null;
+    let selected = null;
+    const body = $("#plant-body");
+
+    const seg = tabs([["map", "Map"], ["drawings", "Drawings"]], tab, (key, dir) => {
+      tab = key;
+      history.replaceState(null, "", key === "map" ? "/plant" : "/plant?tab=drawings");
+      render(dir);
+    });
+    fill($("#plant-tabs"), seg);
+
+    const load = async () => {
+      data = await api(`/graph${focus ? `?tag=${encodeURIComponent(focus)}&depth=2` : ""}`);
+    };
+
+    function nodeById(id) {
+      return data.nodes.find((n) => n.id === id) || null;
+    }
+
+    function relations(node) {
+      const out = [];
+      data.edges.forEach((e) => {
+        if (e.source === node.id) out.push({ kind: e.kind, other: nodeById(e.target), direction: "to" });
+        if (e.target === node.id) out.push({ kind: e.kind, other: nodeById(e.source), direction: "from" });
+      });
+      return out.filter((r) => r.other);
+    }
+
+    const EDGE_WORDS = {
+      is_a: "is a", shown_on: "shown on", supplied_by: "supplied by", ordered_on: "ordered on",
+      applies_to: "applies to", mentions: "mentions", inspected: "inspection", governs: "governs",
+    };
+
+    function details(node) {
+      if (!node) {
+        return h("div", { class: "plant-panel empty" },
+          h("p", { class: "muted", text: "Select a piece of equipment to see the drawings it appears on, the procedures that govern it and what has been recorded against it." }),
+          h("div", { class: "legend" }, GRAPH_KINDS.filter(([k]) => data.nodes.some((n) => n.kind === k))
+            .map(([k, title]) => h("span", { class: "legend-item" },
+              h("span", { class: `legend-dot k-${k}` }), title))));
+      }
+      const rels = relations(node);
+      const groups = new Map();
+      rels.forEach((r) => {
+        const key = r.other.kind;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(r);
+      });
+      const PROP_WORDS = { cls: "Class", doc: "Document", tag: "Tag", po: "Order", report: "Report",
+        quantity: "Measurement", value: "Value", unit: "Unit", location: "Location", date: "Date",
+        description: "Description", revision: "Revision", doc_type: "Kind", heading: "Heading", clause: "Clause" };
+      const props = Object.entries(node.props || {})
+        .filter(([k]) => !["name", "title"].includes(k))
+        .map(([k, v]) => [PROP_WORDS[k] || k.replace(/_/g, " "), v]);
+      return h("div", { class: "plant-panel", "data-key": node.id },
+        h("header", { class: "panel-top" },
+          h("span", { class: `legend-dot k-${node.kind}` }),
+          h("div", {}, h("p", { class: "panel-kind", text: node.title }),
+            h("h2", { class: "panel-name", text: node.kind === "tag" ? node.key : node.name })),
+          labelTag(node.label, node.label_display)),
+        node.kind === "tag" && node.name !== node.key ? h("p", { class: "panel-sub", text: node.name }) : null,
+        props.length ? h("dl", { class: "panel-facts" }, props.slice(0, 7).flatMap(([k, v]) => [
+          h("dt", { text: k }), h("dd", { text: String(v) })])) : null,
+        ...[...groups.entries()].map(([kind, list]) => h("section", { class: "panel-group" },
+          h("h3", { text: GRAPH_KINDS.find(([k]) => k === kind)?.[1] || kind }),
+          h("ul", { class: "plain" }, list.slice(0, 12).map((r) => h("li", {},
+            h("button", { class: "link-btn", type: "button", onclick: () => chart && chart.select(r.other.id) },
+              r.other.kind === "tag" ? r.other.key : r.other.name),
+            h("span", { class: "muted small", text: ` · ${EDGE_WORDS[r.kind] || r.kind}` })))))),
+        h("div", { class: "row wrap panel-actions" },
+          node.kind === "tag" ? button(focus === node.key ? "Show whole plant" : `Focus on ${node.key}`,
+            () => setFocus(focus === node.key ? null : node.key), "primary") : null,
+          node.kind === "tag" ? h("a", { class: "btn ghost", href: `/?ask=${encodeURIComponent(`What does SOP-MECH-014 require for ${node.key}?`)}`, text: "Ask about it" }) : null));
+    }
+
+    // The map is built once: focusing on a tag swaps the data, it does not rebuild the canvas.
+    const stage = h("div", { class: "graph-stage" });
+    const panel = h("aside", { class: "plant-side" });
+    const chips = h("div", { class: "row wrap plant-chips" });
+    const map = h("div", { class: "plant-map", "data-keep": "" }, chips,
+      h("div", { class: "plant-layout" }, stage, panel));
+    let allTags = [];
+
+    const setFocus = async (tag) => {
+      focus = tag;
+      await load();
+      selected = null;
+      paintMap();
+    };
+
+    function paintChips() {
+      fill(chips, h("button", {
+        class: `filter${focus ? "" : " active"}`, type: "button", "data-key": "all",
+        onclick: () => setFocus(null),
+      }, "Whole plant"), ...allTags.map((key) => h("button", {
+        class: `filter${focus === key ? " active" : ""}`, type: "button", "data-key": key,
+        onclick: () => setFocus(key),
+      }, key)));
+    }
+
+    function paintMap() {
+      if (tab !== "map") return;
+      if (!focus) allTags = data.nodes.filter((n) => n.kind === "tag").map((n) => n.key).sort();
+      paintChips();
+      fill(panel, details(selected));
+      if (!chart) {
+        chart = graphView(stage, {
+          onSelect: (node) => {
+            selected = node;
+            smoothHeight(panel, () => fill(panel, details(node)));
+          },
+        });
+      }
+      chart.set(data);
+      if (focus) {
+        const start = data.nodes.find((n) => n.kind === "tag" && n.key === focus);
+        if (start) {
+          selected = start;
+          fill(panel, details(start));
+        }
+      }
+    }
+
+    function mapView() {
+      queueMicrotask(paintMap);
+      return map;
+    }
+
+    // Drawings -------------------------------------------------------------------------------
+    let sheets = null;
+    let sheetId = params.get("sheet") || null;
+    let sheetBox = null;
+
+    const sheetPanel = h("aside", { class: "plant-side" });
+    const sheetStage = h("div", { class: "sheet-frame" });
+    const sheetList = h("div", { class: "row wrap plant-chips" });
+    const drawings = h("div", { class: "plant-map", "data-keep": "" }, sheetList,
+      h("div", { class: "plant-layout" }, sheetStage, sheetPanel));
+
+    async function tagFacts(tag) {
+      const one = await api(`/graph?tag=${encodeURIComponent(tag)}&depth=1`).catch(() => null);
+      if (!one) return null;
+      return one.nodes.find((n) => n.kind === "tag" && n.key === tag) || null;
+    }
+
+    function sheetSide(node, tag) {
+      if (!node) {
+        return h("div", { class: "plant-panel empty" },
+          h("p", { class: "muted", text: tag ? `${tag} is on this sheet but not in the plant records.`
+            : "Click any tagged item on the sheet to see what is recorded against it." }),
+          h("p", { class: "muted small", text: "Drag to move the sheet, scroll to zoom." }));
+      }
+      const props = Object.entries(node.props || {});
+      return h("div", { class: "plant-panel", "data-key": node.id },
+        h("header", { class: "panel-top" }, h("span", { class: "legend-dot k-tag" }),
+          h("div", {}, h("p", { class: "panel-kind", text: "Equipment" }), h("h2", { class: "panel-name", text: node.key })),
+          labelTag(node.label, node.label_display)),
+        node.props && node.props.description ? h("p", { class: "panel-sub", text: node.props.description }) : null,
+        props.length ? h("dl", { class: "panel-facts" }, props.filter(([k]) => k !== "description").slice(0, 5)
+          .flatMap(([k, v]) => [h("dt", { text: k === "cls" ? "Class" : k.replace(/_/g, " ") }),
+            h("dd", { text: String(v) })])) : null,
+        h("div", { class: "row wrap panel-actions" },
+          button("Open in the map", async () => {
+            focus = node.key;
+            selected = null;
+            await load();
+            history.replaceState(null, "", "/plant");
+            seg.select("map");
+          }, "primary")));
+    }
+
+    async function showSheet(file) {
+      sheetId = file.id;
+      history.replaceState(null, "", `/plant?tab=drawings&sheet=${encodeURIComponent(file.id)}`);
+      fill(sheetList, ...sheets.map((sh) => h("button", {
+        class: `filter${sh.id === sheetId ? " active" : ""}`, type: "button", "data-key": sh.id,
+        onclick: () => showSheet(sh),
+      }, sh.name.replace(/\.svg$/i, ""))));
+      fill(sheetPanel, sheetSide(null, null));
+      sheetStage.replaceChildren(h("div", { class: "loading" }, spinner()));
+      const text = await fetch(fileUrl(file.id), { credentials: "same-origin" }).then((r) => r.text());
+      sheetBox = sheetView(sheetStage, text, {
+        onTag: async (tag) => {
+          sheetBox.mark([tag]);
+          fill(sheetPanel, sheetSide(await tagFacts(tag), tag));
+        },
+        onHover: () => {},
+      });
+    }
+
+    function drawingsView() {
+      queueMicrotask(async () => {
+        if (!sheets) {
+          const files = await api(`/workspaces/${encodeURIComponent(data.workspace)}/files?area=inputs`).catch(() => []);
+          sheets = files.filter((f) => /\.svg$/i.test(f.name) && /^PID/i.test(f.name));
+        }
+        if (!sheets.length) {
+          fill(sheetStage, emptyState("file", "No drawings yet", "Sheets placed in the workspace appear here."));
+          return;
+        }
+        await showSheet(sheets.find((sh) => sh.id === sheetId) || sheets[0]);
+      });
+      return drawings;
+    }
+
+    function render(dir) {
+      if (tab !== "map" && chart) { chart.stop(); chart = null; }
+      seg.setCount("map", allTags.length || data.nodes.filter((n) => n.kind === "tag").length);
+      const content = tab === "map" ? mapView() : drawingsView();
+      if (dir === undefined || dir === null) fill(body, content);
+      else swapPanel(body, content, dir);
+    }
+
+    await load();
+    render(0);
+  }
+
+  const PAGES = { home: pageHome, task: pageTask, review: pageReview, models: pageModels, security: pageSecurity, library: pageLibrary, plant: pagePlant };
 
   document.addEventListener("DOMContentLoaded", async () => {
     try {

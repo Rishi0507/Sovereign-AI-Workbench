@@ -57,6 +57,11 @@ def library(request: Request) -> HTMLResponse:
     return _page(request, "library.html", "library", title="Library")
 
 
+@router.get("/plant", response_class=HTMLResponse)
+def plant(request: Request) -> HTMLResponse:
+    return _page(request, "plant.html", "plant", title="Plant")
+
+
 @router.get("/models", response_class=HTMLResponse)
 def models(request: Request) -> HTMLResponse:
     return _page(request, "models.html", "models", title="Models")
