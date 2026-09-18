@@ -41,9 +41,17 @@ def users(rt: Runtime = Depends(get_rt)) -> list[dict[str, Any]]:
             for u in rt.policy.users.values()]
 
 
+def _allowance(rt: Runtime) -> list[dict[str, Any]]:
+    """What each hosted model reports about the calls and tokens it has left."""
+    usage = getattr(rt.backend, "usage", None)
+    return list(usage.snapshot()) if usage is not None else []
+
+
 @router.get("/models")
 def models(user: User = Depends(current_user), rt: Runtime = Depends(get_rt)) -> dict[str, Any]:
     ps = rt.settings.profile_settings()
+    remote = getattr(rt.backend, "config", None)
+    hosted: dict[str, str] = dict(getattr(remote, "models", {}) or {})
     entries = []
     for m in rt.registry.models:
         try:
@@ -52,7 +60,8 @@ def models(user: User = Depends(current_user), rt: Runtime = Depends(get_rt)) ->
             argv = []
         entries.append({**m.model_dump(mode="json"), "pool_profile": m.pool_for(ps.all_resident),
                         "state": rt.pool.state.get(m.name, "cold"), "serve_argv": argv,
-                        "measured_speedup": m.speculative_speedup, "can_call_tools": m.can_call_tools})
+                        "hosted_as": hosted.get(m.name), "measured_speedup": m.speculative_speedup,
+                        "can_call_tools": m.can_call_tools})
     served: dict[str, int] = {}
     for t in rt.tasks.list(limit=500):
         if t.model:
@@ -60,7 +69,7 @@ def models(user: User = Depends(current_user), rt: Runtime = Depends(get_rt)) ->
     proposed = rt.settings.config_dir / "models.proposed.yaml"
     return {"profile": rt.settings.profile, "backend": rt.settings.llm_backend, "registry_version": rt.registry.version,
             "models": entries, "routing": rt.registry.routing.model_dump(), "pool": rt.pool.snapshot(),
-            "cache": rt.cache.snapshot(), "tasks_served": served,
+            "cache": rt.cache.snapshot(), "tasks_served": served, "allowance": _allowance(rt),
             "proposed_diff": proposed.read_text(encoding="utf-8") if proposed.is_file() else None,
             "speculative_note": "n/a (no GPU): acceptance length and tokens/s appear once vLLM reports them"}
 

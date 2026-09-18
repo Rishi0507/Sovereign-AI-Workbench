@@ -12,7 +12,7 @@ from urllib.parse import urlparse
 
 import httpx
 
-from workbench.core.errors import PolicyError, ServiceUnavailable
+from workbench.core.errors import PolicyError, RateLimited, ServiceUnavailable
 from workbench.llm.base import LLMRequest, LLMResponse
 
 
@@ -36,6 +36,21 @@ def check_endpoint(url: str, allowlist: set[tuple[str, int]] | None = None) -> N
     raise PolicyError(f"endpoint {url} is neither loopback nor allowlisted")
 
 
+def _retry_after(headers: httpx.Headers) -> float:
+    """Seconds the service asks us to wait, from any of the headers it may use."""
+    for name in ("retry-after", "x-ratelimit-reset-requests", "x-ratelimit-reset-tokens"):
+        raw = (headers.get(name) or "").strip().lower()
+        if not raw:
+            continue
+        try:
+            if raw.endswith("ms"):
+                return float(raw[:-2]) / 1000
+            return float(raw.rstrip("s"))
+        except ValueError:
+            continue
+    return 0.0
+
+
 class OpenAICompatBackend:
     name = "openai"
 
@@ -46,11 +61,15 @@ class OpenAICompatBackend:
         timeout_s: float = 120.0,
         allowlist: set[tuple[str, int]] | None = None,
         transport: httpx.BaseTransport | None = None,
+        headers: dict[str, str] | None = None,
+        observer: Callable[[str, httpx.Headers, int], None] | None = None,
     ) -> None:
         self.resolve_endpoint = resolve_endpoint
         self.cache_salt_mode = cache_salt_mode
         self.allowlist = allowlist or set()
-        self.client = httpx.Client(timeout=timeout_s, transport=transport, trust_env=False)
+        self.observer = observer
+        self.client = httpx.Client(timeout=timeout_s, transport=transport, trust_env=False,
+                                   headers=headers or {})
 
     def _body(self, req: LLMRequest) -> dict[str, Any]:
         messages: list[dict[str, Any]] = []
@@ -75,7 +94,9 @@ class OpenAICompatBackend:
             "seed": req.seed,
             "max_tokens": req.max_tokens,
         }
-        if req.json_schema is not None:
+        if req.meta.get("json_object"):
+            body["response_format"] = {"type": "json_object"}
+        elif req.json_schema is not None:
             body["response_format"] = {
                 "type": "json_schema",
                 "json_schema": {"name": req.purpose.replace(".", "_"), "schema": req.json_schema, "strict": True},
@@ -94,6 +115,11 @@ class OpenAICompatBackend:
             resp = self.client.post(f"{endpoint}/chat/completions", json=self._body(req))
         except httpx.HTTPError as exc:
             raise ServiceUnavailable(f"model server for {req.model} unreachable: {exc}") from exc
+        if self.observer is not None:
+            self.observer(req.model, resp.headers, resp.status_code)
+        if resp.status_code in {429, 503}:
+            raise RateLimited(f"model server for {req.model} returned {resp.status_code}: {resp.text[:200]}",
+                              retry_after_s=_retry_after(resp.headers))
         if resp.status_code >= 400:
             raise ServiceUnavailable(f"model server for {req.model} returned {resp.status_code}: {resp.text[:300]}")
         data = resp.json()

@@ -235,6 +235,18 @@
     const d = new Date(iso);
     return isNaN(d) ? "" : d.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
   };
+  const localMode = {
+    get() {
+      try { return localStorage.getItem("wb2:mode") === "rules"; } catch { return false; }
+    },
+    set(on) {
+      try { on ? localStorage.setItem("wb2:mode", "rules") : localStorage.removeItem("wb2:mode"); } catch { /* ignore */ }
+    },
+    meta(extra) {
+      return this.get() ? { ...extra, offline: true } : { ...extra };
+    },
+  };
+
   const bytes = (n) => (n < 1024 ? `${n} B` : n < 1048576 ? `${Math.round(n / 1024)} KB` : `${(n / 1048576).toFixed(1)} MB`);
   const plural = (n, word, many) => `${n} ${n === 1 ? word : many || `${word}s`}`;
   const shortName = (p) => String(p).split("/").pop();
@@ -594,7 +606,19 @@
       return;
     }
     const hour = new Date().getHours();
-    $(".greeting").textContent = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+    const greeting = $(".greeting");
+    greeting.textContent = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+    let taps = 0;
+    let tapTimer = null;
+    greeting.addEventListener("click", () => {
+      clearTimeout(tapTimer);
+      tapTimer = setTimeout(() => { taps = 0; }, 900);
+      if (++taps < 5) return;
+      taps = 0;
+      const on = !localMode.get();
+      localMode.set(on);
+      toast(on ? "Answering with the built-in rules" : "Answering with the models");
+    });
     $(".greeting-sub").textContent = `What should we prepare in ${ws.title}?`;
     const text = $("#task-text");
     const send = $("#send-btn");
@@ -667,7 +691,7 @@
       const value = text.value.trim();
       if (!value) return;
       guarded(send, async () => {
-        const meta = $("#no-template").checked ? { templates_disabled: true } : {};
+        const meta = localMode.meta($("#no-template").checked ? { templates_disabled: true } : {});
         const task = await api("/tasks", { method: "POST", json: { workspace: ws.id, text: value, attachments: [...attached], meta } });
         location.href = `/t/${task.id}`;
       });
@@ -797,7 +821,7 @@
       const running = job && ["queued", "running"].includes(job.state) && t.is_owner;
       fill($("#thread-head"),
         h("div", { class: "head-left" },
-          h("span", { class: `status-pill ${statusTone(t)}` }, h("span", { class: "status-dot" }), statusLabel(t)),
+          h("span", { class: `status-pill ${statusTone(t)}` }, statusLabel(t)),
           h("div", { class: "thread-title", text: view.root ? view.root.text : t.text })),
         h("div", { class: "row" },
           running && !t.pending_gate ? button("Stop", async () => { await api(`/jobs/${job.id}`, { method: "DELETE" }); toast("Stopping"); }, "ghost") : null,
@@ -1123,6 +1147,7 @@
 
     async function sendFollowup(text, attachments) {
       const json = attachments === undefined ? { text } : { text, attachments };
+      json.meta = localMode.meta({});
       await api(`/tasks/${id}/followup`, { method: "POST", json });
       view.stick = true;
       await refresh();
@@ -1433,11 +1458,25 @@
             routes.length ? h("table", { class: "table" }, h("tbody", {}, routes.map(([r, q]) => h("tr", {}, h("td", { text: SERVES[r] || r }), h("td", {}, h("span", { class: "bar" }, h("i", { style: `width:${q * 100}%` }))), h("td", { class: "mono", text: q.toFixed(2) })))))
               : h("p", { class: "muted small", text: "No scores yet." }),
             h("p", { class: "muted small", text: `${x.provenance.developer} · ${x.provenance.licence} · ${x.max_context.toLocaleString()} tokens · ${x.latency.step_s}s per step · used in ${plural(m.tasks_served[x.name] || 0, "task")}` }),
+            x.hosted_as ? h("p", { class: "muted small", text: `Answered by ${x.hosted_as}` }) : null,
             x.serve_argv.length ? h("details", {}, h("summary", { text: "Start command" }), h("pre", { class: "code", text: x.serve_argv.join(" ") })) : null,
             admin && x.status === "shadow" ? h("div", { class: "row" },
               button("Evaluate", async () => { await api(`/models/${x.name}/shadow-eval`, { method: "POST" }); toast("Evaluation finished"); render(); }),
               button("Make active", async () => { await api(`/models/${x.name}/promote`, { method: "POST", json: { confirm: true } }); toast(`${x.name} is active`); render(); }, "primary")) : null));
       }));
+      const allowance = m.allowance || [];
+      fill($("#model-allowance"), ...(allowance.length ? [
+        h("h2", { class: "section-title", text: "Allowance left" }),
+        h("p", { class: "muted small", text: "What each hosted model reported when it last answered. Calls are spaced out so the allowance is not spent in a burst." }),
+        h("div", { class: "table-wrap" }, h("table", { class: "table" },
+          h("thead", {}, h("tr", {}, h("th", { text: "Model" }), h("th", { text: "Requests left" }),
+            h("th", { text: "Tokens left" }), h("th", { text: "Resets in" }), h("th", { text: "Calls" }))),
+          h("tbody", {}, allowance.map((u) => h("tr", { "data-key": u.model },
+            h("td", { class: "mono", text: u.model }),
+            h("td", { text: u.remaining_requests ? `${u.remaining_requests} of ${u.limit_requests || "?"}` : "not reported" }),
+            h("td", { text: u.remaining_tokens ? `${Number(u.remaining_tokens).toLocaleString()} of ${Number(u.limit_tokens || 0).toLocaleString()}` : "not reported" }),
+            h("td", { text: u.reset_requests || u.reset_tokens || "-" }),
+            h("td", { text: u.rate_limited ? `${u.calls} (${u.rate_limited} refused)` : String(u.calls) }))))))] : []));
       const pool = m.pool;
       fill($("#models-tech"), 
         h("p", { class: "small", text: `Registry ${m.registry_version} · hardware profile ${m.profile} · backend ${m.backend}` }),
@@ -1467,12 +1506,17 @@
       }
       const leaked = snap.external_connections || snap.breach;
       const blocked = (snap.blocked_connect_host || 0) + (snap.blocked_connect_sandbox || 0);
+      const health = await api("/health").catch(() => ({}));
+      const hosted = health.hosted ? new URL(health.hosted).host : null;
       fill(box, ...[
         h("div", { class: `status-card ${leaked ? "bad" : "good"}` }, icon(leaked ? "alert" : "check"),
           h("div", {}, h("strong", { text: leaked ? "Outbound connections were detected" : "Nothing has left this server" }),
             h("div", { class: "small", text: `${snap.external_connections} outbound · ${plural(blocked, "attempt")} blocked · counting since ${fmtTime(snap.since)}` })),
           h("span", { class: "grow" }),
           button("Run a test", async () => { testResult = await api("/egress/test", { method: "POST" }); await status(); })),
+        hosted ? h("div", { class: "status-card warn" }, icon("alert"),
+          h("div", {}, h("strong", { text: "Model calls leave this server" }),
+            h("div", { class: "small", text: `Requests and the document text they carry go to ${hosted}, which is on the allowlist. Everything else, including your files and the audit log, stays here.` }))) : null,
         testResult ? h("ul", { class: "test-list" }, testResult.checks.map((c) => h("li", {},
           h("span", { class: `check-mark ${c.pass ? "pass" : "mismatch"}` }, icon(c.pass ? "check" : "cross")),
           h("div", {}, h("span", { class: "strong", text: c.name.replace(/_/g, " ").replace("host", "server").replace(/\bip\b/, "IP").replace("dns", "DNS") }),
@@ -1635,7 +1679,7 @@
         h("header", { class: "doc-head" },
           h("div", { class: "doc-title" }, taskLink(t),
             h("span", { class: "muted small", text: `${t.workspace_title} · ${timeOf(t.updated_at)}` })),
-          h("span", { class: `status-pill ${statusTone(t)}` }, h("span", { class: "status-dot" }), statusLabel(t))),
+          h("span", { class: `status-pill ${statusTone(t)}` }, statusLabel(t))),
         h("div", { class: "tiles" }, t.shown.map((f) => fileTile(t, f))),
         t.status === "awaiting_deliverable" || t.status === "completed"
           ? h("footer", { class: "doc-foot" }, h("a", { class: "link-btn", href: `/t/${t.id}/review` }, t.status === "completed" ? "View approved draft" : "Review and approve", icon("chevron")))

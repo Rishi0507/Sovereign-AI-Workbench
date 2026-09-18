@@ -96,7 +96,7 @@ def test_unreachable_model_falls_back_with_a_note() -> None:
     be, _ = backend(handler)
     value = be.chat(request()).parsed or {}
     assert value["text"] == "Hello! Fixed reply." and "model" not in value
-    assert "not running" in value["note"]
+    assert "could not be reached" in value["note"]
 
 
 def test_clean_keeps_whole_sentences_only() -> None:

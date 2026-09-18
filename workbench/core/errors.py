@@ -35,6 +35,14 @@ class ServiceUnavailable(WorkbenchError):
     """A host service (sandboxd, egressd, model server) could not be reached."""
 
 
+class RateLimited(ServiceUnavailable):
+    """A model service refused the call for now and said when to try again."""
+
+    def __init__(self, message: str, retry_after_s: float = 0.0) -> None:
+        super().__init__(message)
+        self.retry_after_s = retry_after_s
+
+
 class NotFound(WorkbenchError):
     """A requested object does not exist."""
 

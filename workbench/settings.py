@@ -43,7 +43,7 @@ class Settings(BaseModel):
     root: Path = Field(default_factory=default_root)
     profile: str = "S"
 
-    llm_backend: Literal["heuristic", "scripted", "openai"] = "heuristic"
+    llm_backend: Literal["heuristic", "scripted", "openai", "groq"] = "heuristic"
     scripted_script: str | None = None
     router_model: str = "qwen2.5-1.5b-instruct"
     router_endpoint: str = "http://127.0.0.1:8010/v1"
@@ -52,6 +52,7 @@ class Settings(BaseModel):
     chat_model: str | None = None
     chat_endpoint: str = "http://127.0.0.1:8010/v1"
     chat_timeout_s: float = 90.0
+    remote_config: str = "config/groq.yaml"
 
     sandbox: Literal["sandboxd", "fake"] = "sandboxd"
     egress: Literal["egressd", "fake"] = "egressd"
@@ -141,7 +142,12 @@ def load_settings(root: Path | None = None, overrides: dict[str, Any] | None = N
     cfg = root / "config" / "settings.yaml"
     if cfg.is_file():
         data = yaml.safe_load(cfg.read_text(encoding="utf-8")) or {}
-    env = {**_read_dotenv(root), **os.environ}
+    dotenv = _read_dotenv(root)
+    # Entries that are not settings (an API key, for example) belong in the environment.
+    for key, value in dotenv.items():
+        if not key.startswith("WB_"):
+            os.environ.setdefault(key, value)
+    env = {**dotenv, **os.environ}
     for name in Settings.model_fields:
         key = f"WB_{name.upper()}"
         if key in env and name != "root":

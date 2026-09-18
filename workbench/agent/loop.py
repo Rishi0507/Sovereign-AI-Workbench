@@ -331,7 +331,8 @@ class Orchestrator:
 
     def _chat(self, state: TaskState, req: LLMRequest, ctx: CompiledContext | None) -> LLMResponse:
         salt = ctx.salt if ctx else self._salt(state)
-        req = req.model_copy(update={"cache_salt": salt, "task_id": state.id})
+        meta = {**req.meta, "offline": bool(state.meta.get("offline"))}
+        req = req.model_copy(update={"cache_salt": salt, "task_id": state.id, "meta": meta})
         started = time.perf_counter()
         resp = self.rt.backend.chat(req)
         prompt = "\n".join(m.content for m in req.messages)
