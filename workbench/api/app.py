@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from workbench import __version__
-from workbench.api import routes_files, routes_library, routes_system, routes_tasks
+from workbench.api import routes_files, routes_graph, routes_library, routes_system, routes_tasks
 from workbench.core.errors import ApprovalRequired, NotFound, PolicyError, WorkbenchError
 from workbench.runtime import Runtime
 from workbench.security import egress_guard
@@ -46,7 +46,7 @@ def create_app(rt: Runtime | None = None, install_guard: bool | None = None) -> 
     app = FastAPI(title="Sovereign AI Workbench", version=__version__, lifespan=lifespan,
                   docs_url="/api/docs", openapi_url="/api/openapi.json", redoc_url=None)
     app.state.rt = rt or Runtime(get_settings(), start_threads=True)
-    for module in (routes_system, routes_files, routes_tasks, routes_library):
+    for module in (routes_system, routes_files, routes_tasks, routes_library, routes_graph):
         app.include_router(module.router, prefix="/api")
 
     @app.exception_handler(NotFound)

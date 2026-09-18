@@ -437,6 +437,148 @@ Price carries a weight of 0.6, delivery 0.25 and warranty 0.15 unless the tender
         w.writerow(["P-101B", "2023-04-28", "wall_thickness", "5.7", "mm", "Casing volute bottom", "MI/UT/2023/0311"])
 
 
+PID_INK = "#2b3138"
+PID_PAPER = "#f7f7f4"
+PID_TEMPLATE = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1040 640" role="img" aria-label="{title}">
+  <rect x="0" y="0" width="1040" height="640" fill="{paper}"/>
+  <rect x="8" y="8" width="1024" height="624" rx="4" fill="none" stroke="{ink}" stroke-width="1" opacity=".55"/>
+{body}
+  <g>
+    <rect x="700" y="516" width="324" height="108" fill="none" stroke="{ink}" stroke-width="1" opacity=".55"/>
+    <line x1="700" y1="548" x2="1024" y2="548" stroke="{ink}" stroke-width="1" opacity=".55"/>
+    <line x1="700" y1="584" x2="1024" y2="584" stroke="{ink}" stroke-width="1" opacity=".55"/>
+    <text x="712" y="539" fill="{ink}" font-size="15" font-weight="650" font-family="system-ui, sans-serif">{sheet}</text>
+    <text x="712" y="571" fill="{ink}" font-size="13" font-family="system-ui, sans-serif">{title}</text>
+    <text x="712" y="606" fill="{ink}" font-size="11" opacity=".7" font-family="system-ui, sans-serif">Revision {revision} · {marking} · synthetic drawing for demonstration</text>
+  </g>
+</svg>
+'''
+
+
+def _line(d: str, width: float = 2, opacity: float = 1) -> str:
+    return f'<path d="{d}" fill="none" stroke="{PID_INK}" stroke-width="{width}" opacity="{opacity}"/>'
+
+
+def _text(x: int, y: int, text: str, size: float = 13, weight: int = 400, anchor: str = "middle",
+          opacity: float = 1) -> str:
+    return (f'<text x="{x}" y="{y}" text-anchor="{anchor}" fill="{PID_INK}" font-size="{size}" '
+            f'font-weight="{weight}" opacity="{opacity}" font-family="system-ui, sans-serif">{text}</text>')
+
+
+def _hit(x: int, y: int, w: int, h: int) -> str:
+    return f'<rect class="pid-hit" x="{x}" y="{y}" width="{w}" height="{h}" fill="transparent" stroke="none"/>'
+
+
+def pump(x: int, y: int, tag: str, description: str, note: str = "") -> str:
+    """A centrifugal pump: casing, impeller, suction and discharge nozzles."""
+    return f'''  <g class="pid-item" data-tag="{tag}"><title>{tag} {description}</title>
+    <circle cx="{x}" cy="{y}" r="26" fill="none" stroke="{PID_INK}" stroke-width="2"/>
+    {_line(f"M{x - 10} {y - 12} L{x + 14} {y} L{x - 10} {y + 12} Z")}
+    {_line(f"M{x - 26} {y} H{x - 52}")}
+    {_line(f"M{x} {y - 26} V{y - 52}")}
+    {_text(x, y + 48, tag, 14, 650)}
+    {_text(x, y + 64, note or description, 11, 400, "middle", .7)}
+    {_hit(x - 54, y - 54, 108, 118)}
+  </g>
+'''
+
+
+def exchanger(x: int, y: int, tag: str, description: str) -> str:
+    """A shell and tube exchanger."""
+    return f'''  <g class="pid-item" data-tag="{tag}"><title>{tag} {description}</title>
+    <rect x="{x - 60}" y="{y - 38}" width="120" height="76" rx="8" fill="none" stroke="{PID_INK}" stroke-width="2"/>
+    {_line(f"M{x - 46} {y - 20} H{x + 32} V{y} H{x - 32} V{y + 20} H{x + 46}", 1, .6)}
+    {_line(f"M{x - 30} {y - 38} V{y + 38}", 1, .45)}
+    {_line(f"M{x + 30} {y - 38} V{y + 38}", 1, .45)}
+    {_line(f"M{x - 60} {y - 20} H{x - 96}")}
+    {_line(f"M{x + 60} {y + 20} H{x + 96}")}
+    {_text(x, y + 64, tag, 14, 650)}
+    {_text(x, y + 80, description, 11, 400, "middle", .7)}
+    {_hit(x - 62, y - 40, 124, 124)}
+  </g>
+'''
+
+
+def vessel(x: int, y: int, tag: str, description: str) -> str:
+    """A vertical vessel with dished ends."""
+    shell = f"M{x - 42} {y - 70} a42 22 0 0 1 84 0 v140 a42 22 0 0 1 -84 0 z"
+    return f'''  <g class="pid-item" data-tag="{tag}"><title>{tag} {description}</title>
+    <path d="{shell}" fill="none" stroke="{PID_INK}" stroke-width="2"/>
+    {_line(f"M{x - 42} {y - 40} H{x - 86}")}
+    {_line(f"M{x + 42} {y + 50} H{x + 86}")}
+    {_line(f"M{x} {y - 92} V{y - 124}")}
+    {_text(x, y + 108, tag, 14, 650)}
+    {_text(x, y + 124, description, 11, 400, "middle", .7)}
+    {_hit(x - 88, y - 126, 176, 252)}
+  </g>
+'''
+
+
+def instrument(x: int, y: int, tag: str, description: str) -> str:
+    """A field instrument bubble."""
+    kind, loop = tag.split("-", 1)
+    return f'''  <g class="pid-item" data-tag="{tag}"><title>{tag} {description}</title>
+    <circle cx="{x}" cy="{y}" r="22" fill="{PID_PAPER}" stroke="{PID_INK}" stroke-width="2"/>
+    {_line(f"M{x - 22} {y} H{x + 22}", 1, .6)}
+    {_text(x, y - 5, kind, 12)}
+    {_text(x, y + 15, loop, 12)}
+    {_text(x, y + 44, description, 11, 400, "middle", .7)}
+    {_hit(x - 24, y - 24, 48, 72)}
+  </g>
+'''
+
+
+def run(points: str, label: str = "", lx: int = 0, ly: int = 0) -> str:
+    text = _text(lx, ly, label, 11, 400, "start", 0.7) if label else ""
+    return "  <g>" + _line(points) + text + "</g>" + chr(10)
+
+
+def signal(points: str) -> str:
+    dashed = _line(points, 1.2, 0.7).replace("/>", ' stroke-dasharray="5 4"/>')
+    return "  " + dashed + chr(10)
+
+
+def build_pid_sheets(ws_inputs: Path) -> None:
+    """Synthetic P&ID sheets for the tags in the asset register, drawn as SVG so tags stay clickable."""
+    sheets = [
+        ("PID-CW-003", "Cooling water booster pumps", "C", "Restricted",
+         pump(300, 330, "P-108A", "Cooling water booster pump A", "duty")
+         + pump(560, 330, "P-108B", "Cooling water booster pump B", "standby")
+         + instrument(760, 190, "FT-108", "Flow transmitter, common discharge")
+         + run("M60 330 H248", "CW-12 cooling water supply, 8 in", 62, 318)
+         + run("M140 330 V470 H508 V330", "", 0, 0)
+         + run("M300 278 V190 H738", "", 0, 0)
+         + run("M560 278 V190", "", 0, 0)
+         + run("M782 190 H980", "CW-14 to cooling tower, 8 in", 800, 178)
+         + signal("M760 168 V120 H860")),
+        ("PID-PW-001", "Process water pumps", "B", "Restricted",
+         pump(300, 330, "P-101A", "Process water pump A", "duty")
+         + pump(560, 330, "P-101B", "Process water pump B", "standby")
+         + run("M60 330 H248", "PW-04 process water suction, 6 in", 62, 318)
+         + run("M140 330 V470 H508 V330", "", 0, 0)
+         + run("M300 278 V190 H980", "PW-06 to unit battery limit, 6 in", 700, 178)
+         + run("M560 278 V190", "", 0, 0)),
+        ("PID-AM-002", "Lean amine cooler", "A", "Restricted",
+         exchanger(440, 300, "E-201", "Lean amine cooler")
+         + run("M60 280 H344", "AM-21 lean amine from regenerator", 62, 268)
+         + run("M536 320 H980", "AM-22 lean amine to absorber", 700, 308)
+         + run("M440 150 V262", "CW-31 cooling water in", 452, 140)
+         + run("M440 338 V470 H980", "CW-32 cooling water out", 700, 458)),
+        ("PID-FL-001", "Flash drum", "A", "Restricted",
+         vessel(440, 300, "V-301", "Flash drum")
+         + run("M60 260 H354", "FL-01 feed from separator", 62, 248)
+         + run("M482 350 H980", "FL-03 liquid to storage", 700, 338)
+         + run("M440 176 V60 H980", "FL-02 vapour to flare header", 700, 48)),
+    ]
+    for sheet, title, revision, marking, body in sheets:
+        svg = PID_TEMPLATE.format(sheet=sheet, title=title, revision=revision, marking=marking.upper(),
+                                  body=body, ink=PID_INK, paper=PID_PAPER)
+        path = ws_inputs / f"{sheet}.svg"
+        path.write_text(svg, encoding="utf-8")
+        (ws_inputs / f"{sheet}.svg.label.json").write_text(
+            json.dumps({"label": {"level": marking, "compartments": []}}, indent=2), encoding="utf-8")
+
+
 def build_asset_register(root: Path) -> None:
     rows = [
         ["P-101A", "centrifugal_pump", "Process water pump A", "Deccan Hydraulics Pvt Ltd", "PO-4500118820", "PID-PW-001"],
@@ -737,6 +879,7 @@ def main() -> None:
     build_board_notes(plant / "board_notes.md")
     build_offers(proc)
     build_kb(fixtures / "kb")
+    build_pid_sheets(plant)
     build_asset_register(fixtures)
     build_org_templates(root / "org_templates")
     print(f"fixtures written under {fixtures}")
