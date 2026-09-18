@@ -247,6 +247,15 @@
     },
   };
 
+  const ROLE_WORDS = { engineer: "engineer", approver: "can approve", buyer: "buyer", admin: "administrator",
+    security_officer: "security", document_owner: "document owner", developer: "developer" };
+  // The defining role only: the menu is narrow, and "approver" is secondary to what a person is.
+  const roleWords = (roles) => {
+    const named = (roles || []).filter((r) => r !== "approver");
+    return ROLE_WORDS[named[0] || (roles || [])[0]] || named[0] || "";
+  };
+  const initials = (name) => String(name || "?").split(/\s+/).slice(0, 2).map((w) => w[0] || "").join("").toUpperCase();
+
   const bytes = (n) => (n < 1024 ? `${n} B` : n < 1048576 ? `${Math.round(n / 1024)} KB` : `${(n / 1048576).toFixed(1)} MB`);
   const plural = (n, word, many) => `${n} ${n === 1 ? word : many || `${word}s`}`;
   const shortName = (p) => String(p).split("/").pop();
@@ -476,14 +485,23 @@
       setUserCookie(USER);
       [me, workspaces] = await Promise.all([api("/me"), api("/workspaces")]);
     }
-    const userSel = $("#user-select");
-    shell.users.forEach((u) => userSel.append(h("option", { value: u.id, text: u.name })));
-    userSel.value = USER;
-    userSel.addEventListener("change", () => {
-      store.set("wb_user", userSel.value);
-      setUserCookie(userSel.value);
+    const pick = (id) => {
+      if (id === USER) { reveal(menu, false); return; }
+      store.set("wb_user", id);
+      setUserCookie(id);
       location.href = "/";
-    });
+    };
+    fill($("#user-list"), ...shell.users.map((u) => h("button", {
+      class: `person${u.id === USER ? " on" : ""}`, type: "button", role: "menuitemradio",
+      "aria-checked": String(u.id === USER), onclick: () => pick(u.id),
+    },
+      h("span", { class: "avatar sm", text: initials(u.name) }),
+      h("span", { class: "person-main" },
+        h("span", { class: "person-name", text: u.name }),
+        h("span", { class: "person-meta" },
+          h("span", { class: `tag lv-${levelOf(u.clearance)}`, title: u.clearance, text: String(u.clearance).split(" · ")[0] }),
+          h("span", { class: "muted", text: roleWords(u.roles) }))),
+      u.id === USER ? h("span", { class: "person-tick" }, icon("check")) : null)));
     shell.me = me;
     paintIdentity(me);
     cache.set("identity", { user: USER, me: { name: me.name } });
