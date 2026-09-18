@@ -44,9 +44,9 @@ ROUTE_EXAMPLES = [
     ("summarise the contract", "DOCS"),
     ("what did the inspector find", "DOCS"),
 ]
-GENERAL = ("The message is not about the documents on this machine. Answer it briefly and honestly. You have no "
-           "internet and no knowledge of the outside world, so say plainly when you cannot know something, and "
-           "never invent an answer. Then offer to help with the files.")
+GENERAL = ("The message is not about the documents on this machine. Answer it yourself, briefly: arithmetic and "
+           "general knowledge are fine. Only say you cannot know something when it needs the internet, live data "
+           "or the world outside this machine, and never invent such an answer.")
 HINTS = {
     "greeting": ("The user is greeting you. Greet them back warmly in your own words, without names or "
                  "the time of day, and ask what they would like to work on."),
@@ -64,7 +64,7 @@ class ConversationalBackend:
     """Routes ``chat.reply`` to a chat model and everything else to ``base``."""
 
     def __init__(self, base: LLMBackend, model: str, endpoint: str, timeout_s: float = 90.0,
-                 max_tokens: int = 110, chat: LLMBackend | None = None,
+                 max_tokens: int = 400, chat: LLMBackend | None = None,
                  suggest: LLMBackend | None = None) -> None:
         self.base = base
         # Suggestion buttons always come from the rules, so no model can invent a file or a path.

@@ -145,3 +145,21 @@ def test_a_model_that_refuses_strict_schemas_is_asked_for_plain_json() -> None:
     # The refusal is remembered, so the next call asks for plain JSON straight away.
     be.chat(asking)
     assert (seen[2].get("response_format") or {}).get("type") == "json_object"
+
+
+def test_a_model_the_account_cannot_use_is_replaced_by_the_default() -> None:
+    seen: list[str] = []
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        model = json.loads(req.content)["model"]
+        seen.append(model)
+        if model == "openai/gpt-oss-20b":
+            return httpx.Response(404, json={"error": {"message": "The model `openai/gpt-oss-20b` does not exist",
+                                                       "code": "model_not_found"}})
+        return answer()
+
+    be = backend(handler)
+    be.chat(request("gpt-oss-20b"))
+    assert seen == ["openai/gpt-oss-20b", "llama-3.3-70b-versatile"]
+    be.chat(request("gpt-oss-20b"))
+    assert seen[-1] == "llama-3.3-70b-versatile"  # remembered, so it is not tried again
