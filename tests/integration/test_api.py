@@ -413,3 +413,57 @@ def test_a_named_file_is_attached_automatically(api_default: tuple[TestClient, R
     other = client.post("/api/tasks", headers=ENG, json={"workspace": "plant-a",
                                                           "text": "Which pumps are governed by SOP-MECH-014?"}).json()
     assert other["attachments"] == []
+
+
+def test_a_paragraph_can_be_rewritten_and_must_then_be_accepted(api: tuple[TestClient, Runtime]) -> None:
+    client, rt = api
+    task = run_to_draft(client, "Draft an approval note for this inspection report", ["inputs/inspection_P108B.pdf"])
+    task_id = task["id"]
+    draft = client.get(f"/api/tasks/{task_id}/draft", headers=ENG).json()
+    d = draft["deliverables"][0]
+    body = next(b for b in d["preview"]["blocks"]
+                if b["type"] == "p" and b["style"] not in {"Title", "WB Marking", "WB Reference"}
+                and any(r["sup"] for r in b["runs"]))
+    index = body["index"]
+    markers_before = [r["text"] for r in body["runs"] if r["sup"]]
+
+    edited = client.post(f"/api/tasks/{task_id}/draft/edit", headers=ENG,
+                         json={"file_id": d["file_id"], "paragraph": index,
+                               "text": "The casing was inspected and a reading of 99.9 mm was recorded."}).json()
+    page = edited["deliverables"][0]
+    written = next(b for b in page["preview"]["blocks"] if b.get("index") == index)
+    assert "".join(r["text"] for r in written["runs"] if not r["sup"]).startswith("The casing was inspected")
+    # The reference markers the renderer placed are still there.
+    assert [r["text"] for r in written["runs"] if r["sup"]] == markers_before
+    # A figure typed in by hand has no record behind it, so it is flagged at once.
+    assert "99.9 mm" in [f["raw"] for f in page["provenance"]["figures"] if f["status"] == "unsourced"]
+
+    key = f"{d['file_id']}:{index}"
+    edit = next(e for e in edited["summary"]["edits"] if e["key"] == key)
+    assert edit["by"] == "engineer1" and edit["accepted"] is False
+    assert "1 edited paragraph(s) not accepted" in edited["blockers"]
+    assert client.post(f"/api/tasks/{task_id}/draft/decision", headers=ENG,
+                       json={"decision": "approve"}).status_code == 409
+
+    accepted = client.post(f"/api/tasks/{task_id}/draft/edits/{key}/accept", headers=ENG).json()
+    assert accepted["summary"]["edits"][0]["accepted"] is True
+    assert "edited paragraph" not in " ".join(accepted["blockers"])
+    trail = {e.event["type"] for e in rt.audit.tail(60) if str(e.event.get("type", "")).startswith("draft.edit")}
+    assert trail == {"draft.edited", "draft.edit_accepted"}
+
+
+def test_an_approved_file_cannot_be_rewritten(api: tuple[TestClient, Runtime]) -> None:
+    client, _rt = api
+    task = run_to_draft(client, "Draft an approval note for this inspection report",
+                        ["inputs/inspection_P108B.pdf"])
+    task_id = task["id"]
+    draft = client.get(f"/api/tasks/{task_id}/draft", headers=ENG).json()
+    d = draft["deliverables"][0]
+    acknowledged = [c["record_id"] for c in draft["checks"] if c["status"] == "mismatch"]
+    assert client.post(f"/api/tasks/{task_id}/draft/decision", headers=ENG,
+                       json={"decision": "approve", "acknowledged": acknowledged}).status_code == 200
+    wait_for(client, task_id, lambda t: t["status"] == "completed")
+    refused = client.post(f"/api/tasks/{task_id}/draft/edit", headers=ENG,
+                          json={"file_id": d["file_id"], "paragraph": 4, "text": "Changed after approval."})
+    assert refused.status_code == 409
+    assert "approved file cannot be edited" in refused.json()["detail"]

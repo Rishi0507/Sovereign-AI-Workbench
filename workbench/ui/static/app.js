@@ -214,6 +214,7 @@
     chevron: "M8 5l5 5-5 5",
     dot: "M10 11a1 1 0 100-2 1 1 0 000 2z",
     plus: "M10 5v10M5 10h10",
+    slides: "M3.5 4.5h13v9h-13zM7 16.5h6M10 13.5v3",
     minus: "M5 10h10",
     target: "M10 3v3M10 14v3M3 10h3M14 10h3M10 14.2a4.2 4.2 0 100-8.4 4.2 4.2 0 000 8.4z",
     note: "M6 2.5h5.5l3.5 3.5v11.5H6zM8.5 10h4M8.5 13h4",
@@ -654,9 +655,10 @@
       add("contract", "Summarise a contract", "Summarise this vendor contract", [find(/contract.*\.pdf$/)]);
       add("chart", "Analyse sensor readings", "Write a Python script to parse these pressure readings and flag anomalies", [find(/pressure.*\.csv$/)]);
       add("calc", "Calculate wall thickness", "Compute the required wall thickness for this pipe per the attached data", [find(/pipe_data/)]);
+      add("slides", "Prepare a board deck", "Turn these notes into a short board deck", [find(/notes.*\.md$/)]);
       const offers = files.filter((f) => f.area === "inputs" && /^(offer_|tender)/.test(f.name));
       if (offers.length >= 2) ideas.push(["compare", "Compare vendor offers", "Compare these three vendor offers against the tender conditions and recommend one", offers]);
-      fill($("#starters"), ...ideas.slice(0, 4).map(([ico, label, prompt, paths]) => h("button", {
+      fill($("#starters"), ...ideas.slice(0, 5).map(([ico, label, prompt, paths]) => h("button", {
         class: "starter", type: "button",
         onclick: () => {
           text.value = prompt;
@@ -1253,12 +1255,27 @@
         const inner = flagged ? h("span", { class: "unverified", title: "This sentence could not be matched to its source" }, content) : content;
         const style = b.style;
         if (style === "WB Marking") return;
-        if (style === "Title" || style === "Heading 1") paper.append(h("h1", {}, inner));
-        else if (style.startsWith("Heading")) paper.append(h("h2", {}, inner));
-        else if (style === "WB Meta") paper.append(h("p", { class: "meta" }, inner));
-        else if (style === "List Bullet") paper.append(h("p", { class: "bullet" }, inner));
+        const edited = (data.summary.edits || []).find((e) => e.key === `${d.file_id}:${b.index}`);
+        const mark = edited ? h("span", { class: `edit-mark${edited.accepted ? " ok" : ""}`,
+          title: `Edited by ${edited.by}${edited.accepted ? ", accepted" : ", not accepted yet"}`, text: "edited" }) : null;
+        const line = (tag, cls) => {
+          const el = h(tag, cls ? { class: cls } : {}, inner, mark);
+          if (canEdit(d)) {
+            el.classList.add("editable");
+            el.title = "Click to rewrite this paragraph";
+            listen(el, "click", (ev) => {
+              if (ev.target.closest(".fig, sup, .edit-mark")) return;
+              editParagraph(el, d, b.index, b.runs.filter((r) => !r.sup).map((r) => r.text).join(""));
+            });
+          }
+          return el;
+        };
+        if (style === "Title" || style === "Heading 1") paper.append(line("h1"));
+        else if (style.startsWith("Heading")) paper.append(line("h2"));
+        else if (style === "WB Meta") paper.append(line("p", "meta"));
+        else if (style === "List Bullet") paper.append(line("p", "bullet"));
         else if (style === "WB Reference") paper.append(h("p", { class: "ref" }, inner));
-        else paper.append(h("p", {}, inner));
+        else paper.append(line("p"));
       });
       paper.append(h("div", { class: "paper-marking", text: d.marking }));
       return [h("div", { class: "legend" },
@@ -1289,9 +1306,40 @@
         return h("div", { class: "sheet pad" }, h("img", { class: "svg-preview", alt: d.name, src: `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(p.svg)))}` }));
       }
       if (p.slides) {
-        return h("div", { class: "slides" }, p.slides.map((s, i) => h("div", { class: "slide" }, h("strong", { text: `${i + 1}. ${s[0] || ""}` }), h("ul", { class: "plain" }, s.slice(1).map((x) => h("li", { text: x }))))));
+        return h("div", { class: "slides" }, p.slides.map((s, i) => h("figure", { class: "slide", "data-key": `s-${i}` },
+          h("div", { class: "slide-face" },
+            h("p", { class: "slide-marking", text: d.marking }),
+            h("h3", { class: "slide-title", text: s.title || `Slide ${i + 1}` }),
+            s.subtitle ? h("p", { class: "slide-sub", text: s.subtitle }) : null,
+            h("ul", { class: "slide-bullets" }, (s.bullets || []).map((x) => h("li", { text: x }))),
+            h("span", { class: "slide-no", text: i + 1 })),
+          h("figcaption", { class: "muted small", text: s.title || `Slide ${i + 1}` }))));
       }
       return h("pre", { class: "code tall", text: p.text || "This file cannot be previewed. Download it instead." });
+    }
+
+    const canEdit = (d) => d.status === "draft" && !d.final_file_id && d.preview.type === "docx"
+      && (data.task.is_owner || data.can_approve) && data.task.status !== "completed";
+
+    function editParagraph(el, d, index, text) {
+      if (el.querySelector("textarea")) return;
+      const area = h("textarea", { class: "input paper-edit", rows: Math.max(2, Math.ceil(text.length / 70)) });
+      area.value = text;
+      const original = [...el.childNodes];
+      const save = button("Save", async (e) => {
+        const next = area.value.trim();
+        if (!next || next === text) { el.replaceChildren(...original); return; }
+        await guarded(e.currentTarget, async () => {
+          data = await api(`/tasks/${id}/draft/edit`, { method: "POST",
+            json: { file_id: d.file_id, paragraph: index, text: next } });
+          render(0);
+        });
+      }, "primary");
+      const cancel = button("Cancel", () => el.replaceChildren(...original), "ghost");
+      el.replaceChildren(area, h("div", { class: "row paper-edit-row" }, save, cancel,
+        h("span", { class: "muted small", text: "Reference markers stay where they are. Figures are checked again." })));
+      area.focus();
+      area.setSelectionRange(area.value.length, area.value.length);
     }
 
     let shownKey = "";
@@ -1338,6 +1386,24 @@
             c.note ? h("div", { class: "muted small", text: c.note }) : null,
             c.status === "mismatch" ? h("label", { class: "tick" }, box, acked ? "Reviewed" : "Mark as reviewed") : null);
         })));
+      }
+
+      const edits = (s.edits || []).filter((e) => e.key.startsWith(`${d.file_id}:`));
+      if (edits.length) {
+        parts.push(h("section", { class: "side-block" }, h("h3", { text: "Edited by hand" }),
+          h("p", { class: "muted small", text: "The checks cannot vouch for text a person rewrote. An approver accepts each edit." }),
+          edits.map((e) => h("div", { class: `issue${e.accepted ? "" : " mismatch"}`, "data-key": `edit-${e.key}` },
+            h("div", { class: "strong", text: `Paragraph ${e.key.split(":")[1]}` }),
+            h("div", { class: "muted small strike", text: e.before.slice(0, 120) }),
+            h("div", { class: "small", text: e.after.slice(0, 160) }),
+            e.accepted
+              ? h("span", { class: "chip ok", text: "Accepted" })
+              : button("Accept this edit", async (ev) => {
+                await guarded(ev.currentTarget, async () => {
+                  data = await api(`/tasks/${id}/draft/edits/${encodeURIComponent(e.key)}/accept`, { method: "POST" });
+                  render(0);
+                });
+              }, data.can_approve ? "" : "ghost")))));
       }
 
       const orphans = (d.provenance.figures || []).filter((f) => f.status === "unsourced");

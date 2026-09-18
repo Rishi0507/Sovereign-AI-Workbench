@@ -288,8 +288,23 @@ def _deliverable_preview(rt: Runtime, state: TaskState, d: Any) -> dict[str, Any
     elif suffix == ".pptx":
         from pptx import Presentation
 
-        preview["slides"] = [[sh.text_frame.text for sh in s.shapes if sh.has_text_frame and sh.name != "WB Marking"]
-                             for s in Presentation(str(path)).slides]
+        deck = []
+        for slide in Presentation(str(path)).slides:
+            title_shape = slide.shapes.title
+            title_id = title_shape.shape_id if title_shape is not None else None
+            bullets: list[str] = []
+            subtitle = ""
+            for shape in slide.shapes:
+                if not shape.has_text_frame or shape.name == "WB Marking" or shape.shape_id == title_id:
+                    continue
+                lines = [p.text.strip() for p in shape.text_frame.paragraphs if p.text.strip()]
+                if shape.name.startswith("Subtitle"):
+                    subtitle = " ".join(lines)
+                else:
+                    bullets += lines
+            deck.append({"title": title_shape.text if title_shape is not None else "",
+                         "subtitle": subtitle, "bullets": bullets})
+        preview["slides"] = deck
     return {**d.model_dump(mode="json"), "preview": preview, "label_display": d.label.display(),
             "marking": d.label.marking(), "name": PurePosixPath(d.relpath).name}
 
@@ -336,6 +351,80 @@ def _correct_in_file(path: Path, location: str, raw: str, value: str) -> bool:
                 doc.save(str(path))
                 return True
     return False
+
+
+class EditBody(BaseModel):
+    file_id: str
+    paragraph: int = Field(ge=1)
+    text: str = Field(min_length=1, max_length=4000)
+
+
+@router.post("/tasks/{task_id}/draft/edit")
+def draft_edit(task_id: str, body: EditBody, user: User = Depends(current_user),
+               rt: Runtime = Depends(get_rt)) -> dict[str, Any]:
+    """Rewrite one paragraph of a draft. Reference markers are kept, and the figures are checked again."""
+    from docx import Document
+
+    state = task_for(rt, user, task_id)
+    if user.id != state.user and "approver" not in user.roles:
+        raise HTTPException(403, "only the task owner or an approver can edit a draft")
+    d = next((x for x in state.deliverables if x.file_id == body.file_id), None)
+    if d is None:
+        raise HTTPException(404, f"{body.file_id} is not a deliverable of this task")
+    if d.status != "draft" or d.final_file_id:
+        raise HTTPException(409, "an approved file cannot be edited; ask for changes instead")
+    rec = rt.files.get(body.file_id)
+    path = rt.files.resolve(rec.workspace, rec.relpath)
+    if path.suffix.lower() != ".docx":
+        raise HTTPException(415, "only Word drafts can be edited here")
+    text = body.text.strip()
+    if not text:
+        raise HTTPException(422, "a paragraph cannot be emptied")
+    doc = Document(str(path))
+    if body.paragraph > len(doc.paragraphs):
+        raise HTTPException(404, f"paragraph {body.paragraph} is not in this draft")
+    para = doc.paragraphs[body.paragraph - 1]
+    # Superscript runs are the reference markers: they stay where the renderer put them.
+    prose = [r for r in para.runs if not r.font.superscript]
+    before = "".join(r.text for r in prose)
+    if prose:
+        prose[0].text = text
+        for run in prose[1:]:
+            run.text = ""
+    else:
+        para.insert_paragraph_before()  # keeps the style when a paragraph held only markers
+        para.add_run(text)
+    doc.save(str(path))
+    rt.files.refresh(body.file_id)
+
+    edits = dict(state.meta.get("edits") or {})
+    key = f"{body.file_id}:{body.paragraph}"
+    first = edits.get(key, {})
+    edits[key] = {"before": first.get("before", before), "after": text, "by": user.id,
+                  "at": rt.clock.now().isoformat(), "accepted": False}
+    state.meta["edits"] = edits
+    rt.tasks.save(state)
+    # Figures are read from the file, so a number typed in without a source shows up at once.
+    rt.orchestrator.review(state)
+    rt.audit.append({"type": "draft.edited", "task": task_id, "file": rec.relpath, "paragraph": body.paragraph,
+                     "before": before[:400], "after": text[:400], "by": user.id})
+    return draft(task_id, user, rt)
+
+
+@router.post("/tasks/{task_id}/draft/edits/{key}/accept")
+def accept_edit(task_id: str, key: str, user: User = Depends(current_user),
+                rt: Runtime = Depends(get_rt)) -> dict[str, Any]:
+    """An approver takes responsibility for an edited paragraph, which the checks cannot vouch for."""
+    state = task_for(rt, user, task_id)
+    require_role(user, "approver")
+    edits = dict(state.meta.get("edits") or {})
+    if key not in edits:
+        raise HTTPException(404, "no such edit")
+    edits[key] = {**edits[key], "accepted": True, "accepted_by": user.id, "accepted_at": rt.clock.now().isoformat()}
+    state.meta["edits"] = edits
+    rt.tasks.save(state)
+    rt.audit.append({"type": "draft.edit_accepted", "task": task_id, "edit": key, "by": user.id})
+    return draft(task_id, user, rt)
 
 
 @router.post("/tasks/{task_id}/draft/figures/{fid}")

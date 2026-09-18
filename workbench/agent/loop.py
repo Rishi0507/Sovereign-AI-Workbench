@@ -954,6 +954,11 @@ class Orchestrator:
                                             if not (isinstance(f.value, float) and math.isnan(f.value))
                                             or f.formula]},
                     claims=claims))
+        # A re-check after an edit must not forget what has already been approved.
+        decided = {d.file_id: (d.status, d.final_file_id) for d in state.deliverables}
+        for d in deliverables:
+            if d.file_id in decided:
+                d.status, d.final_file_id = decided[d.file_id]
         state.deliverables = deliverables
         state.checks = [r.body for r in records if r.kind == "check_result" and isinstance(r.body, dict)
                         and r.task_id == state.id]
@@ -968,8 +973,11 @@ class Orchestrator:
         orphans = [f"{d.file_id}:{f['id']}" for d in state.deliverables for f in d.provenance.get("figures", [])
                    if f["status"] == "unsourced" and f"{d.file_id}:{f['id']}" not in decided]
         unverified = [c["id"] for d in state.deliverables for c in d.claims if c["status"] == "unverified"]
+        edits = dict(state.meta.get("edits") or {})
         return {"mismatches": mismatches, "unacknowledged": [m for m in mismatches if m not in state.acknowledged],
                 "orphans": orphans, "unverified_claims": unverified,
+                "edits": [{"key": k, **v} for k, v in edits.items()],
+                "unaccepted_edits": [k for k, v in edits.items() if not v.get("accepted")],
                 "files": [d.relpath for d in state.deliverables]}
 
     def approval_blockers(self, state: TaskState) -> list[str]:
@@ -979,6 +987,8 @@ class Orchestrator:
             out.append(f"{len(s['unacknowledged'])} mismatch(es) not acknowledged")
         if s["orphans"]:
             out.append(f"{len(s['orphans'])} unsourced figure(s) not resolved")
+        if s["unaccepted_edits"]:
+            out.append(f"{len(s['unaccepted_edits'])} edited paragraph(s) not accepted")
         return out
 
     def _deliver(self, state: TaskState, cancelled: Callable[[], bool]) -> None:
