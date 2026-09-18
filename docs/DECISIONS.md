@@ -275,10 +275,13 @@ The offline rules stay loaded: they answer when the service cannot be reached or
 because of a rate limit. The host is on the egress allowlist, and the security page says plainly that model calls
 leave the server.
 
-**Why:** The workbench had no GPU, so every answer came from rules. This gives real model quality without a GPU. It
-is a deviation from "nothing leaves the premises", which is why it is opt-in, off by default, listed in the
-allowlist, stated in the interface, and reversible by one setting. Code: `workbench/llm/remote.py`,
-`workbench/llm/select.py`.
+**Why:** The build machine has no GPU, so the inference layer described in the design document cannot run on it and
+every answer came from the deterministic rules. Standing that layer in with a hosted service exercises the agentic
+layer against real model output while the registry, router, plans, checks and provenance stay unchanged, which is
+what the layer is meant to be judged on. It is a deviation from "nothing leaves the premises": it is therefore
+opt-in, off in the committed configuration, listed in the egress allowlist, stated on the security page, and
+reversed by one setting. The target deployment uses `openai` against vLLM on loopback, where the same client code
+and the same registry names apply. Code: `workbench/llm/remote.py`, `workbench/llm/select.py`.
 
 ### D39. Documents are read in place, and only decision makers are told what is waiting
 
@@ -291,3 +294,14 @@ everyone else sees the task and its files as before, subject to clearance.
 **Why:** Checking a draft meant downloading it and opening Word. The waiting list was also shown to people with no
 authority to act on it, such as the internal developer account, which invited them to open approvals they cannot
 give. Code: `workbench/documents/preview.py`, `workbench/api/routes_library.py`.
+
+### D41. Classification is shown on documents, not as a banner on every page
+
+**Decision:** The classification of a file is shown on its card, in its preview, on the review sheet and stamped
+into every exported file, where it describes something concrete. The page-wide marking chip in the top bar is
+removed. The account list shows people by name; their clearance governs what they may open and is not displayed as
+a badge beside them.
+
+**Why:** A banner reading CONFIDENTIAL above a conversation about the weather trains people to ignore markings,
+which is the opposite of what a marking is for. Enforcement is unchanged: clearance still decides what is listed,
+what can be opened and what a share or downgrade may do.

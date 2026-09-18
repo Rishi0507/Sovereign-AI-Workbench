@@ -72,7 +72,7 @@ flowchart TB
     end
 
     subgraph Models
-        LLM["llm/<br/>heuristic, scripted,<br/>openai_compat"]
+        LLM["llm/<br/>heuristic, scripted,<br/>openai_compat, remote"]
         POOL["pool/manager.py"]
         REG["registry/<br/>models, serve_cmd, shadow"]
         CTX["context/<br/>compiler, cache_salt"]
@@ -100,6 +100,12 @@ flowchart TB
     ORCH --> AUD
     API --> FS
 ```
+
+The model layer has one client and several endpoints behind it. `heuristic` answers from rules with no server;
+`openai_compat` speaks to vLLM on loopback, which is the target deployment; `remote` points the same client at a
+hosted OpenAI-compatible service, which stands the inference layer in on a machine without a GPU and is the only
+configuration that sends data off the premises (`docs/SECURITY.md` section 5.1). The registry names, the router
+and the agent loop are identical in all three cases.
 
 `workbench/runtime.py` builds one `Runtime` that wires these parts together from `config/`. Tests build their own runtimes with a fixed clock, a temporary root and whichever backend or host-service fakes they need.
 

@@ -1,5 +1,9 @@
 # Hosted models, used when llm_backend is "groq".
 #
+# This stands in for the on-premises inference layer on a machine without a GPU. The target
+# deployment serves the registry models with vLLM on loopback (llm_backend "openai"); the client,
+# the registry names and the agent loop are the same either way, only the endpoint differs.
+#
 # The workbench keeps its own model names (config/models.yaml) so routing, quality tables and the
 # model panel stay unchanged. This file only says which hosted model answers for each of them.
 # The key is read from the environment variable named below; it never appears in this file.

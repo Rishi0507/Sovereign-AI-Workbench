@@ -239,7 +239,7 @@ The interface is deliberately plain: a sidebar with your recent tasks, one box t
 | **Models** | See which models are ready, asleep or being evaluated, and how well each does per kind of work. |
 | **Security** | See that nothing has left the server, run a network test, check the audit log and handle approval requests. |
 
-The account menu (bottom left) switches the signed-in user in development and links to Models and Security. The top bar shows the classification of the open task, and stays otherwise empty: a network chip appears only if data has left the server or the monitor has stopped. The interface follows the system light or dark theme, works on phone screens, and animates every change (tabs slide, panels glide, lists update in place) so nothing jumps.
+The account menu (bottom left) switches the signed-in user in development and links to Models and Security. Classification travels with the document rather than the page: it is shown on every file, in the preview and on the review sheet, and stamped into each exported file. The top bar carries the workspace on the home page and is otherwise empty; a network chip appears only if data has left the server or the monitor has stopped. The interface follows the system light or dark theme, works on phone screens, and animates every change (tabs slide, panels glide, lists update in place) so nothing jumps.
 
 ![Library](docs/images/library.png)
 
@@ -280,10 +280,13 @@ All configuration lives in plain files under [`config/`](config), and every top-
 | `rules/consistency/*.yaml` | Consistency rules applied to every deliverable. |
 | `schemas/*.json` | JSON Schemas for every structured model output. |
 
-To use hosted models instead of a GPU, set `WB_LLM_BACKEND=groq` and put your key in `.env` as `GROQ_API_KEY`;
-`config/groq.yaml` says which hosted model answers for each entry in the registry, and how far apart calls are
-spaced. Model calls then leave the machine, which the security page states plainly, and the offline rules still
-answer whenever the service is unreachable or out of allowance.
+The target deployment runs the models on the premises, on the GPU described in the design document. A development
+machine without that GPU can stand the inference layer in with a hosted OpenAI-compatible service: set
+`WB_LLM_BACKEND=groq` and put the key in `.env` as `GROQ_API_KEY`. `config/groq.yaml` maps each entry in the model
+registry to a hosted model and sets how far apart calls are spaced. The agentic layer is unchanged, so behaviour
+observed this way is representative of the same layer driven by on-premises servers; the sovereignty property is
+not, because model calls then leave the machine. The interface states this on the security page, and the
+deterministic rules continue to answer whenever the service is unreachable or out of allowance.
 
 The workbench needs no API keys for the offline and loopback backends. To use real models, start vLLM on loopback with the commands from `workbench registry render-serve` and set `WB_LLM_BACKEND=openai`. To keep the deterministic pipeline but let a local model write the conversational replies, set `WB_CHAT_MODEL` (and `WB_CHAT_ENDPOINT` if it is not on `127.0.0.1:8010`).
 
@@ -343,6 +346,7 @@ The layer is complete, but a laptop has no GPU, no container runtime and no fire
 | OCR sidecars (`*.ocr.json`) | PaddleOCR output for scanned fixtures. Text PDFs are read for real with PyMuPDF. | `workbench/documents/readers.py` |
 | `FakeSandbox`, `FakeEgressd` | The Go daemons, when `WB_SANDBOX=fake` / `WB_EGRESS=fake`. | `workbench/tools/sandbox.py`, `workbench/security/egressd_client.py` |
 | `dev` sandbox backend | Docker. Scripts run as a subprocess with a network probe; isolation is only real with the `docker` backend. | `go/internal/sandbox/dev.go` |
+| Hosted models (`WB_LLM_BACKEND=groq`) | The on-premises inference layer, when no GPU is present. The same OpenAI-compatible client and the same registry names are used; only the endpoint differs. Calls are paced and fall back to the rules, and the destination is on the egress allowlist. Not part of the target deployment. | `workbench/llm/remote.py`, `config/groq.yaml` |
 | Seed quality values | Measured model quality. The values in `config/models.yaml` are illustrative until `workbench eval --write-registry` runs on real models. | `config/models.yaml` |
 | Development sign-in | The directory adapter. The user switcher sets an `X-User` header or cookie. | `workbench/api/deps.py` |
 

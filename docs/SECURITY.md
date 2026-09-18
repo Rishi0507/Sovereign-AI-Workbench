@@ -9,6 +9,7 @@ The workbench is built for an air-gapped plant network where documents carry cla
 3. [Prompt-injection containment](#3-prompt-injection-containment)
 4. [Sandboxed code execution](#4-sandboxed-code-execution)
 5. [Egress enforcement](#5-egress-enforcement)
+   - [5.1 Hosted models on a machine without a GPU](#51-hosted-models-on-a-machine-without-a-gpu)
 6. [Egress proof](#6-egress-proof)
 7. [Audit trail](#7-audit-trail)
 8. [Supply chain and data at rest](#8-supply-chain-and-data-at-rest)
@@ -109,6 +110,25 @@ Three layers, each sufficient on its own:
 
 In **enforced** mode `egressd` refuses to start unless the nftables table exists with a drop policy on output and no nameserver is configured, so a server cannot silently run unprotected. Offline flags (`HF_HUB_OFFLINE`, `TRANSFORMERS_OFFLINE`, `VLLM_NO_USAGE_STATS`, `DO_NOT_TRACK`) are set for every service.
 
+### 5.1 Hosted models on a machine without a GPU
+
+The design keeps every model call on the premises. A development machine without a GPU cannot serve the registry
+models, so `WB_LLM_BACKEND=groq` stands the inference layer in with a hosted OpenAI-compatible service. This
+changes the sovereignty property and is therefore constrained as follows.
+
+- The destination is listed in `config/egress_allowlist.yaml`. Without that entry the egress guard refuses the
+  connection before the system call, as it does for any other external address.
+- An allowlisted name is matched against the addresses it currently resolves to, so the entry opens that host and
+  no other.
+- What leaves the machine is the request: the instruction, the retrieved passages and the document text the step
+  carries. Files, the evidence ledger, the audit log and every deliverable stay on the machine.
+- The security page names the destination instead of reporting that nothing has left the server.
+- The workbench never sends the key anywhere except that host; it is read from the environment and is not written
+  to configuration, logs or the audit trail.
+- Setting the backend to `openai` or `heuristic` restores the on-premises property with no other change.
+
+The target deployment does not use this backend. It is recorded as decision D40.
+
 ## 6. Egress proof
 
 ```mermaid
@@ -166,6 +186,7 @@ The ledger uses the same chaining per task, and the evaluation checks that ident
 | `WB_SANDBOX=fake`, `WB_EGRESS=fake` | The Go daemons with `backend: docker` and `mode: enforced`. |
 | `dev` sandbox backend | The `docker` backend. |
 | Heuristic backend | vLLM on loopback (`WB_LLM_BACKEND=openai`). |
+| Hosted models (`WB_LLM_BACKEND=groq`) | vLLM on loopback. The hosted backend stands the inference layer in on a machine without a GPU and is described in section 5.1. |
 
 ## 11. Reporting a vulnerability
 
