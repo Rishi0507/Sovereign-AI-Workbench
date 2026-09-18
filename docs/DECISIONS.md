@@ -327,6 +327,10 @@ number provenance check runs again, so a figure typed in by hand with no record 
 Every edit is written to the audit log with the text before and after. An edited paragraph blocks approval until an
 approver accepts it; accepting is recorded with the approver's name. Approved files cannot be edited.
 
+The approver sees both sentences in full: the one that was there with the removed words struck through, and the
+one that replaced it with the added words marked.
+
 **Why:** Reviewers rewrite a sentence; that is normal engineering practice. What must not happen is edited text
 quietly inheriting the machine's assurances. Recording the edit, re-checking the figures and requiring an approver
-to own the wording keeps the traceability claim honest.
+to own the wording keeps the traceability claim honest. Showing the whole of both sentences, rather than a clipped
+summary, is what lets the approver judge the change.
