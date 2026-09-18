@@ -389,8 +389,6 @@ input[type="checkbox"] { accent-color: var(--primary); width: 15px; height: 15px
 .sheet td.formula { color: var(--link); }
 .sheet td.sourced { color: var(--ok); }
 .svg-preview { max-width: 100%; background: #fff; border-radius: 6px; }
-.slides { display: flex; flex-direction: column; gap: 10px; }
-.slide { border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
 .review-side { position: sticky; top: 0; display: flex; flex-direction: column; gap: 22px; padding-top: 4px; max-height: calc(100vh - 64px); overflow-y: auto; }
 .status-card { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; background: var(--soft); }
 .status-card > div { display: flex; flex-direction: column; gap: 2px; }
@@ -664,21 +662,36 @@ details[open]::details-content { block-size: auto; opacity: 1; }
 .graph-hint { position: absolute; left: 14px; bottom: 14px; font-size: 12px; color: var(--muted); pointer-events: none; }
 @media (max-width: 900px) { .plant-layout { grid-template-columns: minmax(0, 1fr); } .plant-panel { max-height: none; } }
 
-.slides { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 18px; }
-.slide { margin: 0; display: flex; flex-direction: column; gap: 6px; }
-.slide-face { position: relative; aspect-ratio: 16 / 9; background: #fbfbf9; color: #22262c; border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px 26px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, .14); overflow: hidden; }
-.slide-marking { margin: 0; font-size: 8.5px; font-weight: 700; letter-spacing: .12em; color: #9b1c1c; }
-.slide-title { margin: 0; font-size: 15px; font-weight: 650; line-height: 1.25; }
+.deck-head { display: flex; align-items: baseline; gap: 10px; }
+.deck-head h2 { font-size: 15px; font-weight: 600; }
+.slides { display: grid; grid-template-columns: repeat(auto-fill, minmax(268px, 1fr)); gap: 16px; }
+.slide { margin: 0; display: flex; }
+.slide-face { position: relative; flex: 1; aspect-ratio: 16 / 9; background: #fffefb; color: #22262c; border: 1px solid rgba(0, 0, 0, .10); border-radius: 10px; padding: 16px 18px 24px; display: flex; flex-direction: column; gap: 7px; box-shadow: 0 6px 18px rgba(0, 0, 0, .16); overflow: hidden; transition: transform .18s var(--ease), box-shadow .18s var(--ease); }
+.slide-face:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(0, 0, 0, .22); }
+.slide-face.title-slide { justify-content: center; align-items: flex-start; background: #f4f6fb; }
+.slide-face.title-slide .slide-title { font-size: 17px; }
+.slide-marking { margin: 0; font-size: 8px; font-weight: 700; letter-spacing: .14em; color: #9b1c1c; }
+.slide-face.title-slide .slide-marking { position: absolute; top: 14px; left: 18px; }
+.slide-title { margin: 0; font-size: 14.5px; font-weight: 650; line-height: 1.3; }
 .slide-sub { margin: 0; font-size: 11.5px; color: #6b7178; }
-.slide-bullets { margin: 0; padding-left: 16px; display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; line-height: 1.45; color: #3b4048; }
-.slide-no { position: absolute; right: 14px; bottom: 10px; font-size: 10px; color: #8b9098; }
+.slide-bullets { margin: 0; padding-left: 15px; display: flex; flex-direction: column; gap: 5px; font-size: 11.5px; line-height: 1.45; color: #3b4048; }
+.slide-bullets li::marker { color: #9aa0aa; }
+.slide-no { position: absolute; right: 12px; bottom: 9px; font-size: 9.5px; color: #9aa0aa; }
 .slide figcaption { display: none; }
 
 /* Editing a draft ------------------------------------------------------------------------- */
-.paper .editable { border-radius: 8px; padding: 2px 6px; margin-left: -6px; margin-right: -6px; cursor: text; transition: background-color .15s var(--ease); }
-.paper .editable:hover { background: var(--hover); }
-.paper-edit { width: 100%; font: inherit; line-height: 1.6; resize: vertical; }
-.paper-edit-row { margin-top: 8px; align-items: center; gap: 8px; flex-wrap: wrap; }
+.paper .editable { border-radius: 8px; padding: 2px 6px; margin-left: -6px; margin-right: -6px; cursor: text; box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); transition: background-color .15s var(--ease), box-shadow .15s var(--ease); }
+.paper .editable:hover { background: rgba(37, 99, 235, .09); box-shadow: 0 0 0 1px rgba(37, 99, 235, .35); }
+.paper-edit { width: 100%; font: inherit; line-height: 1.6; resize: vertical; background: #fff; color: #1e2326; border: 1px solid #2563eb; border-radius: 8px; padding: 10px 12px; box-shadow: 0 0 0 3px rgba(37, 99, 235, .16); }
+.paper-edit:focus { outline: none; border-color: #2563eb; }
+.paper-edit-row { margin-top: 10px; align-items: center; gap: 8px; flex-wrap: wrap; font-family: var(--font); }
+.paper-edit-row .btn { font-family: var(--font); }
+/* The controls sit on white paper, so they take their colours from the paper, not the shell. */
+.paper-edit-row .btn.primary { background: #2563eb; color: #fff; border-color: #2563eb; }
+.paper-edit-row .btn.primary:hover { background: #1d4ed8; }
+.paper-edit-row .btn.ghost { color: #37414d; background: transparent; border: 1px solid rgba(0, 0, 0, .18); }
+.paper-edit-row .btn.ghost:hover { background: rgba(0, 0, 0, .05); }
+.paper-edit-row .muted { color: #6b7178; }
 .edit-mark { margin-left: 8px; font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; color: var(--warn); border: 1px solid var(--warn); border-radius: 999px; padding: 1px 6px; vertical-align: 2px; }
 .edit-mark.ok { color: var(--ok); border-color: var(--ok); }
 .strike { text-decoration: line-through; }

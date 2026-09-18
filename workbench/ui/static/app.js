@@ -1306,14 +1306,18 @@
         return h("div", { class: "sheet pad" }, h("img", { class: "svg-preview", alt: d.name, src: `data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(p.svg)))}` }));
       }
       if (p.slides) {
-        return h("div", { class: "slides" }, p.slides.map((s, i) => h("figure", { class: "slide", "data-key": `s-${i}` },
-          h("div", { class: "slide-face" },
+        return [
+          h("div", { class: "deck-head" }, h("h2", { text: `${plural(p.slides.length, "slide")}` }),
+            h("span", { class: "muted small", text: `${d.name} · every slide carries the marking` })),
+          h("div", { class: "slides" }, p.slides.map((s, i) => h("figure", { class: "slide", "data-key": `s-${i}` },
+          h("div", { class: `slide-face${i === 0 ? " title-slide" : ""}` },
             h("p", { class: "slide-marking", text: d.marking }),
             h("h3", { class: "slide-title", text: s.title || `Slide ${i + 1}` }),
             s.subtitle ? h("p", { class: "slide-sub", text: s.subtitle }) : null,
             h("ul", { class: "slide-bullets" }, (s.bullets || []).map((x) => h("li", { text: x }))),
             h("span", { class: "slide-no", text: i + 1 })),
-          h("figcaption", { class: "muted small", text: s.title || `Slide ${i + 1}` }))));
+          h("figcaption", { class: "muted small", text: s.title || `Slide ${i + 1}` })))),
+        ];
       }
       return h("pre", { class: "code tall", text: p.text || "This file cannot be previewed. Download it instead." });
     }
