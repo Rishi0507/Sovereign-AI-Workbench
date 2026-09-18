@@ -651,6 +651,7 @@ details[open]::details-content { block-size: auto; opacity: 1; }
 .sheet-holder svg [fill="#f7f7f4"] { fill: #f7f7f4; }
 .sheet-holder svg [fill="transparent"] { fill: transparent; }
 .sheet-tools { z-index: 2; }
+.sheet-image { width: 100%; height: auto; display: block; border-radius: 10px; box-shadow: 0 10px 30px rgba(0, 0, 0, .18); }
 /* The sheet carries its own ink; hover and selection recolour it without touching the file. */
 .pid-item { cursor: pointer; }
 .pid-item .pid-hit { stroke: none; }

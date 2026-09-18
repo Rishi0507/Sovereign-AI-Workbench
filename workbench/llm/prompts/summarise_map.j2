@@ -1,3 +1,5 @@
-Summarise the pages of {{ doc }} shown above, one section per numbered clause or heading.
-Each point must end with its page citation in the form [R-...] using the page record id.
-Keep amounts, periods and percentages exactly as written. Return only JSON.
+Summarise the pages of {{ doc }} shown above. Use one section per numbered clause or heading where the
+document has them; where it does not, group what it says into three to six sections of your own and name
+each one after its subject. Always return at least one section, and put the three to six points a reader
+most needs in `overall`. Each point must end with its page citation in the form [R-...] using the page
+record id. Keep amounts, periods and percentages exactly as written. Return only JSON.

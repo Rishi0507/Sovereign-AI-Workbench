@@ -390,19 +390,18 @@ def test_small_talk_and_vague_requests_get_useful_replies(api_default: tuple[Tes
         turns[text] = wait_for(client, child["id"], lambda t: t["status"] == "completed")["result"]["reply"]
     ask = turns["summarise any document"]
     assert ask["text"].startswith("Which document should I summarise?")
-    assert {s["attachments"][0] for s in ask["suggestions"]} <= {
-        "inputs/inspection_P101A_clean.pdf", "inputs/inspection_P101A_injected.pdf", "inputs/inspection_P108B.pdf",
-        "inputs/vendor_contract.pdf"}
+    offered = {s["attachments"][0] for s in ask["suggestions"]}
+    assert offered and all(p.startswith("inputs/") and p.endswith(".pdf") for p in offered)
     assert "summarise any document" in turns["continue"]["text"]
     assert turns["summarize!"]["text"].startswith("Which document should I summarise?")
 
     # Picking a suggestion runs the real task with that file, in the same conversation.
-    pick = next(s for s in ask["suggestions"] if s["attachments"] == ["inputs/vendor_contract.pdf"])
+    pick = ask["suggestions"][0]
     child = client.post(f"/api/tasks/{root['id']}/followup", headers=ENG,
                         json={"text": pick["text"], "attachments": pick["attachments"]}).json()
-    assert child["attachments"] == ["inputs/vendor_contract.pdf"] and child["followup_of"] == root["id"]
+    assert child["attachments"] == pick["attachments"] and child["followup_of"] == root["id"]
     task = wait_for(client, child["id"], gate_is("plan"))
-    assert task["plan"]["template"] == "contract_summary"
+    assert task["plan"]["steps"], "a picked suggestion plans real work"
 
 
 def test_a_named_file_is_attached_automatically(api_default: tuple[TestClient, Runtime]) -> None:

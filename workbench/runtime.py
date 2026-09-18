@@ -33,7 +33,7 @@ from workbench.tools.sandbox import FakeSandbox, Sandbox, SandboxdClient
 from workbench.workspace import FileStore
 
 
-def make_backend(settings: Settings, ledger: Ledger, registry: Registry) -> LLMBackend:
+def make_backend(settings: Settings, ledger: Ledger, registry: Registry, audit: AuditLog) -> LLMBackend:
     from workbench.llm.heuristic import HeuristicBackend
 
     heuristic = HeuristicBackend(ledger)
@@ -44,7 +44,11 @@ def make_backend(settings: Settings, ledger: Ledger, registry: Registry) -> LLMB
 
         config = RemoteConfig.load(settings.path(settings.remote_config))
         remote = RemoteBackend(config, timeout_s=settings.openai_timeout_s)
-        selector = BackendSelector(remote, heuristic)
+
+        def note(purpose: str, reason: str) -> None:
+            audit.append({"type": "model.fallback", "purpose": purpose, "reason": reason[:300]})
+
+        selector = BackendSelector(remote, heuristic, on_fallback=note)
         if not config.chat:
             return selector
         return ConversationalBackend(selector, config.chat, config.base_url, settings.chat_timeout_s,
@@ -105,7 +109,7 @@ class Runtime:
         self.pool = PoolManager(self.registry, PoolPolicy.load(s.config_dir / "pool.yaml"), control, self.clock,
                                 s.time_scale, resident, self.audit)
         self.pool.startup()
-        self.backend = backend or make_backend(s, self.ledger, self.registry)
+        self.backend = backend or make_backend(s, self.ledger, self.registry, self.audit)
         self.provenance = ProvenancePolicy.load(s.config_dir / "provenance.yaml")
         self.router = Router(self.registry, self.backend, self.pool, self.provenance, s.router_model,
                              s.tokens_per_scanned_page, s.kb_token_budget, s.output_token_reserve, self.clock,
@@ -154,6 +158,7 @@ class Runtime:
                 "backend": self.settings.llm_backend,
                 "chat_model": getattr(self.backend, "model", None) or self.settings.chat_model,
                 "hosted": getattr(getattr(self.backend, "config", None), "base_url", None),
+                "model_fallbacks": getattr(self.backend, "fallbacks", 0),
                 "profile": self.settings.profile,
                 "registry_version": self.registry.version}
 

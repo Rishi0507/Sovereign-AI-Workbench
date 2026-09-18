@@ -673,8 +673,19 @@ class HeuristicBackend:
                 for sent in sents[:2]:
                     if len(sec["points"]) < 3:
                         sec["points"].append({"text": _cite(sent, r.id)})
-        return _json({"title": f"Summary of {req.meta.get('doc', 'the document')}",
-                      "sections": [s for s in sections.values() if s["points"]]})
+        found = [s for s in sections.values() if s["points"]]
+        if not found:
+            # A document without numbered clauses still has pages worth summarising.
+            for r in recs[:6]:
+                body = " ".join(ln.strip() for ln in r.body_text().splitlines()
+                                if ln.strip() and not PAGE_FURNITURE.search(ln))
+                sents = [s for s in _sentences(body) if len(s.split()) >= 8][:2]
+                if not sents:
+                    continue
+                page = r.anchor.page if r.anchor else len(found) + 1
+                found.append({"heading": f"Page {page}", "pages": [page] if page else [],
+                              "points": [{"text": _cite(s, r.id)} for s in sents]})
+        return _json({"title": f"Summary of {req.meta.get('doc', 'the document')}", "sections": found})
 
     def _summarise_reduce(self, req: LLMRequest) -> LLMResponse:
         partials = req.meta.get("partials") or []

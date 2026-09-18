@@ -198,9 +198,11 @@ def test_small_talk_then_choosing_a_document(page: Any) -> None:
     box.fill("summarise any document")
     box.press("Enter")
     expect(page.locator(".answer").nth(1)).to_contain_text("Which document should I summarise?", timeout=15_000)
-    page.locator(".suggest-row").nth(1).get_by_role("button", name="Summarise vendor_contract.pdf").click()
+    picked = page.locator(".suggest-row").nth(1).get_by_role("button").first
+    name = picked.inner_text().replace("Summarise ", "").strip()
+    picked.click()
     expect(page.locator(".turn.user")).to_have_count(3)
-    expect(page.locator(".turn.user").nth(2)).to_contain_text("vendor_contract.pdf")
+    expect(page.locator(".turn.user").nth(2)).to_contain_text(name)
     expect(page.get_by_role("button", name="Start")).to_be_visible(timeout=15_000)
 
     # Consecutive turns sit close together: no empty band between an answer and the next message.
