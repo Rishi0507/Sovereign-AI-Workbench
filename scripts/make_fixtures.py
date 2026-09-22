@@ -12,6 +12,7 @@ import csv
 import json
 import random
 import shutil
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -843,6 +844,10 @@ def build_org_templates(out: Path) -> None:
 # Main
 
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from fixture_images import build_images  # noqa: E402
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--root", default=str(Path(__file__).resolve().parent.parent))
@@ -902,6 +907,7 @@ def main() -> None:
     build_offers(proc)
     build_kb(fixtures / "kb")
     build_pid_sheets(plant)
+    build_images(plant)
     copy_public_samples(fixtures, plant)
     build_asset_register(fixtures)
     build_org_templates(root / "org_templates")

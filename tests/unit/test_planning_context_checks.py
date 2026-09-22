@@ -43,7 +43,7 @@ def cctx(label: Label = CONF, ceiling: Label = CONF, attachments: list[str] | No
 def test_template_library_and_matching() -> None:
     lib = TemplateLibrary(ROOT / "templates")
     assert set(lib.templates) == {"approval_note_from_scan", "contract_summary", "calc_sheet",
-                                  "inspection_findings_to_xlsx", "board_deck_from_notes"}
+                                  "inspection_findings_to_xlsx", "board_deck_from_notes", "image_question"}
     assert [t.name for t in lib.match("document", "Draft approval note", ["inputs/r.pdf"])] == \
         ["approval_note_from_scan"]
     both = lib.match("agentic", "Draft an approval note and a findings table in excel", ["inputs/r.pdf"])
