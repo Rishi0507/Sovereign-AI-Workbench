@@ -214,6 +214,7 @@
     chevron: "M8 5l5 5-5 5",
     dot: "M10 11a1 1 0 100-2 1 1 0 000 2z",
     plus: "M10 5v10M5 10h10",
+    eye: "M2.5 10s2.8-5 7.5-5 7.5 5 7.5 5-2.8 5-7.5 5-7.5-5-7.5-5zM10 12.3a2.3 2.3 0 100-4.6 2.3 2.3 0 000 4.6z",
     slides: "M3.5 4.5h13v9h-13zM7 16.5h6M10 13.5v3",
     minus: "M5 10h10",
     target: "M10 3v3M10 14v3M3 10h3M14 10h3M10 14.2a4.2 4.2 0 100-8.4 4.2 4.2 0 000 8.4z",
@@ -442,6 +443,22 @@
     if (doc.truncated) parts.push(h("p", { class: "muted small", text: "The preview stops here. Download the file for the rest." }));
     openModal(file.name, head(h("article", { class: "doc-preview" }, parts)));
   }
+
+  const fileIndex = new Map();
+  async function previewPath(workspace, path) {
+    if (!fileIndex.has(workspace)) {
+      const files = await api(`/workspaces/${encodeURIComponent(workspace)}/files`).catch(() => []);
+      fileIndex.set(workspace, new Map(files.map((x) => [x.path, x])));
+    }
+    const file = fileIndex.get(workspace).get(path);
+    if (file) showFile(file);
+    else toast("That file is not in this workspace any more", true);
+  }
+
+  const previewChip = (workspace, path, extra = null) => h("span", { class: "file-chip" },
+    h("button", { class: "chip-open", type: "button", title: `Preview ${shortName(path)}`,
+      onclick: () => previewPath(workspace, path) }, icon(/\.(png|jpe?g|tiff?)$/i.test(path) ? "eye" : "file"), shortName(path)),
+    extra);
 
   async function showRecord(id) {
     openModal(id, h("div", { class: "loading" }, spinner()));
@@ -675,14 +692,16 @@
     });
 
     const renderAttached = () => {
-      fill($("#attached"), ...[...attached].map((p) => h("span", { class: "file-chip" }, icon("file"), shortName(p),
+      fill($("#attached"), ...[...attached].map((p) => previewChip(ws.id, p,
         h("button", { type: "button", "aria-label": `Remove ${shortName(p)}`, onclick: () => { attached.delete(p); renderAttached(); renderPicker(); } }, icon("cross")))));
     };
     const renderPicker = () => {
       const inputs = files.filter((f) => f.area === "inputs");
       fill($("#picker-list"), ...inputs.map((f) => h("label", { class: "pick" },
         h("input", { type: "checkbox", checked: attached.has(f.path), onchange: (e) => { e.target.checked ? attached.add(f.path) : attached.delete(f.path); renderAttached(); } }),
-        h("span", { class: "pick-name", text: f.name }), labelTag(f.label, f.label_display), h("span", { class: "muted small", text: bytes(f.size) }))));
+        h("span", { class: "pick-name", text: f.name }), labelTag(f.label, f.label_display), h("span", { class: "muted small", text: bytes(f.size) }),
+        h("button", { class: "pick-preview", type: "button", title: `Preview ${f.name}`,
+          onclick: (e) => { e.preventDefault(); e.stopPropagation(); showFile(f); } }, icon("eye")))));
       if (!inputs.length) $("#picker-list").append(h("p", { class: "muted small", text: "No files yet. Upload one to start." }));
     };
     const renderStarters = () => {
@@ -882,7 +901,7 @@
       convo().forEach((t, index) => {
         items.push(h("div", { class: "turn user", "data-key": `user-${t.id}` }, h("div", { class: "bubble" },
           h("p", { text: t.text }),
-          t.attachments.length && (index === 0 || t.attachments.join() !== view.root.attachments.join()) ? h("div", { class: "row wrap" }, t.attachments.map((a) => h("span", { class: "file-chip", title: a }, icon("file"), shortName(a)))) : null)));
+          t.attachments.length && (index === 0 || t.attachments.join() !== view.root.attachments.join()) ? h("div", { class: "row wrap" }, t.attachments.map((a) => previewChip(t.workspace, a))) : null)));
         const body = turnBody(t);
         if (body.length) items.push(assistant(t, body));
       });
