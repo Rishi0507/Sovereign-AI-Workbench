@@ -787,7 +787,8 @@ a.file-dl:hover { color: var(--accent); background: var(--accent-soft); }
 .lead-in { color: var(--text-2); }
 
 /* Attachments open in the viewer. */
-.chip-open { display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; padding: 0; color: inherit; font: inherit; cursor: pointer; }
-.chip-open:hover { color: var(--accent); }
+.file-chip .chip-open { display: inline-flex; align-items: center; gap: 6px; width: auto; height: auto; border: 0; background: none; padding: 0; color: inherit; font: inherit; white-space: nowrap; cursor: pointer; }
+.file-chip .chip-open:hover { background: none; color: var(--accent); }
+.file-chip .chip-open svg { width: 15px; height: 15px; }
 .pick-preview { margin-left: auto; border: 0; background: none; color: var(--muted); display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; cursor: pointer; }
 .pick-preview:hover { color: var(--accent); background: var(--hover); }
