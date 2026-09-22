@@ -785,3 +785,9 @@ a.file-dl:hover { color: var(--accent); background: var(--accent-soft); }
 .composer.followup:has(textarea:disabled) { opacity: .75; }
 .answer.points ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
 .lead-in { color: var(--text-2); }
+
+/* Attachments open in the viewer. */
+.chip-open { display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; padding: 0; color: inherit; font: inherit; cursor: pointer; }
+.chip-open:hover { color: var(--accent); }
+.pick-preview { margin-left: auto; border: 0; background: none; color: var(--muted); display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; cursor: pointer; }
+.pick-preview:hover { color: var(--accent); background: var(--hover); }
