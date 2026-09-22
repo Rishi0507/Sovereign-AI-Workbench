@@ -255,7 +255,7 @@ def test_the_plant_map_and_a_drawing_open_what_is_recorded(page: Any) -> None:
     # The same equipment on its drawing sheet.
     page.get_by_role("tab", name="Drawings").click()
     expect(page.locator(".sheet-holder svg")).to_be_visible(timeout=20_000)
-    page.get_by_role("button", name="PID-CW-003").click()
+    page.get_by_role("button", name="PID-CW-003", exact=True).click()
     sheet_tag = page.locator("[data-tag='P-108B']")
     expect(sheet_tag).to_be_visible(timeout=15_000)
     sheet_tag.click()

@@ -1,0 +1,19 @@
+name: image_question
+version: 1
+description: A photograph, a handwritten note or a scanned sheet, read and then asked about.
+match:
+  route: [document, general, vision, agentic, reasoning]
+  attachments: [image]
+deliverables: []
+steps:
+  - id: read
+    title: Read the image
+    tool: read_document
+    default_args: {path: "{attachments[0]}", mode: full}
+    output_type: document
+  - id: answer
+    title: Answer from what was read
+    model_task: answer_question
+    output_schema: schemas/answer.json
+    inputs: [read]
+    output_type: answer

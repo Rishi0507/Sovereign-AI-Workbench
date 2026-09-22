@@ -83,11 +83,14 @@ def page_body(page: PageRead) -> str:
     return "\n\n".join(p for p in parts if p)
 
 
+RASTER = {".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff"}
+
+
 class Cropper:
-    """Renders region crops from a rasterisable PDF (normal and zoomed)."""
+    """Renders region crops from a PDF page or an image (normal and zoomed)."""
 
     def __init__(self, path: Path) -> None:
-        self.doc = pymupdf.open(path) if path.suffix.lower() == ".pdf" else None
+        self.doc = pymupdf.open(path) if path.suffix.lower() in RASTER else None
 
     def crop(self, page_no: int, bbox: tuple[float, float, float, float], zoom: float) -> bytes | None:
         if self.doc is None or page_no > len(self.doc):
