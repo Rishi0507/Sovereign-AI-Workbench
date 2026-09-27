@@ -12,7 +12,10 @@ import random
 from pathlib import Path
 from typing import Any
 
+import pymupdf as fitz
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
+
+from workbench.documents.pid_layout import Layout
 
 FONT_DIRS = [Path("C:/Windows/Fonts"), Path("/usr/share/fonts"), Path("/Library/Fonts")]
 
@@ -124,62 +127,141 @@ def shift_note(target: Path) -> None:
     _label(target, "Restricted")
 
 
-def scanned_sheet(target: Path) -> None:
-    w, h = 1560, 960
-    rng = random.Random(3)
-    img = Image.new("RGB", (w, h), (238, 236, 228))
-    d = ImageDraw.Draw(img)
-    ink = (38, 42, 48)
-    tag_font = _font(["arialbd.ttf", "DejaVuSans-Bold.ttf"], 22)
-    small = _font(["arial.ttf", "DejaVuSans.ttf"], 17)
-    d.rectangle([12, 12, w - 12, h - 12], outline=ink, width=2)
-    tags: dict[str, tuple[int, int, int, int]] = {}
-    for x, tag, note in ((450, "P-108A", "duty"), (840, "P-108B", "standby")):
-        d.ellipse([x - 40, 455, x + 40, 535], outline=ink, width=3)
-        d.polygon([(x - 15, 477), (x + 22, 495), (x - 15, 513)], outline=ink, width=3)
-        d.text((x - 42, 548), tag, fill=ink, font=tag_font)
-        d.text((x - 30, 578), note, fill=ink, font=small)
-        tags[tag] = (x - 60, 440, x + 60, 605)
-    d.line([(90, 495), (410, 495)], fill=ink, width=3)
-    d.line([(210, 495), (210, 700), (800, 700), (800, 495)], fill=ink, width=3)
-    d.line([(450, 455), (450, 290), (1140, 290)], fill=ink, width=3)
-    d.line([(840, 455), (840, 290)], fill=ink, width=3)
-    d.ellipse([1140, 256, 1208, 324], outline=ink, width=3)
-    d.line([(1140, 290), (1208, 290)], fill=ink, width=2)
-    d.text((1156, 262), "FT", fill=ink, font=small)
-    d.text((1154, 294), "108", fill=ink, font=small)
-    tags["FT-108"] = (1130, 246, 1218, 334)
-    d.line([(1208, 290), (1480, 290)], fill=ink, width=3)
-    d.text((95, 468), "CW-12 cooling water supply, 8 in", fill=ink, font=small)
-    d.text((1230, 262), "CW-14 to cooling tower, 8 in", fill=ink, font=small)
-    d.rectangle([1070, 780, 1540, 940], outline=ink, width=2)
-    d.text((1086, 792), "PID-CW-003   Rev C", fill=ink, font=tag_font)
-    d.text((1086, 832), "Cooling water booster pumps", fill=ink, font=small)
-    d.text((1086, 868), "RESTRICTED", fill=(150, 30, 30), font=tag_font)
+def _stamp(img: Image.Image, cx: int, cy: int, line1: str, line2: str, angle: float = -12) -> tuple[int, int, int, int]:
+    """A rubber stamp: rotated circular text pasted onto ``img``. Returns its bounding box."""
+    size = 260
+    layer = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    ld = ImageDraw.Draw(layer)
+    stamp_ink = (170, 30, 40, 215)
+    ld.ellipse([10, 10, size - 10, size - 10], outline=stamp_ink, width=5)
+    ld.ellipse([26, 26, size - 26, size - 26], outline=stamp_ink, width=2)
+    f1 = _font(["arialbd.ttf", "DejaVuSans-Bold.ttf"], 24)
+    f2 = _font(["arialbd.ttf", "DejaVuSans-Bold.ttf"], 19)
+    ld.text((size / 2, size / 2 - 26), line1, fill=stamp_ink, font=f1, anchor="mm")
+    ld.text((size / 2, size / 2 + 12), line2, fill=stamp_ink, font=f2, anchor="mm")
+    layer = layer.rotate(angle, resample=Image.BICUBIC, expand=True)
+    img.paste(layer, (cx - layer.width // 2, cy - layer.height // 2), layer)
+    return (cx - layer.width // 2, cy - layer.height // 2, cx + layer.width // 2, cy + layer.height // 2)
+
+
+def _revision_cloud(d: ImageDraw.ImageDraw, cx: int, cy: int, rx: int, ry: int, n: int = 14) -> None:
+    """A hand-drafted revision cloud: a ring of overlapping bumps, the usual markup convention."""
+    import math
+    color = (140, 30, 140)
+    for i in range(n):
+        a = i * math.tau / n
+        bx, by = cx + rx * math.cos(a), cy + ry * math.sin(a)
+        r = 13 + (i % 3)
+        d.arc([bx - r, by - r, bx + r, by + r], 200, 520, fill=color, width=3)
+
+
+def _rasterize_svg(svg_text: str, w: int, h: int) -> Image.Image:
+    """Render a generated SVG sheet to a raster at its own pixel size, with the PyMuPDF SVG
+    renderer already used elsewhere in this script for PDFs, so the scan shows the real drawing
+    rather than a simplified stand-in for it."""
+    doc = fitz.open(stream=svg_text.encode("utf-8"), filetype="svg")
+    page = doc[0]
+    scale = w / page.rect.width
+    pix = page.get_pixmap(matrix=fitz.Matrix(scale, scale))
+    img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+    doc.close()
+    return img if (pix.width, pix.height) == (w, h) else img.resize((w, h))
+
+
+def _garble_confusable(tag: str) -> str:
+    """The first 0 or 1 in a tag misread as its look-alike letter, e.g. ``"P-108B"`` ->
+    ``"P-1O8B"``; a tag with neither digit comes back unchanged."""
+    for i, c in enumerate(tag):
+        if c == "0":
+            return tag[:i] + "O" + tag[i + 1:]
+        if c == "1":
+            return tag[:i] + "I" + tag[i + 1:]
+    return tag
+
+
+def _ocr_region(rid: str, value: str, bbox_px: tuple[float, float, float, float], conf: float,
+               w: int = 1600, h: int = 1000, needs_vlm: bool = False, vlm_value: str | None = None) -> dict[str, Any]:
+    truth = vlm_value or value
+    return {"id": rid, "field_kind": "tag", "bbox": _box(*bbox_px, w, h), "ocr_value": value,
+           "ocr_conf": round(conf, 2), "needs_vlm": needs_vlm, "vlm_value": truth,
+           "vlm_value_zoomed": truth, "truth": truth}
+
+
+def scan_from_sheet(target: Path, svg_path: Path, lc: Layout, seed: int, rotate: float,
+                    stamp_lines: tuple[str, str], markup_lines: tuple[str, str]) -> None:
+    """A scanned raster of a generated sheet: the SVG is rendered as-is, then degraded the way a
+    photocopied, years-old drawing would be (skewed, speckled, blurred), stamped, and marked up
+    with a hand-drawn revision cloud.
+
+    The OCR sidecar lists every tag the sheet declares (``lc.manifest``), each with the kind of
+    noise a real OCR pass leaves: most tags read cleanly at a plausible confidence; some come
+    back as two separate words (a hyphen misread as a space, or an instrument bubble's two lines
+    read apart, e.g. "FIC" and "108"); some have a digit misread as a look-alike letter, corrected
+    by a second, vision read the same way the site photo and shift note fixtures already are.
+    """
+    w, h = 1600, 1000
+    rng = random.Random(seed)
+    img = _rasterize_svg(svg_path.read_text(encoding="utf-8"), w, h).convert("RGB")
+    tint = Image.new("RGB", (w, h), (238, 236, 228))
+    img = Image.blend(img, tint, 0.12)
     px = img.load()
-    for _ in range(22000):
+    for _ in range(w * h // 90):
         x, y = rng.randint(0, w - 1), rng.randint(0, h - 1)
-        v = rng.randint(200, 235)
+        v = rng.randint(150, 235)
         px[x, y] = (v, v - 2, v - 8)
-    img = img.rotate(0.6, fillcolor=(238, 236, 228)).filter(ImageFilter.GaussianBlur(0.7))
+    d = ImageDraw.Draw(img)
+    hand = _font(["Inkfree.ttf", "segoesc.ttf", "comic.ttf", "DejaVuSans-Oblique.ttf"], 24)
+    cloud_x, cloud_y = w * 0.60, h * 0.16
+    _revision_cloud(d, cloud_x, cloud_y, 100, 70)
+    d.text((cloud_x + 80, cloud_y - 55), markup_lines[0], fill=(120, 20, 120), font=hand)
+    d.text((cloud_x + 80, cloud_y - 25), markup_lines[1], fill=(120, 20, 120), font=hand)
+    stamp_box = _stamp(img, int(w * 0.85), int(h * 0.72), *stamp_lines)
+    img = img.rotate(rotate, fillcolor=(238, 236, 228), resample=Image.BICUBIC).filter(ImageFilter.GaussianBlur(0.7))
     img.save(target, quality=84)
-    text = ("PID-CW-003 Rev C  Cooling water booster pumps\n"
-            "P-108A cooling water booster pump A, duty\n"
-            "P-108B cooling water booster pump B, standby\n"
-            "FT-108 flow transmitter on common discharge\n"
-            "CW-12 cooling water supply header, 8 in\n"
-            "CW-14 to cooling tower, 8 in")
-    regions = []
-    for i, (tag, box) in enumerate(tags.items(), start=1):
-        misread = tag.replace("108", "1O8") if i == 2 else tag
-        regions.append({"id": f"p1-tag{i}", "field_kind": "tag", "bbox": _box(*box, w, h), "ocr_value": misread,
-                        "ocr_conf": 0.5 if misread != tag else 0.83, "needs_vlm": misread != tag,
-                        "vlm_value": tag, "vlm_value_zoomed": tag, "truth": tag})
-    _sidecar(target, text, regions)
+
+    regions: list[dict[str, Any]] = []
+    text_lines: list[str] = []
+    for i, entry in enumerate(lc.manifest):
+        tag, cls, bbox = entry["tag"], entry["cls"], entry.get("bbox")
+        if not bbox or cls in {"line", "connector"}:
+            continue  # the OCR sidecar carries equipment-ish tags; drawing furniture is skipped
+        x0, y0, x1, y1 = bbox
+        text_lines.append(tag)
+        if cls == "instrument" and "-" in tag:
+            kind, loop = tag.split("-", 1)
+            my = y0 + (y1 - y0) * 0.5
+            regions.append(_ocr_region(f"r{i}a", kind, (x0, y0 + 6, x1, my), 0.82))
+            regions.append(_ocr_region(f"r{i}b", loop, (x0, my, x1, y1 - 6), 0.82))
+        elif i % 5 == 1 and "-" in tag:
+            prefix, rest = tag.split("-", 1)
+            midx = x0 + (x1 - x0) * 0.45
+            regions.append(_ocr_region(f"r{i}a", prefix, (x0, y0, midx, y1), 0.77))
+            regions.append(_ocr_region(f"r{i}b", rest, (midx, y0, x1, y1), 0.77))
+        elif i % 5 == 3:
+            garbled = _garble_confusable(tag)
+            regions.append(_ocr_region(f"r{i}", garbled, (x0, y0, x1, y1), 0.52,
+                                       needs_vlm=garbled != tag, vlm_value=tag))
+        else:
+            regions.append(_ocr_region(f"r{i}", tag, (x0, y0, x1, y1), round(rng.uniform(0.78, 0.94), 2)))
+    stamp_text = " ".join(stamp_lines)
+    regions.append({"id": "stamp", "field_kind": "stamp", "bbox": _box(*stamp_box, w, h),
+                    "ocr_value": stamp_text, "ocr_conf": 0.6, "needs_vlm": True, "vlm_value": stamp_text,
+                    "vlm_value_zoomed": stamp_text, "truth": stamp_text})
+    markup_text = " ".join(markup_lines)
+    markup_box = (cloud_x - 20, cloud_y - 65, cloud_x + 300, cloud_y + 85)
+    regions.append({"id": "markup", "field_kind": "markup", "bbox": _box(*markup_box, w, h),
+                    "ocr_value": markup_text, "ocr_conf": 0.4, "needs_vlm": True, "vlm_value": markup_text,
+                    "vlm_value_zoomed": markup_text, "truth": markup_text})
+    _sidecar(target, "\n".join(text_lines), regions)
     _label(target, "Restricted")
 
 
-def build_images(ws_inputs: Path) -> None:
+def build_images(ws_inputs: Path, layouts: dict[str, Layout]) -> None:
     site_photo(ws_inputs / "photo_P108B_flange.jpg")
     shift_note(ws_inputs / "handwritten_shift_note.jpg")
-    scanned_sheet(ws_inputs / "PID-CW-003_scan.jpg")
+    scan_from_sheet(ws_inputs / "PID-CW-003_scan.jpg", ws_inputs / "PID-CW-003.svg", layouts["PID-CW-003"],
+                   seed=3, rotate=0.6, stamp_lines=("APPROVED FOR", "CONSTRUCTION"),
+                   markup_lines=("TIE-IN FOR V-302 PLANNED", "SEE RFI-098"))
+    scan_from_sheet(ws_inputs / "PID-AM-002_scan.jpg", ws_inputs / "PID-AM-002.svg", layouts["PID-AM-002"],
+                   seed=5, rotate=-0.9, stamp_lines=("AS BUILT", "REV B"),
+                   markup_lines=("FIELD ROUTING CHANGED", "SEE NOTE 4"))

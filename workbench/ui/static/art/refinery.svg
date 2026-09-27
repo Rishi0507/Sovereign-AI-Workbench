@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 112" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F2A65A" stop-opacity="0"/><stop offset="1" stop-color="#F2A65A" stop-opacity=".16"/></linearGradient>
+    <linearGradient id="flame" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#D9772B"/><stop offset="1" stop-color="#F7C07A"/></linearGradient>
+  </defs>
+
+  <!-- warm horizon glow -->
+  <rect x="0" y="40" width="240" height="66" fill="url(#sky)"/>
+
+  <!-- smoke from the heater stack -->
+  <g fill="#7FB2E5" opacity=".35">
+    <circle cx="150" cy="22" r="4"><animate attributeName="cy" values="22;12;22" dur="6s" repeatCount="indefinite"/><animate attributeName="opacity" values=".9;0;.9" dur="6s" repeatCount="indefinite"/></circle>
+    <circle cx="156" cy="16" r="5.5"><animate attributeName="cy" values="16;6;16" dur="6s" begin="2s" repeatCount="indefinite"/><animate attributeName="opacity" values=".8;0;.8" dur="6s" begin="2s" repeatCount="indefinite"/></circle>
+  </g>
+
+  <!-- storage tanks -->
+  <g stroke="#2F6FB0" stroke-width="1.3">
+    <path d="M8 74v30h40V74" fill="#E4EEF8"/>
+    <ellipse cx="28" cy="74" rx="20" ry="4" fill="#F3F8FD"/>
+    <path d="M8 86h40M8 96h40" stroke-opacity=".35"/>
+    <path d="M54 82v22h30V82" fill="#E4EEF8"/>
+    <ellipse cx="69" cy="82" rx="15" ry="3.2" fill="#F3F8FD"/>
+    <path d="M54 93h30" stroke-opacity=".35"/>
+  </g>
+
+  <!-- distillation columns with trays and a ladder -->
+  <g stroke="#4F7625" stroke-width="1.4">
+    <path d="M98 104V24a8 8 0 0 1 16 0v80" fill="#EAF1E0"/>
+    <path d="M98 36h16M98 48h16M98 60h16M98 72h16M98 84h16" stroke-opacity=".4"/>
+    <path d="M117 28v76M121 28v76M117 40h4M117 52h4M117 64h4M117 76h4M117 88h4" stroke-width="1" stroke-opacity=".7"/>
+    <path d="M126 104V46a6 6 0 0 1 12 0v58" fill="#EAF1E0"/>
+    <path d="M126 58h12M126 70h12M126 82h12" stroke-opacity=".4"/>
+    <path d="M106 16v-6M132 40v-5"/>
+  </g>
+
+  <!-- fired heater with stack -->
+  <g stroke="#4F7625" stroke-width="1.3">
+    <path d="M142 104V78h20v26" fill="#F3F7EC"/>
+    <path d="M149 78V30h6v48" fill="#EAF1E0"/>
+  </g>
+
+  <!-- sphere on legs -->
+  <g stroke="#2F6FB0" stroke-width="1.3">
+    <circle cx="182" cy="80" r="14" fill="#E4EEF8"/>
+    <path d="M170 80h24" stroke-opacity=".35"/>
+    <path d="M172 90l-3 14M192 90l3 14M182 94v10"/>
+  </g>
+
+  <!-- pipe rack tying the units together -->
+  <g stroke="#6F6A61" stroke-width="1.1" stroke-opacity=".75">
+    <path d="M48 68h120M48 72h120"/>
+    <path d="M60 68v14M90 72v32M142 72v6M166 68v-6h8v4"/>
+    <path d="M114 62h12M114 90h12"/>
+    <path d="M78 64a4 4 0 0 1 8 0" />
+  </g>
+
+  <!-- flare stack and flame -->
+  <g stroke="#4F7625" stroke-width="1.3">
+    <path d="M216 104V24M213 104l3-10 3 10M214 50h4M214 76h4"/>
+  </g>
+  <g transform="translate(216 23)">
+    <path d="M0 0c-5-5-4-10 0-16 1 4 5 6 5 11 0 3-2 5-5 5z" fill="url(#flame)">
+      <animateTransform attributeName="transform" type="scale" values="1 1;1.08 .9;.94 1.1;1 1" dur="1.6s" repeatCount="indefinite"/>
+    </path>
+  </g>
+  <circle cx="216" cy="16" r="9" fill="#F2A65A" opacity=".18">
+    <animate attributeName="r" values="8;11;8" dur="1.6s" repeatCount="indefinite"/>
+  </circle>
+
+  <!-- ground -->
+  <path d="M2 104.5h236" stroke="#4F7625" stroke-width="1.4" stroke-opacity=".55"/>
+  <path d="M20 108h60M110 108h90" stroke="#4F7625" stroke-width="1" stroke-opacity=".25"/>
+</svg>

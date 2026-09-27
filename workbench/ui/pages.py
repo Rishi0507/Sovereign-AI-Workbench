@@ -72,7 +72,11 @@ def security(request: Request) -> HTMLResponse:
     return _page(request, "security.html", "security", title="Security")
 
 
+@router.get("/explainer", response_class=HTMLResponse)
+def explainer(request: Request) -> HTMLResponse:
+    return _page(request, "explainer.html", "explainer", title="How it works")
+
+
 @router.get("/favicon.ico")
 def favicon() -> Response:
-    svg = Path(__file__).resolve().parent / "static" / "mark.svg"
-    return Response(svg.read_bytes(), media_type="image/svg+xml")
+    return Response((STATIC / "mrpl-logo.jpg").read_bytes(), media_type="image/jpeg")

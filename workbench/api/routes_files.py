@@ -16,7 +16,8 @@ from workbench.core.errors import NotFound, PolicyError
 from workbench.core.ids import new_id, sha256_file
 from workbench.core.labels import DowngradeRequest, Label, User
 from workbench.documents import preview as file_preview
-from workbench.documents.readers import CompositeReader
+from workbench.documents.pid_detect import DetectionResult, detect_sheet
+from workbench.documents.readers import CompositeReader, PageRead, sidecar_for
 from workbench.runtime import Runtime
 from workbench.workspace import FileRecord
 
@@ -117,6 +118,26 @@ def download(fid: str, user: User = Depends(current_user), rt: Runtime = Depends
     rec = _file(rt, user, fid)
     rt.audit.append({"type": "file.download", "file": rec.relpath, "workspace": rec.workspace, "by": user.id})
     return FileResponse(rt.files.open_path(fid), filename=rec.name)
+
+
+@router.get("/files/{fid}/detections")
+def detections(fid: str, user: User = Depends(current_user), rt: Runtime = Depends(get_rt)) -> DetectionResult:
+    """Tags detected on a P&ID sheet, drawn (SVG) or scanned (OCR sidecar), linked to the plant
+    graph: which tags the drawing carries that the asset register does not know about."""
+    rec = _file(rt, user, fid)
+    path = rt.files.open_path(fid)
+    known = {n.key for n in rt.kb.graph.nodes("tag")}
+    if path.suffix.lower() == ".svg":
+        result = detect_sheet(rec.name, path.read_text(encoding="utf-8"), None, known)
+    else:
+        side = sidecar_for(path)
+        if side is None:
+            raise HTTPException(404, f"{rec.name} has no OCR sidecar to detect tags from")
+        pages = [PageRead.model_validate(p) for p in json.loads(side.read_text(encoding="utf-8"))["pages"]]
+        result = detect_sheet(rec.name, None, pages, known)
+    rt.audit.append({"type": "file.detections", "file": rec.relpath, "workspace": rec.workspace,
+                     "detected": result.summary.total, "unknown": result.summary.unknown_count, "by": user.id})
+    return result
 
 
 class ShareBody(BaseModel):

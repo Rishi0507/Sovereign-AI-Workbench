@@ -365,7 +365,7 @@ def test_graph_expansion_reaches_linked_documents(rt: Runtime) -> None:
     assert [n.props["value"] for n in past.graph_facts] == [6.8]
     neighbours = {n.kind for n, _ in rt.kb.graph.neighbours("P108B")}
     assert {"class", "vendor", "po", "document", "inspection"} <= neighbours
-    assert rt.kb.graph.tags_of_class("centrifugal_pump") == ["P-101A", "P-101B", "P-108A", "P-108B"]
+    assert rt.kb.graph.tags_of_class("centrifugal_pump") == ["P-101A", "P-101B", "P-108A", "P-108B", "P-202A", "P-202B"]
 
 
 def test_workspace_document_index_is_scoped(rt: Runtime) -> None:

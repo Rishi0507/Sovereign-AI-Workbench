@@ -1,0 +1,371 @@
+{% extends "base.html" %}
+{% block head %}<link rel="stylesheet" href="/static/explainer.css?v={{ asset_version }}">{% endblock %}
+{% block content %}
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#a8a091"/></marker>
+    <marker id="ah-o" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#d9772b"/></marker>
+    <marker id="ah-g" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#4f7625"/></marker>
+    <marker id="ah-b" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#2f6fb0"/></marker>
+    <marker id="ah-r" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#c4372b"/></marker>
+  </defs>
+</svg>
+
+<div class="ex" id="ex">
+
+  <header class="ex-hero">
+    <p class="eyebrow">How it works</p>
+    <h1>An AI workbench that <em>never leaves</em> the refinery.</h1>
+    <p class="ex-lead">P&amp;IDs, inspection reports, vendor negotiations and board notes cannot go to a public AI assistant. So the work is either done by hand, or pasted somewhere it should not be. This workbench runs open-weight models on MRPL's own GPU server, plans and carries out the work like an agent, and hands back real, checked deliverables. Nothing crosses the fence.</p>
+    <div class="ex-stats">
+      <div class="ex-stat"><b>0</b><span>bytes sent outside the premises, counted three independent ways</span></div>
+      <div class="ex-stat"><b>4</b><span>open-weight models on one GPU, picked automatically per task</span></div>
+      <div class="ex-stat"><b>2</b><span>human gates on every deliverable: the plan and the final draft</span></div>
+      <div class="ex-stat"><b>Every</b><span>figure in a draft traced to its page, or flagged before approval</span></div>
+    </div>
+  </header>
+
+  <!-- 01 The problem -->
+  <section class="ex-sec">
+    <p class="eyebrow"><span class="ex-num">01</span> &nbsp;The problem</p>
+    <h2>Confidential work has two bad options today.</h2>
+    <p>Engineers either spend days copying, checking and retyping, or quietly paste sensitive material into public tools. The workbench adds a third path that stays inside the fence.</p>
+    <figure class="ex-fig">
+      <svg viewBox="0 0 1000 310" role="img" aria-label="Documents go either to slow manual work, to a public AI outside MRPL (blocked), or to the workbench inside MRPL which produces deliverables">
+        <rect class="fence" x="10" y="10" width="705" height="290" rx="22"/>
+        <text class="cap" x="30" y="34" style="fill:#4f7625">MRPL PREMISES</text>
+
+        <g>
+          <rect class="box" x="30" y="56" width="180" height="40" rx="10"/><rect x="42" y="68" width="16" height="16" rx="4" fill="#fbebdd" stroke="#d9772b"/><text class="s" x="68" y="81" style="fill:#1f1d1a">P&amp;ID drawings</text>
+          <rect class="box" x="30" y="104" width="180" height="40" rx="10"/><rect x="42" y="116" width="16" height="16" rx="4" fill="#eaf1e0" stroke="#4f7625"/><text class="s" x="68" y="129" style="fill:#1f1d1a">Inspection reports</text>
+          <rect class="box" x="30" y="152" width="180" height="40" rx="10"/><rect x="42" y="164" width="16" height="16" rx="4" fill="#e4eef8" stroke="#2f6fb0"/><text class="s" x="68" y="177" style="fill:#1f1d1a">Vendor offers</text>
+          <rect class="box" x="30" y="200" width="180" height="40" rx="10"/><rect x="42" y="212" width="16" height="16" rx="4" fill="#fbebdd" stroke="#d9772b"/><text class="s" x="68" y="225" style="fill:#1f1d1a">Board notes, financials</text>
+          <text class="s" x="30" y="266">Confidential by policy</text>
+        </g>
+
+        <path class="ln r" d="M210 76 C 380 20, 600 18, 790 58" marker-end="url(#ah-r)"/>
+        <circle cx="715" cy="36" r="13" fill="#fff" stroke="#c4372b" stroke-width="1.6"/>
+        <path d="M709 30l12 12M721 30l-12 12" stroke="#c4372b" stroke-width="2" stroke-linecap="round"/>
+        <text class="s" x="420" y="58" style="fill:#c4372b">Paste into a public AI tool</text>
+
+        <path class="ln" d="M210 124 L 300 124" marker-end="url(#ah)"/>
+        <rect class="soft" x="302" y="100" width="200" height="50" rx="12"/>
+        <text class="t" x="318" y="122" style="font-size:14px">Do it by hand</text>
+        <text class="s" x="318" y="140">days of copy, check, retype</text>
+
+        <path class="ln g flow" d="M210 205 L 300 205" marker-end="url(#ah-g)"/>
+        <rect class="o" x="302" y="172" width="210" height="72" rx="14"/>
+        <text class="t" x="318" y="200">Sovereign AI Workbench</text>
+        <text class="s" x="318" y="220">on MRPL's own GPU server</text>
+
+        <g class="ln g">
+          <path class="flow" d="M512 208 C 540 208, 540 150, 572 150" marker-end="url(#ah-g)"/>
+          <path class="flow" d="M512 208 C 540 208, 540 188, 572 188" marker-end="url(#ah-g)"/>
+          <path class="flow" d="M512 208 C 540 208, 540 226, 572 226" marker-end="url(#ah-g)"/>
+          <path class="flow" d="M512 208 C 540 208, 540 264, 572 264" marker-end="url(#ah-g)"/>
+        </g>
+        <rect class="box" x="574" y="136" width="126" height="28" rx="8"/><text class="m" x="586" y="155">approval.docx</text>
+        <rect class="box" x="574" y="174" width="126" height="28" rx="8"/><text class="m" x="586" y="193">findings.xlsx</text>
+        <rect class="box" x="574" y="212" width="126" height="28" rx="8"/><text class="m" x="586" y="231">board.pptx</text>
+        <rect class="box" x="574" y="250" width="126" height="28" rx="8"/><text class="m" x="586" y="269">verified.py</text>
+
+        <path d="M800 92 a26 26 0 0 1 22-38 a34 34 0 0 1 64-6 a26 26 0 0 1 40 30 a20 20 0 0 1-6 14z" fill="#fcecea" stroke="#c4372b" stroke-width="1.4"/>
+        <text class="t" x="812" y="124" style="fill:#c4372b;font-size:14px">Public AI assistant</text>
+        <text class="s" x="812" y="142">outside MRPL, off limits</text>
+      </svg>
+    </figure>
+  </section>
+
+  <!-- 02 Architecture -->
+  <section class="ex-sec">
+    <p class="eyebrow"><span class="ex-num">02</span> &nbsp;The architecture</p>
+    <h2>Everything runs on one server, behind a firewall that drops outbound traffic.</h2>
+    <p>The browser talks to the workbench on the plant LAN. The workbench talks to the models on loopback. Code runs in a container with no network. A separate monitor counts every attempt to reach the outside, and the answer on the Security page is zero.</p>
+    <figure class="ex-fig">
+      <svg viewBox="0 0 1000 440" role="img" aria-label="Architecture: engineer, workbench, local models, host services, all inside the premises; the internet is blocked">
+        <rect class="fence" x="10" y="10" width="795" height="420" rx="24"/>
+        <text class="cap" x="30" y="36" style="fill:#4f7625">MRPL PREMISES · AIR-GAPPED</text>
+
+        <rect class="box" x="28" y="172" width="136" height="80" rx="14"/>
+        <text class="t" x="44" y="204">Engineer</text>
+        <text class="s" x="44" y="224">browser on the</text>
+        <text class="s" x="44" y="240">plant LAN</text>
+
+        <path class="ln o flow" d="M164 212 L 202 212" marker-end="url(#ah-o)"/>
+
+        <rect x="204" y="58" width="330" height="352" rx="18" fill="#fffaf4" stroke="#d9772b" stroke-width="1.4"/>
+        <text class="t" x="222" y="86">Workbench</text><text class="s" x="316" y="86">the agentic layer</text>
+        <g>
+          <rect class="box" x="220" y="102" width="146" height="50" rx="10"/><text class="t" x="232" y="123" style="font-size:13.5px">Router</text><text class="s" x="232" y="140">picks the model</text>
+          <rect class="box" x="374" y="102" width="146" height="50" rx="10"/><text class="t" x="386" y="123" style="font-size:13.5px">Planner</text><text class="s" x="386" y="140">typed, validated</text>
+          <rect class="o" x="220" y="160" width="146" height="50" rx="10"/><text class="t" x="232" y="181" style="font-size:13.5px">Agent loop</text><text class="s" x="232" y="198">plan, act, iterate</text>
+          <rect class="box" x="374" y="160" width="146" height="50" rx="10"/><text class="t" x="386" y="181" style="font-size:13.5px">Tools</text><text class="s" x="386" y="198">docs, KB, code, files</text>
+          <rect class="box" x="220" y="218" width="146" height="50" rx="10"/><text class="t" x="232" y="239" style="font-size:13.5px">Evidence ledger</text><text class="s" x="232" y="256">hash-chained records</text>
+          <rect class="box" x="374" y="218" width="146" height="50" rx="10"/><text class="t" x="386" y="239" style="font-size:13.5px">Checks</text><text class="s" x="386" y="256">rules, provenance</text>
+          <rect class="box" x="220" y="276" width="146" height="50" rx="10"/><text class="t" x="232" y="297" style="font-size:13.5px">Knowledge base</text><text class="s" x="232" y="314">SOPs, manuals, notes</text>
+          <rect class="box" x="374" y="276" width="146" height="50" rx="10"/><text class="t" x="386" y="297" style="font-size:13.5px">Labels</text><text class="s" x="386" y="314">clearance levels</text>
+          <rect class="box" x="220" y="334" width="300" height="50" rx="10"/><text class="t" x="232" y="355" style="font-size:13.5px">Approval gates and audit log</text><text class="s" x="232" y="372">humans hold the pen, every decision is recorded</text>
+        </g>
+
+        <path class="ln b flow" d="M534 150 L 578 150" marker-end="url(#ah-b)"/>
+
+        <rect x="580" y="58" width="206" height="196" rx="18" fill="#f5f9fd" stroke="#2f6fb0" stroke-width="1.4"/>
+        <text class="t" x="598" y="86">GPU server</text><text class="s" x="690" y="86">vLLM</text>
+        <g>
+          <rect class="box" x="594" y="100" width="178" height="30" rx="8"/><circle cx="608" cy="115" r="4.5" fill="#4f7625"/><text class="m" x="620" y="119">qwen3-vl-8b</text>
+          <rect class="box" x="594" y="136" width="178" height="30" rx="8"/><circle cx="608" cy="151" r="4.5" fill="#4f7625"/><text class="m" x="620" y="155">qwen2.5-coder-7b</text>
+          <rect class="box" x="594" y="172" width="178" height="30" rx="8"/><circle class="pulse" cx="608" cy="187" r="4.5" fill="#d9772b"/><text class="m" x="620" y="191">gpt-oss-20b</text>
+          <rect class="box" x="594" y="208" width="178" height="30" rx="8" stroke-dasharray="4 4"/><circle cx="608" cy="223" r="4.5" fill="#a8a091"/><text class="m" x="620" y="227">granite-3.3-8b</text>
+        </g>
+
+        <path class="ln flow" d="M534 330 L 578 330" marker-end="url(#ah)"/>
+
+        <rect class="soft" x="580" y="272" width="206" height="138" rx="18"/>
+        <text class="t" x="598" y="298">Host services</text><text class="s" x="710" y="298">Go</text>
+        <rect class="box" x="594" y="310" width="178" height="42" rx="8"/><text class="t" x="606" y="328" style="font-size:13px">sandboxd</text><text class="s" x="606" y="344" style="font-size:11.5px">runs code, network: none</text>
+        <rect class="g" x="594" y="358" width="178" height="42" rx="8"/><text class="t" x="606" y="376" style="font-size:13px">egressd</text><text class="s" x="606" y="392" style="font-size:11.5px">counts every outbound try</text>
+
+        <path class="ln r" d="M772 380 C 830 380, 850 330, 872 302" marker-end="url(#ah-r)"/>
+        <circle cx="805" cy="372" r="13" fill="#fff" stroke="#c4372b" stroke-width="1.6"/>
+        <path d="M799 366l12 12M811 366l-12 12" stroke="#c4372b" stroke-width="2" stroke-linecap="round"/>
+        <path d="M858 300 a24 24 0 0 1 20-34 a30 30 0 0 1 58-6 a24 24 0 0 1 36 28 a18 18 0 0 1-6 12z" fill="#fcecea" stroke="#c4372b" stroke-width="1.4"/>
+        <text class="t" x="884" y="289" style="fill:#c4372b;font-size:13px">Internet</text>
+        <text class="s" x="850" y="412">dropped by nftables</text>
+        <text class="s" x="850" y="428">0 bytes out</text>
+
+        <circle r="5" fill="#d9772b"><animateMotion dur="2.6s" repeatCount="indefinite" path="M164 212 L 202 212 L 290 185 L 534 150 L 578 150 L 610 115"/></circle>
+      </svg>
+      <p class="ex-cap">The model layer has one client and several endpoints. Adding a model is a registry entry, a shadow evaluation and one audited promotion; nothing else changes.</p>
+    </figure>
+  </section>
+
+  <!-- 03 Routing -->
+  <section class="ex-sec">
+    <p class="eyebrow"><span class="ex-num">03</span> &nbsp;Model auto-selection</p>
+    <h2>Each task goes to the model that fits it, and the reason is logged.</h2>
+    <p>Hard rules read the attachments and intent, a small classifier fills in the task profile, constraints remove models that cannot serve it, and a scorer picks the cheapest model whose measured quality clears the bar. A sleeping model's wake-up time counts as cost, so everyday work stays on the resident models.</p>
+    <figure class="ex-fig">
+      <svg viewBox="0 0 1000 400" role="img" aria-label="Three tasks routed through rules, classifier, constraints and scorer to three different models">
+        <rect class="box" x="16" y="34" width="232" height="66" rx="14"/><circle cx="36" cy="58" r="6" fill="#d9772b"/><text class="t" x="50" y="63" style="font-size:14px">Draft an approval note</text><text class="m" x="36" y="86" style="fill:#6f6a61">scanned_report.pdf</text>
+        <rect class="box" x="16" y="154" width="232" height="66" rx="14"/><circle cx="36" cy="178" r="6" fill="#2f6fb0"/><text class="t" x="50" y="183" style="font-size:14px">Flag pressure anomalies</text><text class="m" x="36" y="206" style="fill:#6f6a61">pressure_readings.csv</text>
+        <rect class="box" x="16" y="274" width="232" height="66" rx="14"/><circle cx="36" cy="298" r="6" fill="#4f7625"/><text class="t" x="50" y="303" style="font-size:14px">Compare 3 vendor offers</text><text class="m" x="36" y="326" style="fill:#6f6a61">3 PDFs, recommend one</text>
+
+        <g>
+          <rect x="288" y="20" width="98" height="340" rx="14" fill="#faf6ef" stroke="#ddd5c7"/>
+          <rect x="392" y="20" width="98" height="340" rx="14" fill="#faf6ef" stroke="#ddd5c7"/>
+          <rect x="496" y="20" width="98" height="340" rx="14" fill="#faf6ef" stroke="#ddd5c7"/>
+          <rect x="600" y="20" width="98" height="340" rx="14" fill="#faf6ef" stroke="#ddd5c7"/>
+          <text class="cap" x="300" y="44" style="fill:#d9772b">1 RULES</text>
+          <text class="cap" x="402" y="44" style="fill:#d9772b">2 CLASSIFY</text>
+          <text class="cap" x="504" y="44" style="fill:#d9772b">3 CONSTRAIN</text>
+          <text class="cap" x="614" y="44" style="fill:#d9772b">4 SCORE</text>
+          <text class="s" x="300" y="384" style="font-size:11px">file types</text>
+          <text class="s" x="402" y="384" style="font-size:11px">task profile</text>
+          <text class="s" x="504" y="384" style="font-size:11px">modality, tools</text>
+          <text class="s" x="610" y="384" style="font-size:11px">quality vs cost</text>
+        </g>
+
+        <path class="ln o flow" d="M248 67 C 420 67, 560 72, 728 72" marker-end="url(#ah-o)"/>
+        <path class="ln b flow" d="M248 187 C 420 187, 560 158, 728 158" marker-end="url(#ah-b)"/>
+        <path class="ln g flow" d="M248 307 C 420 307, 560 244, 728 244" marker-end="url(#ah-g)"/>
+        <circle r="5" fill="#d9772b"><animateMotion dur="3s" repeatCount="indefinite" path="M248 67 C 420 67, 560 72, 728 72"/></circle>
+        <circle r="5" fill="#2f6fb0"><animateMotion dur="3s" begin="1s" repeatCount="indefinite" path="M248 187 C 420 187, 560 158, 728 158"/></circle>
+        <circle r="5" fill="#4f7625"><animateMotion dur="3s" begin="2s" repeatCount="indefinite" path="M248 307 C 420 307, 560 244, 728 244"/></circle>
+
+        <rect class="o" x="730" y="44" width="254" height="56" rx="12"/><text class="m" x="746" y="68" style="font-weight:600">qwen3-vl-8b</text><text class="s" x="746" y="88">documents and images</text>
+        <rect class="b" x="730" y="130" width="254" height="56" rx="12"/><text class="m" x="746" y="154" style="font-weight:600">qwen2.5-coder-7b</text><text class="s" x="746" y="174">code, runs in the sandbox</text>
+        <rect class="g" x="730" y="216" width="254" height="56" rx="12"/><text class="m" x="746" y="240" style="font-weight:600">gpt-oss-20b</text><text class="s" x="746" y="260">multi-step reasoning, woken on demand</text>
+        <rect class="box" x="730" y="302" width="254" height="56" rx="12" stroke-dasharray="5 5"/><text class="m" x="746" y="326" style="font-weight:600;fill:#6f6a61">granite-3.3-8b</text><text class="s" x="746" y="346">shadow: evaluated, not yet serving</text>
+      </svg>
+      <p class="ex-cap"><code>candidates: qwen3-vl-8b q=0.84 cost=2.9s ✓ | gpt-oss-20b q=0.86 cost=3.5s+tide ✓ | qwen2.5-coder-7b ✗ tools  →  qwen3-vl-8b</code></p>
+    </figure>
+  </section>
+
+  <!-- 04 Agent loop -->
+  <section class="ex-sec">
+    <p class="eyebrow"><span class="ex-num">04</span> &nbsp;The agent</p>
+    <h2>It plans, asks, acts, checks itself, and only then hands over.</h2>
+    <p>A task becomes a typed plan that the engineer approves. Each step calls a local tool, every result becomes an evidence record, and failures are retried, repaired or escalated to a stronger model. The draft is checked before anyone sees it, and approval stays locked until every issue is reviewed.</p>
+    <figure class="ex-fig">
+      <svg viewBox="0 0 1000 330" role="img" aria-label="Agent loop: request, route, plan, approve plan, run steps, checks, approve draft, deliverable">
+        <rect class="box" x="14" y="112" width="104" height="60" rx="12"/><text class="t" x="30" y="138" style="font-size:14px">Request</text><text class="s" x="30" y="156">text + files</text>
+        <path class="ln flow" d="M118 142 L 138 142" marker-end="url(#ah)"/>
+        <rect class="box" x="140" y="112" width="104" height="60" rx="12"/><text class="t" x="156" y="138" style="font-size:14px">Route</text><text class="s" x="156" y="156">pick a model</text>
+        <path class="ln flow" d="M244 142 L 264 142" marker-end="url(#ah)"/>
+        <rect class="box" x="266" y="112" width="104" height="60" rx="12"/><text class="t" x="282" y="138" style="font-size:14px">Plan</text><text class="s" x="282" y="156">template or AI</text>
+        <path class="ln flow" d="M370 142 L 390 142" marker-end="url(#ah)"/>
+        <rect class="g" x="392" y="112" width="116" height="60" rx="30"/><text class="t" x="410" y="138" style="font-size:13.5px;fill:#4f7625">You approve</text><text class="s" x="410" y="156">the plan</text>
+        <path class="ln o flow" d="M508 142 L 528 142" marker-end="url(#ah-o)"/>
+
+        <rect class="o" x="530" y="78" width="196" height="128" rx="16"/>
+        <text class="t" x="546" y="102" style="font-size:14px">Run each step</text>
+        <text class="s" x="546" y="126">1  model proposes a tool call</text>
+        <text class="s" x="546" y="146">2  schema and sense check</text>
+        <text class="s" x="546" y="166">3  tool runs locally</text>
+        <text class="s" x="546" y="186">4  result becomes evidence</text>
+        <path d="M712 96 a10 10 0 1 1 -3 -7" fill="none" stroke="#d9772b" stroke-width="2" marker-end="url(#ah-o)"/>
+
+        <path class="ln o flow" d="M726 142 L 746 142" marker-end="url(#ah-o)"/>
+        <rect class="box" x="748" y="112" width="104" height="60" rx="12"/><text class="t" x="764" y="138" style="font-size:14px">Checks</text><text class="s" x="764" y="156">rules, sources</text>
+        <path class="ln flow" d="M852 142 L 868 142" marker-end="url(#ah)"/>
+        <rect class="g" x="870" y="112" width="116" height="60" rx="30"/><text class="t" x="888" y="138" style="font-size:13.5px;fill:#4f7625">You approve</text><text class="s" x="888" y="156">the draft</text>
+
+        <path class="ln" d="M928 112 C 928 40, 628 40, 628 76" marker-end="url(#ah)" stroke-dasharray="5 5"/>
+        <text class="s" x="660" y="36">send back with a note: re-run from the draft</text>
+
+        <path class="ln g flow" d="M928 172 L 928 238" marker-end="url(#ah-g)"/>
+        <rect class="g" x="700" y="240" width="286" height="56" rx="12"/><text class="t" x="716" y="264" style="font-size:14px">Deliverable</text><text class="s" x="716" y="283">docx, xlsx, pptx, py · labelled</text>
+
+        <rect class="soft" x="14" y="240" width="662" height="56" rx="12"/>
+        <text class="cap" x="30" y="262" style="fill:#6f6a61">LOCAL TOOLS</text>
+        <text class="m" x="30" y="284" style="font-size:11.5px">read_document · search_kb · run_python · calculate · check_consistency · render_*</text>
+      </svg>
+    </figure>
+  </section>
+
+  <!-- 05 Dual read -->
+  <section class="ex-sec">
+    <p class="eyebrow"><span class="ex-num">05</span> &nbsp;Reading scans and drawings</p>
+    <h2>Critical fields are read twice, by OCR and by a vision model, then reconciled.</h2>
+    <p>Tag numbers, dates, work orders and stamps on scanned reports and P&amp;IDs are read independently by on-device OCR and by the vision model, which does not see the OCR answer. If they disagree, a zoomed re-read decides; if it still cannot, the field is flagged for the engineer instead of guessed.</p>
+    <figure class="ex-fig">
+      <svg viewBox="0 0 1000 290" role="img" aria-label="A scanned field is read by OCR and by a vision model; agreement is used, disagreement is re-read or flagged">
+        <rect x="16" y="84" width="200" height="120" rx="12" fill="#f4efe4" stroke="#ddd5c7"/>
+        <path d="M30 108h120M30 124h90" stroke="#cfc6b6" stroke-width="3" stroke-linecap="round"/>
+        <text x="30" y="166" style="font-family:'Segoe Print','Bradley Hand',cursive;font-size:24px;fill:#34302a" transform="rotate(-2 30 166)">WO-772?1</text>
+        <rect x="24" y="140" width="168" height="38" rx="6" fill="none" stroke="#d9772b" stroke-width="1.6" stroke-dasharray="4 3"/>
+        <text class="s" x="16" y="226">Scanned field, cropped</text>
+
+        <path class="ln o flow" d="M216 130 C 250 130, 250 75, 282 75" marker-end="url(#ah-o)"/>
+        <path class="ln b flow" d="M216 160 C 250 160, 250 215, 282 215" marker-end="url(#ah-b)"/>
+        <rect class="o" x="284" y="40" width="210" height="70" rx="12"/><text class="t" x="300" y="66" style="font-size:14px">OCR, on device</text><text class="m" x="300" y="92">reads WO-77231</text>
+        <rect class="b" x="284" y="180" width="210" height="70" rx="12"/><text class="t" x="300" y="206" style="font-size:14px">Vision model, blind</text><text class="m" x="300" y="232">reads WO-77281</text>
+
+        <path class="ln flow" d="M494 75 C 530 75, 530 145, 560 145" marker-end="url(#ah)"/>
+        <path class="ln flow" d="M494 215 C 530 215, 530 145, 560 145" marker-end="url(#ah)"/>
+        <path d="M612 95 L 662 145 L 612 195 L 562 145 z" fill="#fff" stroke="#1f1d1a" stroke-width="1.4"/>
+        <text class="t" x="587" y="150" style="font-size:14px">Agree?</text>
+
+        <path class="ln g" d="M662 145 C 690 145, 690 60, 712 60" marker-end="url(#ah-g)"/>
+        <path class="ln o" d="M662 145 L 712 145" marker-end="url(#ah-o)"/>
+        <path class="ln r" d="M662 145 C 690 145, 690 230, 712 230" marker-end="url(#ah-r)" style="stroke-dasharray:none"/>
+        <rect class="g" x="714" y="30" width="270" height="60" rx="12"/><text class="t" x="730" y="55" style="font-size:14px">Yes: high confidence</text><text class="s" x="730" y="74">used in checks and the draft</text>
+        <rect class="o" x="714" y="115" width="270" height="60" rx="12"/><text class="t" x="730" y="140" style="font-size:14px">No: zoomed re-read</text><text class="s" x="730" y="159">both candidates, glyph check</text>
+        <rect class="r" x="714" y="200" width="270" height="60" rx="12"/><text class="t" x="730" y="225" style="font-size:14px">Still unclear: flagged</text><text class="s" x="730" y="244">shown to the engineer, never guessed</text>
+      </svg>
+      <p class="ex-cap">On P&amp;ID sheets the same pipeline detects every tag, classifies it by its ISA prefix and checks it against the asset register, so a tag on the drawing that the plant does not know about stands out.</p>
+    </figure>
+  </section>
+
+  <!-- 06 Evidence -->
+  <section class="ex-sec">
+    <p class="eyebrow"><span class="ex-num">06</span> &nbsp;Grounded in evidence</p>
+    <h2>Every number in a draft points back to the page it came from.</h2>
+    <p>Tools never pass raw text along. They write records into a hash-chained ledger, and the draft cites those records. On review each figure is underlined by where it came from, and a figure with no source blocks approval until someone links, corrects or confirms it.</p>
+    <figure class="ex-fig">
+      <svg viewBox="0 0 1000 260" role="img" aria-label="A figure in the draft links to a ledger record from the scanned report; records are hash-chained">
+        <rect class="box" x="16" y="18" width="620" height="62" rx="12"/>
+        <text x="34" y="55" style="font-family:var(--font-serif);font-size:16px">The minimum measured wall thickness is <tspan style="fill:#4f7625;font-weight:700;text-decoration:underline">5.6 mm</tspan> at the casing volute.<tspan dy="-7" style="font-size:11px;fill:#4f7625;font-weight:700"> [3]</tspan></text>
+
+        <g>
+          <rect class="box" x="664" y="18" width="320" height="104" rx="12"/>
+          <path d="M682 44h28" stroke="#4f7625" stroke-width="2.4"/><text class="s" x="720" y="48" style="fill:#1f1d1a">from a source</text>
+          <path d="M682 72h28" stroke="#2f6fb0" stroke-width="2.4"/><text class="s" x="720" y="76" style="fill:#1f1d1a">calculated from sources</text>
+          <path d="M682 100h28" stroke="#c4372b" stroke-width="2.4"/><text class="s" x="720" y="104" style="fill:#1f1d1a">no source: approval locked</text>
+        </g>
+
+        <path class="ln g flow" d="M360 80 C 360 130, 450 130, 450 158" marker-end="url(#ah-g)"/>
+
+        <g>
+          <rect class="box" x="16" y="160" width="150" height="76" rx="12"/><text class="m" x="30" y="184" style="font-weight:600">R-1</text><text class="s" x="30" y="204">user_input</text><text class="s" x="30" y="222">control</text>
+          <rect class="box" x="196" y="160" width="150" height="76" rx="12"/><text class="m" x="210" y="184" style="font-weight:600">R-2</text><text class="s" x="210" y="204">attachment</text><text class="s" x="210" y="222">Confidential</text>
+          <rect class="g" x="376" y="160" width="150" height="76" rx="12"/><text class="m" x="390" y="184" style="font-weight:600">R-3</text><text class="s" x="390" y="204">ocr_text</text><text class="s" x="390" y="222">page 2, table 1</text>
+          <rect class="box" x="556" y="160" width="150" height="76" rx="12"/><text class="m" x="570" y="184" style="font-weight:600">R-4</text><text class="s" x="570" y="204">kb_chunk</text><text class="s" x="570" y="222">SOP-MECH-014 4.3</text>
+          <rect class="box" x="736" y="160" width="150" height="76" rx="12"/><text class="m" x="750" y="184" style="font-weight:600">R-5</text><text class="s" x="750" y="204">calc_result</text><text class="s" x="750" y="222">trend to next date</text>
+          <path class="ln" d="M166 198 L 194 198" marker-end="url(#ah)"/>
+          <path class="ln" d="M346 198 L 374 198" marker-end="url(#ah)"/>
+          <path class="ln" d="M526 198 L 554 198" marker-end="url(#ah)"/>
+          <path class="ln" d="M706 198 L 734 198" marker-end="url(#ah)"/>
+          <text class="s" x="900" y="194" style="font-size:11px">each record</text>
+          <text class="s" x="900" y="210" style="font-size:11px">holds the hash</text>
+          <text class="s" x="900" y="226" style="font-size:11px">of the one before</text>
+        </g>
+      </svg>
+    </figure>
+  </section>
+
+  <!-- 07 Proof -->
+  <section class="ex-sec">
+    <p class="eyebrow"><span class="ex-num">07</span> &nbsp;Proof, not a promise</p>
+    <h2>Sovereignty is measured live, from three independent sources.</h2>
+    <p>The firewall drops outbound traffic by policy. On top of that, egressd reads the firewall counters, the kernel's connection table and the audit log, and any external connection turns the indicator red. A one-click self-test tries a raw IP, a DNS lookup and a connection from inside the sandbox, and shows all three being blocked.</p>
+    <figure class="ex-fig">
+      <svg viewBox="0 0 1000 270" role="img" aria-label="Three collectors feed egressd, which shows zero outbound on the Security page">
+        <rect class="box" x="16" y="18" width="230" height="58" rx="12"/><text class="t" x="32" y="42" style="font-size:14px">nftables counters</text><text class="s" x="32" y="62">firewall policy: drop</text>
+        <rect class="box" x="16" y="100" width="230" height="58" rx="12"/><text class="t" x="32" y="124" style="font-size:14px">conntrack</text><text class="s" x="32" y="144">every tracked connection</text>
+        <rect class="box" x="16" y="182" width="230" height="58" rx="12"/><text class="t" x="32" y="206" style="font-size:14px">Audit log</text><text class="s" x="32" y="226">blocked connects, host and sandbox</text>
+
+        <path class="ln g flow" d="M246 47 C 290 47, 290 118, 330 118" marker-end="url(#ah-g)"/>
+        <path class="ln g flow" d="M246 129 L 330 129" marker-end="url(#ah-g)"/>
+        <path class="ln g flow" d="M246 211 C 290 211, 290 140, 330 140" marker-end="url(#ah-g)"/>
+
+        <rect class="g" x="332" y="84" width="210" height="90" rx="16"/>
+        <text class="t" x="350" y="116">egressd</text>
+        <text class="s" x="350" y="138">three sources, one verdict</text>
+        <text class="s" x="350" y="156">breach flag if any count</text>
+
+        <rect class="box" x="332" y="200" width="210" height="50" rx="12" stroke-dasharray="5 5"/>
+        <text class="t" x="348" y="221" style="font-size:13px">Run a test</text><text class="s" x="348" y="238">raw IP, DNS, sandbox</text>
+        <path class="ln" d="M437 200 L 437 176" marker-end="url(#ah)"/>
+
+        <path class="ln g flow" d="M542 129 L 600 129" marker-end="url(#ah-g)"/>
+        <rect x="602" y="86" width="230" height="86" rx="18" fill="#fff" stroke="#4f7625" stroke-width="1.6"/>
+        <circle class="pulse" cx="626" cy="115" r="7" fill="#4f7625"/>
+        <text class="t" x="642" y="120">0 outbound</text>
+        <text class="s" x="626" y="146">3 attempts blocked by the test</text>
+        <text class="s" x="626" y="162" style="font-size:11px">Security page, live</text>
+
+        <path class="ln r" d="M832 129 L 870 129" marker-end="url(#ah-r)" style="stroke-dasharray:none"/>
+        <rect class="r" x="872" y="96" width="114" height="66" rx="12"/>
+        <text class="t" x="886" y="124" style="font-size:13px;fill:#c4372b">Any breach</text>
+        <text class="s" x="886" y="144">turns it red</text>
+      </svg>
+    </figure>
+  </section>
+
+  <!-- 08 Requirements -->
+  <section class="ex-sec">
+    <p class="eyebrow"><span class="ex-num">08</span> &nbsp;What was asked, and where to see it</p>
+    <h2>Every expectation in the problem statement, mapped to the product.</h2>
+    <div class="ex-map">
+      <div class="ex-row"><span>Expectation</span><span>How the workbench meets it</span><span></span></div>
+      <div class="ex-row"><strong><span class="ex-tick">✓</span>Model auto-selection</strong><p>Documents go to the vision model, code to the coder, multi-step reasoning to the large model. Every decision is logged with its reason.</p><a class="ex-go" href="/models">Models ›</a></div>
+      <div class="ex-row"><strong><span class="ex-tick">✓</span>Agentic, end to end</strong><p>A scanned inspection report becomes a checked approval note in Word: planned, approved, executed, verified.</p><a class="ex-go" href="/">Try it ›</a></div>
+      <div class="ex-row"><strong><span class="ex-tick">✓</span>Code, verified in a sandbox</strong><p>The script runs with no network. A failing first attempt is fixed from its traceback and re-run until it passes.</p><a class="ex-go" href="/">Try it ›</a></div>
+      <div class="ex-row"><strong><span class="ex-tick">✓</span>Multimodal</strong><p>Scans, handwriting and P&amp;IDs are read by on-device OCR and a vision model, and drawing tags are detected and checked.</p><a class="ex-go" href="/plant">Drawings ›</a></div>
+      <div class="ex-row"><strong><span class="ex-tick">✓</span>Real deliverables</strong><p>Approval notes, spreadsheets with live formulas, slide decks, calculation sheets and working code, each stamped with its classification.</p><a class="ex-go" href="/library">Library ›</a></div>
+      <div class="ex-row"><strong><span class="ex-tick">✓</span>Grounded in MRPL knowledge</strong><p>SOPs, manuals and past notes in a local knowledge base, filtered by clearance and by the revision in force.</p><a class="ex-go" href="/plant">Plant ›</a></div>
+      <div class="ex-row"><strong><span class="ex-tick">✓</span>No external calls, proven</strong><p>Live egress counters from three sources and a one-click self-test, next to a tamper-evident audit log.</p><a class="ex-go" href="/security">Security ›</a></div>
+      <div class="ex-row"><strong><span class="ex-tick">✓</span>New models without redesign</strong><p>A registry entry, a shadow evaluation on MRPL's own tasks, and one audited command to promote it.</p><a class="ex-go" href="/models">Models ›</a></div>
+    </div>
+  </section>
+
+  <section class="ex-close">
+    <p class="eyebrow">Sovereign AI · built for MRPL</p>
+    <h2>The data stays home. The work gets done.</h2>
+    <a class="btn-go" href="/">Start a task</a>
+  </section>
+</div>
+
+<script>
+  (function () {
+    var root = document.getElementById("ex");
+    if (!root || !("IntersectionObserver" in window)) return;
+    root.classList.add("reveal-on");
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } });
+    }, { threshold: 0.12 });
+    root.querySelectorAll(".ex-sec, .ex-close").forEach(function (el) { io.observe(el); });
+  })();
+</script>
+{% endblock %}

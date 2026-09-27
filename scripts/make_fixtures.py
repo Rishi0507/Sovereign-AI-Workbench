@@ -18,6 +18,9 @@ from pathlib import Path
 
 import pymupdf as fitz
 
+from workbench.documents.pid_detect import classify_tag
+from workbench.documents.pid_layout import Layout
+
 A4 = fitz.paper_rect("a4")
 MARGIN = 56
 FONT = "helv"
@@ -382,10 +385,16 @@ a governing procedure clause, cited with document, revision and page.
 # 1 Sheet PID-CW-003 tag list
 P-108A cooling water booster pump A, duty.
 P-108B cooling water booster pump B, standby, suction from header CW-12.
-FT-108 flow transmitter on common discharge.
+GV-1081 and GV-1082 are the suction gate valves for P-108A and P-108B.
+CHK-1083 is the common discharge check valve.
+FT-108 flow transmitter and FIC-108 flow indicating controller on common discharge.
+FCV-108 is the flow control valve the FIC-108 loop actuates.
+PT-2101 discharge pressure transmitter, added Rev C.
+PSV-108 relief valve on the discharge header, added Rev C.
 
 # 2 Line list
 CW-12 cooling water supply header, 8 inch, carbon steel.
+CW-14 cooling water return to the cooling tower, 8 inch, carbon steel.
 """, encoding="utf-8")
     notes = kb / "past_notes"
     notes.mkdir(exist_ok=True)
@@ -440,17 +449,23 @@ Price carries a weight of 0.6, delivery 0.25 and warranty 0.15 unless the tender
 
 PID_INK = "#2b3138"
 PID_PAPER = "#f7f7f4"
-PID_TEMPLATE = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1040 640" role="img" aria-label="{title}">
-  <rect x="0" y="0" width="1040" height="640" fill="{paper}"/>
-  <rect x="8" y="8" width="1024" height="624" rx="4" fill="none" stroke="{ink}" stroke-width="1" opacity=".55"/>
+PID_TEMPLATE = '''<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1000" role="img" aria-label="{title}">
+  <rect x="0" y="0" width="1600" height="1000" fill="{paper}"/>
+  <rect x="8" y="8" width="1584" height="984" rx="4" fill="none" stroke="{ink}" stroke-width="1" opacity=".55"/>
+{grid}
+{strip}
 {body}
-  <g>
-    <rect x="700" y="516" width="324" height="108" fill="none" stroke="{ink}" stroke-width="1" opacity=".55"/>
-    <line x1="700" y1="548" x2="1024" y2="548" stroke="{ink}" stroke-width="1" opacity=".55"/>
-    <line x1="700" y1="584" x2="1024" y2="584" stroke="{ink}" stroke-width="1" opacity=".55"/>
-    <text x="712" y="539" fill="{ink}" font-size="15" font-weight="650" font-family="system-ui, sans-serif">{sheet}</text>
-    <text x="712" y="571" fill="{ink}" font-size="13" font-family="system-ui, sans-serif">{title}</text>
-    <text x="712" y="606" fill="{ink}" font-size="11" opacity=".7" font-family="system-ui, sans-serif">Revision {revision} · {marking} · synthetic drawing for demonstration</text>
+  <g class="titleblock">
+    <rect x="1180" y="828" width="412" height="156" fill="none" stroke="{ink}" stroke-width="1" opacity=".55"/>
+    <line x1="1180" y1="864" x2="1592" y2="864" stroke="{ink}" stroke-width="1" opacity=".55"/>
+    <line x1="1180" y1="900" x2="1592" y2="900" stroke="{ink}" stroke-width="1" opacity=".55"/>
+    <line x1="1180" y1="932" x2="1592" y2="932" stroke="{ink}" stroke-width="1" opacity=".55"/>
+    <line x1="1180" y1="958" x2="1592" y2="958" stroke="{ink}" stroke-width="1" opacity=".55"/>
+    <text x="1192" y="855" fill="{ink}" font-size="16" font-weight="650" font-family="system-ui, sans-serif">{sheet}</text>
+    <text x="1192" y="887" fill="{ink}" font-size="12.5" font-family="system-ui, sans-serif">{title}</text>
+    <text x="1192" y="916" fill="{ink}" font-size="11" opacity=".8" font-family="system-ui, sans-serif">Rev {revision} &#183; {date} &#183; {marking}</text>
+    <text x="1192" y="948" fill="{ink}" font-size="10.5" opacity=".75" font-family="system-ui, sans-serif">Scale NTS &#183; Plant A &#183; Piping and Instrumentation Diagram</text>
+    <text x="1192" y="978" fill="#7a2020" font-size="10.5" font-weight="600" opacity=".85" font-family="system-ui, sans-serif">SYNTHETIC DRAWING FOR DEMONSTRATION</text>
   </g>
 </svg>
 '''
@@ -460,32 +475,107 @@ def _line(d: str, width: float = 2, opacity: float = 1) -> str:
     return f'<path d="{d}" fill="none" stroke="{PID_INK}" stroke-width="{width}" opacity="{opacity}"/>'
 
 
-def _text(x: int, y: int, text: str, size: float = 13, weight: int = 400, anchor: str = "middle",
+def _text(x: float, y: float, text: str, size: float = 13, weight: int = 400, anchor: str = "middle",
           opacity: float = 1) -> str:
     return (f'<text x="{x}" y="{y}" text-anchor="{anchor}" fill="{PID_INK}" font-size="{size}" '
             f'font-weight="{weight}" opacity="{opacity}" font-family="system-ui, sans-serif">{text}</text>')
 
 
-def _hit(x: int, y: int, w: int, h: int) -> str:
-    return f'<rect class="pid-hit" x="{x}" y="{y}" width="{w}" height="{h}" fill="transparent" stroke="none"/>'
+def _hit(x: float, y: float, w: float, h: float) -> str:
+    return f'<rect class="pid-hit" x="{x}" y="{y}" width="{w}" height="{h}" fill="none" stroke="none"/>'
 
 
-def pump(x: int, y: int, tag: str, description: str, note: str = "") -> str:
-    """A centrifugal pump: casing, impeller, suction and discharge nozzles."""
+def _grid_marks() -> str:
+    """Drawing-grid letters and numbers along the border, kept clear of the notes/title band."""
+    cols = "ABCDEFGHIJ"
+    xs = [140 + i * 150 for i in range(len(cols))]
+    ys = [90 + i * 100 for i in range(8)]
+    parts = ['<g class="pid-grid" opacity=".4">']
+    for c, x in zip(cols, xs, strict=False):
+        parts.append(_text(x, 22, c, 11, 400, "middle", .8))
+        parts.append(_text(x, 812, c, 11, 400, "middle", .8))
+    for n, y in enumerate(ys, start=1):
+        parts.append(_text(20, y, str(n), 11, 400, "middle", .8))
+        parts.append(_text(1578, y, str(n), 11, 400, "middle", .8))
+    parts.append("</g>")
+    return "".join(parts)
+
+
+GRID_MARKS = _grid_marks()
+
+
+def equipment_strip(rows: list[tuple[str, str, str, str]]) -> str:
+    """A data strip along the top of the sheet: tag, service, duty and design conditions for
+    the sheet's major equipment, the way a real drawing summarises what is on it."""
+    parts = ['<g class="pid-strip" opacity=".9">',
+             f'<line x1="40" y1="104" x2="1560" y2="104" stroke="{PID_INK}" stroke-width="1" opacity=".4"/>']
+    headers = ["TAG", "SERVICE", "DUTY", "DESIGN P/T"]
+    cols = [40, 220, 620, 900]
+    for cx, htext in zip(cols, headers, strict=True):
+        parts.append(_text(cx, 54, htext, 9.5, 650, "start", .6))
+    for i, row in enumerate(rows[:3]):
+        ry = 72 + i * 16
+        for cx, val in zip(cols, row, strict=True):
+            parts.append(_text(cx, ry, val, 9.5, 400, "start", .8))
+    parts.append("</g>")
+    return "".join(parts)
+
+
+def drain(x: float, y: float) -> str:
+    return (_line(f"M{x} {y} V{y + 16}", 1.4, .7)
+            + f'<path d="M{x - 5} {y + 16} L{x + 5} {y + 16} L{x} {y + 24} Z" '
+              f'fill="none" stroke="{PID_INK}" stroke-width="1.2" opacity=".7"/>')
+
+
+def vent(x: float, y: float) -> str:
+    return (_line(f"M{x} {y} V{y - 14}", 1.4, .7)
+            + f'<circle cx="{x}" cy="{y - 18}" r="4" fill="none" stroke="{PID_INK}" stroke-width="1.2" opacity=".7"/>')
+
+
+def arrow(x: float, y: float, direction: str = "e") -> str:
+    tris = {"e": f"M{x - 7} {y - 5} L{x + 7} {y} L{x - 7} {y + 5} Z",
+            "w": f"M{x + 7} {y - 5} L{x - 7} {y} L{x + 7} {y + 5} Z",
+            "s": f"M{x - 5} {y - 7} L{x} {y + 7} L{x + 5} {y - 7} Z",
+            "n": f"M{x - 5} {y + 7} L{x} {y - 7} L{x + 5} {y + 7} Z"}
+    return f'<path d="{tris.get(direction, tris["e"])}" fill="{PID_INK}" opacity=".75"/>'
+
+
+def pump(lc: Layout, x: float, y: float, tag: str, description: str, note: str = "",
+         terse: bool = False, dashed: bool = False) -> str:
+    """A centrifugal pump: casing, impeller, suction and discharge nozzles. ``dashed`` draws it
+    as a future item (a spare position that is not installed and so is not in the register)."""
+    lc.tag(tag, "pump", description, bbox=(x - 54, y - 54, x + 54, y + 64))
+    lc.label(x, y + 48, tag, 14)
+    desc = ""
+    if not terse:
+        desc = _text(x, y + 68, note or description, 11, 400, "middle", .7)
+        lc.label(x, y + 68, note or description, 11)
+    dash = ' stroke-dasharray="5 4"' if dashed else ""
+    hint = ""
+    if dashed:
+        hint = _text(x, y - 34, "FUTURE, NOT INSTALLED", 8.5, 600, "middle", .8)
+        lc.label(x, y - 34, "FUTURE, NOT INSTALLED", 8.5)
     return f'''  <g class="pid-item" data-tag="{tag}"><title>{tag} {description}</title>
-    <circle cx="{x}" cy="{y}" r="26" fill="none" stroke="{PID_INK}" stroke-width="2"/>
+    <circle cx="{x}" cy="{y}" r="26" fill="none" stroke="{PID_INK}" stroke-width="2"{dash}/>
     {_line(f"M{x - 10} {y - 12} L{x + 14} {y} L{x - 10} {y + 12} Z")}
     {_line(f"M{x - 26} {y} H{x - 52}")}
     {_line(f"M{x} {y - 26} V{y - 52}")}
+    {hint}
     {_text(x, y + 48, tag, 14, 650)}
-    {_text(x, y + 64, note or description, 11, 400, "middle", .7)}
+    {desc}
     {_hit(x - 54, y - 54, 108, 118)}
   </g>
 '''
 
 
-def exchanger(x: int, y: int, tag: str, description: str) -> str:
+def exchanger(lc: Layout, x: float, y: float, tag: str, description: str, terse: bool = False) -> str:
     """A shell and tube exchanger."""
+    lc.tag(tag, "exchanger", description, bbox=(x - 62, y - 40, x + 62, y + 84))
+    lc.label(x, y + 64, tag, 14)
+    desc = ""
+    if not terse:
+        desc = _text(x, y + 84, description, 11, 400, "middle", .7)
+        lc.label(x, y + 84, description, 11)
     return f'''  <g class="pid-item" data-tag="{tag}"><title>{tag} {description}</title>
     <rect x="{x - 60}" y="{y - 38}" width="120" height="76" rx="8" fill="none" stroke="{PID_INK}" stroke-width="2"/>
     {_line(f"M{x - 46} {y - 20} H{x + 32} V{y} H{x - 32} V{y + 20} H{x + 46}", 1, .6)}
@@ -494,90 +584,719 @@ def exchanger(x: int, y: int, tag: str, description: str) -> str:
     {_line(f"M{x - 60} {y - 20} H{x - 96}")}
     {_line(f"M{x + 60} {y + 20} H{x + 96}")}
     {_text(x, y + 64, tag, 14, 650)}
-    {_text(x, y + 80, description, 11, 400, "middle", .7)}
+    {desc}
     {_hit(x - 62, y - 40, 124, 124)}
   </g>
 '''
 
 
-def vessel(x: int, y: int, tag: str, description: str) -> str:
-    """A vertical vessel with dished ends."""
-    shell = f"M{x - 42} {y - 70} a42 22 0 0 1 84 0 v140 a42 22 0 0 1 -84 0 z"
+def vessel(lc: Layout, x: float, y: float, tag: str, description: str, height: int = 140,
+          terse: bool = False) -> str:
+    """A vertical vessel with dished ends; a taller ``height`` reads as a column and gets trays."""
+    half = height / 2
+    lc.tag(tag, "vessel", description, bbox=(x - 88, y - half - 78, x + 88, y + half + 78))
+    shell = f"M{x - 42} {y - half - 22} a42 22 0 0 1 84 0 v{height} a42 22 0 0 1 -84 0 z"
+    trays = ""
+    if height > 160:
+        trays = "".join(_line(f"M{x - 42} {y - half + 22 + i * (height - 44) / 3} H{x + 42}", 1, .35)
+                        for i in range(1, 3))
+    lc.label(x, y + half + 42, tag, 14)
+    desc = ""
+    if not terse:
+        desc = _text(x, y + half + 62, description, 11, 400, "middle", .7)
+        lc.label(x, y + half + 62, description, 11)
     return f'''  <g class="pid-item" data-tag="{tag}"><title>{tag} {description}</title>
     <path d="{shell}" fill="none" stroke="{PID_INK}" stroke-width="2"/>
-    {_line(f"M{x - 42} {y - 40} H{x - 86}")}
-    {_line(f"M{x + 42} {y + 50} H{x + 86}")}
-    {_line(f"M{x} {y - 92} V{y - 124}")}
-    {_text(x, y + 108, tag, 14, 650)}
-    {_text(x, y + 124, description, 11, 400, "middle", .7)}
-    {_hit(x - 88, y - 126, 176, 252)}
+    {trays}
+    {_line(f"M{x - 42} {y - half + 30} H{x - 86}")}
+    {_line(f"M{x + 42} {y + half - 20} H{x + 86}")}
+    {_line(f"M{x} {y - half - 44} V{y - half - 76}")}
+    {_text(x, y + half + 42, tag, 14, 650)}
+    {desc}
+    {_hit(x - 88, y - half - 78, 176, height + 156)}
   </g>
 '''
 
 
-def instrument(x: int, y: int, tag: str, description: str) -> str:
-    """A field instrument bubble."""
+def instrument(lc: Layout, x: float, y: float, tag: str, description: str, mounting: str = "field",
+              terse: bool = True) -> str:
+    """An ISA-5.1 instrument bubble, read as two lines (function above, loop number below), the
+    same way a scanned sheet's OCR would split it. A bar means panel-mounted."""
     kind, loop = tag.split("-", 1)
-    return f'''  <g class="pid-item" data-tag="{tag}"><title>{tag} {description}</title>
+    bar = _line(f"M{x - 22} {y} H{x + 22}", 1, .6) if mounting == "panel" else ""
+    lc.tag(tag, "instrument", description, bbox=(x - 24, y - 24, x + 24, y + 48))
+    lc.label(x, y - 5, kind, 12)
+    lc.label(x, y + 15, loop, 12)
+    desc = ""
+    if not terse:
+        desc = _text(x, y + 44, description, 10, 400, "middle", .7)
+        lc.label(x, y + 44, description, 10)
+    return f'''  <g class="pid-item" data-tag="{tag}"><title>{tag} {description} ({mounting}-mounted)</title>
     <circle cx="{x}" cy="{y}" r="22" fill="{PID_PAPER}" stroke="{PID_INK}" stroke-width="2"/>
-    {_line(f"M{x - 22} {y} H{x + 22}", 1, .6)}
+    {bar}
     {_text(x, y - 5, kind, 12)}
     {_text(x, y + 15, loop, 12)}
-    {_text(x, y + 44, description, 11, 400, "middle", .7)}
+    {desc}
     {_hit(x - 24, y - 24, 48, 72)}
   </g>
 '''
 
 
-def run(points: str, label: str = "", lx: int = 0, ly: int = 0) -> str:
-    text = _text(lx, ly, label, 11, 400, "start", 0.7) if label else ""
+def valve(lc: Layout, x: float, y: float, tag: str, description: str, kind: str = "gate",
+         terse: bool = True, label_side: str = "below") -> str:
+    """A line valve. ``kind`` is gate, check, control (with an actuator), relief (with a spring)
+    or shutdown (a solid ESD actuator, tag prefix XV). ``label_side`` is "below" for a valve on a
+    horizontal run, or "side" for one mounted on a vertical branch, where a label below it would
+    sit in the branch pipe's own path."""
+    body = f"M{x - 14} {y - 10} L{x + 14} {y - 10} L{x} {y} L{x + 14} {y + 10} L{x - 14} {y + 10} L{x} {y} Z"
+    extra = ""
+    cls, sub = "valve", "gate_valve"
+    if kind == "control":
+        cls, sub = "control_valve", "control_valve"
+        extra = (_line(f"M{x} {y - 10} V{y - 30}")
+                 + f'<rect x="{x - 16}" y="{y - 46}" width="32" height="18" rx="2" fill="none" '
+                   f'stroke="{PID_INK}" stroke-width="2"/>')
+    elif kind == "check":
+        sub = "check_valve"
+        extra = _line(f"M{x - 6} {y - 6} L{x + 6} {y} L{x - 6} {y + 6}", 1.4, .85)
+    elif kind == "relief":
+        cls, sub = "relief_valve", "relief_valve"
+        extra = (_line(f"M{x} {y - 10} V{y - 28}")
+                 + _line(f"M{x - 9} {y - 28} L{x + 9} {y - 28} L{x} {y - 40} Z"))
+    elif kind == "shutdown":
+        sub = "shutdown_valve"
+        extra = (_line(f"M{x} {y - 10} V{y - 30}")
+                 + f'<rect x="{x - 14}" y="{y - 44}" width="28" height="16" fill="{PID_INK}"/>')
+    lc.tag(tag, cls, description, subclass=sub, bbox=(x - 30, y - 50, x + 30, y + 40))
+    if label_side == "side":
+        lx, ly, anchor = x + 34, y + 4, "start"
+    else:
+        lx, ly, anchor = x, y + 26, "middle"
+    lc.label(lx, ly, tag, 10.5, anchor=anchor)
+    desc = ""
+    if not terse:
+        dy = ly + 14
+        desc = _text(lx, dy, description, 9.5, 400, anchor, .7)
+        lc.label(lx, dy, description, 9.5, anchor=anchor)
+    return f'''  <g class="pid-item" data-tag="{tag}"><title>{tag} {description}</title>
+    <path d="{body}" fill="none" stroke="{PID_INK}" stroke-width="2"/>
+    {extra}
+    {_text(lx, ly, tag, 10.5, 650, anchor)}
+    {desc}
+    {_hit(x - 30, y - 50, 60, 90)}
+  </g>
+'''
+
+
+def strainer(lc: Layout, x: float, y: float, tag: str) -> str:
+    """A suction strainer/basket, drawn inline on its pipe."""
+    lc.tag(tag, "strainer", "suction strainer", subclass="strainer", bbox=(x - 16, y - 12, x + 16, y + 30))
+    lc.label(x, y + 24, tag, 9)
+    return f'''  <g class="pid-item" data-tag="{tag}"><title>{tag} suction strainer</title>
+    <path d="M{x - 11} {y - 10} L{x + 11} {y - 10} L{x} {y + 10} Z" fill="none" stroke="{PID_INK}" stroke-width="1.6"/>
+    {_line(f"M{x - 11} {y} H{x + 11}", 1, .5)}
+    {_text(x, y + 24, tag, 9, 600)}
+    {_hit(x - 16, y - 12, 32, 42)}
+  </g>
+'''
+
+
+def reducer(lc: Layout, x: float, y: float, text: str) -> str:
+    """A concentric reducer, e.g. ``8"x6"``, shown as a taper inline on its pipe."""
+    lc.tag(text, "reducer", "reducer", bbox=(x - 17, y - 12, x + 17, y + 24))
+    lc.label(x, y + 20, text, 9)
+    attr = text.replace('"', "&quot;")
+    return f'''  <g class="pid-reducer" data-reducer="{attr}"><title>Reducer {text}</title>
+    <path d="M{x - 15} {y - 9} L{x + 15} {y - 5} L{x + 15} {y + 5} L{x - 15} {y + 9} Z" fill="{PID_PAPER}" stroke="{PID_INK}" stroke-width="1.6"/>
+    {_text(x, y + 20, text, 9, 500)}
+    {_hit(x - 17, y - 12, 34, 36)}
+  </g>
+'''
+
+
+def specbreak(lc: Layout, x: float, y: float, text: str) -> str:
+    """A pipe-spec break: two perpendicular ticks marking where the line's spec changes."""
+    lc.tag(text, "spec_break", "spec break", bbox=(x - 18, y - 18, x + 18, y + 18))
+    lc.label(x, y - 16, text, 9)
+    attr = text.replace('"', "&quot;")
+    return f'''  <g class="pid-specbreak" data-break="{attr}"><title>Spec break {text}</title>
+    {_line(f"M{x - 6} {y - 13} V{y + 13}", 1.6, .9)}
+    {_line(f"M{x + 6} {y - 13} V{y + 13}", 1.6, .9)}
+    {_text(x, y - 16, text, 9, 500)}
+    {_hit(x - 18, y - 18, 36, 36)}
+  </g>
+'''
+
+
+def line_no(lc: Layout, x: float, y: float, text: str) -> str:
+    """A line-number flag: size, service, sequence and spec, e.g. ``6"-P-1024-A1A``. It sits on
+    top of its own line by design, the way a real leader-flag breaks the line it labels."""
+    w = len(text) * 6.2 + 16
+    attr = text.replace('"', "&quot;")
+    lc.tag(text, "line", "line number", bbox=(x - 4, y - 12, x - 4 + w, y + 4))
+    lc.label(x + w / 2 - 4, y, text, 10, on_line=True)
+    return f'''  <g class="pid-line" data-line="{attr}"><title>Line {text}</title>
+    <rect x="{x - 4}" y="{y - 12}" width="{w}" height="16" rx="3" fill="{PID_PAPER}" stroke="{PID_INK}" stroke-width="1" opacity=".8"/>
+    {_text(x + w / 2 - 4, y, text, 10, 600, "middle", .9)}
+    {_hit(x - 4, y - 12, w, 16)}
+  </g>
+'''
+
+
+def offpage(lc: Layout, x: float, y: float, to: str, direction: str = "right") -> str:
+    """An off-page connector: the flag-shaped ISA symbol pointing to where a line continues."""
+    lc.tag(to, "connector", "off-page connector", bbox=(x, y - 20, x + 80, y + 20))
+    lc.label(x + 39, y + 4, "OPC", 10)
+    attr = to.replace('"', "&quot;")
+    pts = (f"M{x} {y - 18} H{x + 60} L{x + 78} {y} L{x + 60} {y + 18} H{x} Z" if direction == "right"
+           else f"M{x + 78} {y - 18} H{x + 18} L{x} {y} L{x + 18} {y + 18} H{x + 78} Z")
+    return f'''  <g class="pid-connector" data-to="{attr}"><title>Continues to: {to}</title>
+    <path d="{pts}" fill="{PID_PAPER}" stroke="{PID_INK}" stroke-width="2"/>
+    {_text(x + 39, y + 4, "OPC", 10, 650)}
+    {_hit(x, y - 20, 80, 40)}
+  </g>
+'''
+
+
+def run(lc: Layout, points: str, label: str = "", lx: float = 0, ly: float = 0) -> str:
+    lc.path(points)
+    text = ""
+    if label:
+        text = _text(lx, ly, label, 10.5, 400, "start", 0.65)
+        lc.label(lx, ly, label, 10.5, anchor="start")
     return "  <g>" + _line(points) + text + "</g>" + chr(10)
 
 
-def signal(points: str) -> str:
+def signal(lc: Layout, points: str) -> str:
+    lc.path(points)
     dashed = _line(points, 1.2, 0.7).replace("/>", ' stroke-dasharray="5 4"/>')
     return "  " + dashed + chr(10)
 
 
-def build_pid_sheets(ws_inputs: Path) -> None:
-    """Synthetic P&ID sheets for the tags in the asset register, drawn as SVG so tags stay clickable."""
-    sheets = [
-        ("PID-CW-003", "Cooling water booster pumps", "C", "Restricted",
-         pump(300, 330, "P-108A", "Cooling water booster pump A", "duty")
-         + pump(560, 330, "P-108B", "Cooling water booster pump B", "standby")
-         + instrument(760, 190, "FT-108", "Flow transmitter, common discharge")
-         + run("M60 330 H248", "CW-12 cooling water supply, 8 in", 62, 318)
-         + run("M140 330 V470 H508 V330", "", 0, 0)
-         + run("M300 278 V190 H738", "", 0, 0)
-         + run("M560 278 V190", "", 0, 0)
-         + run("M782 190 H980", "CW-14 to cooling tower, 8 in", 800, 178)
-         + signal("M760 168 V120 H860")),
-        ("PID-PW-001", "Process water pumps", "B", "Restricted",
-         pump(300, 330, "P-101A", "Process water pump A", "duty")
-         + pump(560, 330, "P-101B", "Process water pump B", "standby")
-         + run("M60 330 H248", "PW-04 process water suction, 6 in", 62, 318)
-         + run("M140 330 V470 H508 V330", "", 0, 0)
-         + run("M300 278 V190 H980", "PW-06 to unit battery limit, 6 in", 700, 178)
-         + run("M560 278 V190", "", 0, 0)),
-        ("PID-AM-002", "Lean amine cooler", "A", "Restricted",
-         exchanger(440, 300, "E-201", "Lean amine cooler")
-         + run("M60 280 H344", "AM-21 lean amine from regenerator", 62, 268)
-         + run("M536 320 H980", "AM-22 lean amine to absorber", 700, 308)
-         + run("M440 150 V262", "CW-31 cooling water in", 452, 140)
-         + run("M440 338 V470 H980", "CW-32 cooling water out", 700, 458)),
-        ("PID-FL-001", "Flash drum", "A", "Restricted",
-         vessel(440, 300, "V-301", "Flash drum")
-         + run("M60 260 H354", "FL-01 feed from separator", 62, 248)
-         + run("M482 350 H980", "FL-03 liquid to storage", 700, 338)
-         + run("M440 176 V60 H980", "FL-02 vapour to flare header", 700, 48)),
+def tap(lc: Layout, x: float, from_y: float, to_y: float) -> str:
+    """A short branch from a header at ``from_y`` up (or down) to an instrument or valve centred
+    at ``to_y``, stopping short of it so the stub never touches the item's own label."""
+    edge = to_y + 26 if to_y < from_y else to_y - 26
+    return run(lc, f"M{x} {from_y} V{edge}")
+
+
+def signal_v(lc: Layout, x: float, y_upper: float, y_lower: float) -> str:
+    """A dashed signal line between two vertically stacked bubbles, stopping short of both."""
+    return signal(lc, f"M{x} {y_upper + 26} V{y_lower - 26}")
+
+
+def signal_hv(lc: Layout, x_from: float, y_level: float, x_to: float, y_to: float) -> str:
+    """A dashed signal line sideways from a bubble at ``y_level``, then down (or up) into a
+    valve's actuator at ``x_to``, ``y_to``, stopping short of both ends."""
+    x_start = x_from - 26 if x_to < x_from else x_from + 26
+    y_end = y_to - 26 if y_to < y_level else y_to + 26
+    return signal(lc, f"M{x_start} {y_level} H{x_to} V{y_end}")
+
+
+def notes_box(lc: Layout, x: float, y: float, w: float, h: float, lines: list[str],
+             ref: tuple[int, str] | None = None) -> str:
+    """A general-notes block. ``ref`` marks one line as mentioning a tag that is nowhere else on
+    the sheet and not in the asset register, so the detector can flag it as an unregistered
+    mention rather than a drawn, unregistered item."""
+    parts = [f'<g class="pid-notes"><rect x="{x}" y="{y}" width="{w}" height="{h}" fill="none" '
+             f'stroke="{PID_INK}" stroke-width="1" opacity=".55"/>', _text(x + 10, y + 18, "NOTES", 11, 650, "start", .8)]
+    for i, line in enumerate(lines):
+        ly = y + 40 + i * 20
+        if ref and i == ref[0]:
+            info = classify_tag(ref[1])
+            lc.tag(ref[1], info.cls, "mentioned in notes, not drawn or registered",
+                  bbox=(x + 4, ly - 12, x + 4 + w - 20, ly + 6))
+            parts.append(f'<g class="pid-ref" data-ref="{ref[1]}"><title>{ref[1]} is mentioned in the notes but is '
+                        f'not shown elsewhere on this sheet and not in the asset register.</title>'
+                        f'{_text(x + 10, ly, line, 10.5, 400, "start", .85)}{_hit(x + 4, ly - 12, w - 20, 18)}</g>')
+        else:
+            parts.append(_text(x + 10, ly, line, 10.5, 400, "start", .75))
+    parts.append("</g>")
+    return "".join(parts)
+
+
+def revision_table(x: float, y: float, w: float, h: float, rows: list[tuple[str, str, str, str]]) -> str:
+    parts = [f'<g class="pid-revtable"><rect x="{x}" y="{y}" width="{w}" height="{h}" fill="none" '
+             f'stroke="{PID_INK}" stroke-width="1" opacity=".55"/>', _text(x + w / 2, y + 16, "REVISIONS", 11, 650, "middle", .8)]
+    cols = [x + 10, x + 46, x + 106, x + w - 54]
+    hy = y + 34
+    for cx, head in zip(cols, ["REV", "DATE", "DESCRIPTION", "BY"], strict=True):
+        parts.append(_text(cx, hy, head, 9.5, 650, "start", .7))
+    parts.append(f'<line x1="{x}" y1="{hy + 6}" x2="{x + w}" y2="{hy + 6}" stroke="{PID_INK}" stroke-width="1" opacity=".4"/>')
+    for i, row in enumerate(rows):
+        ry = hy + 22 + i * 18
+        for cx, val in zip(cols, row, strict=True):
+            parts.append(_text(cx, ry, val, 9.5, 400, "start", .75))
+    parts.append("</g>")
+    return "".join(parts)
+
+
+def pump_bank(lc: Layout, x0: float, y0: float, dy: float,
+             specs: list[tuple[str, str, str, bool]]) -> str:
+    """Several pumps stacked ``dy`` apart, each with its own suction strainer, suction gate
+    valve, and discharge check valve. ``specs`` is (tag, description, note, dashed)."""
+    body = []
+    for i, (tag, desc, note, dashed) in enumerate(specs):
+        y = y0 + i * dy
+        num = tag.split("-", 1)[1]
+        str_tag, gv_tag, chk_tag = f"STR-{num}", f"GV-{num}", f"CHK-{num}"
+        body.append(run(lc, f"M{x0 - 240} {y} H{x0 - 166}"))
+        body.append(strainer(lc, x0 - 150, y, str_tag))
+        body.append(run(lc, f"M{x0 - 134} {y} H{x0 - 88}"))
+        body.append(valve(lc, x0 - 60, y, gv_tag, f"Suction gate valve, {tag}", "gate"))
+        body.append(run(lc, f"M{x0 - 32} {y} H{x0 - 26}"))
+        body.append(pump(lc, x0, y, tag, desc, note, dashed=dashed, terse=True))
+        body.append(run(lc, f"M{x0 + 26} {y} H{x0 + 92}"))
+        body.append(valve(lc, x0 + 108, y, chk_tag, f"Discharge check valve, {tag}", "check"))
+        body.append(run(lc, f"M{x0 + 122} {y} H{x0 + 200}"))
+    return "".join(body)
+def _sheet_cw003() -> tuple[str, str, str, str, list, str, Layout]:
+    lc = Layout("PID-CW-003")
+    b = []
+    b.append(run(lc, "M40 180 H60", '10"-CW-1201-A1A', 44, 164))
+    b.append(run(lc, "M60 180 V460"))
+    b.append(pump_bank(lc, 300, 180, 140, [
+        ("P-108A", "Cooling water booster pump A", "duty", False),
+        ("P-108B", "Cooling water booster pump B", "standby", False),
+        ("P-108C", "Cooling water booster pump C", "future spare", True),
+    ]))
+    b.append(run(lc, "M500 180 V250"))
+    b.append(run(lc, "M500 320 V250"))
+    b.append(run(lc, "M500 460 V250"))
+    b.append(run(lc, "M500 250 H1430"))
+    b.append(tap(lc, 540, 250, 200))
+    b.append(instrument(lc, 540, 200, "PSHH-108", "Discharge header pressure switch high-high, trips XV-108", "field"))
+    b.append(valve(lc, 600, 250, "XV-108", "Emergency shutdown valve, CW discharge header", "shutdown"))
+    b.append(valve(lc, 680, 250, "GV-1084", "Block valve, before FCV-108", "gate"))
+    b.append(run(lc, "M680 190 H830"))
+    b.append(run(lc, "M680 250 V190"))
+    b.append(run(lc, "M830 190 V250"))
+    b.append(valve(lc, 795, 190, "GV-1086", "Bypass valve around FCV-108", "gate"))
+    b.append(valve(lc, 755, 250, "FCV-108", "Flow control valve, common discharge", "control"))
+    b.append(valve(lc, 830, 250, "GV-1085", "Block valve, after FCV-108", "gate"))
+    b.append(tap(lc, 1000, 250, 200))
+    b.append(instrument(lc, 1000, 200, "FT-108", "Flow transmitter, common discharge", "field"))
+    b.append(instrument(lc, 1000, 130, "FIC-108", "Flow indicating controller", "panel"))
+    b.append(signal_v(lc, 1000, 130, 200))
+    b.append(signal_hv(lc, 1000, 130, 755, 210))
+    b.append(tap(lc, 1150, 250, 200))
+    b.append(instrument(lc, 1150, 200, "PT-2101", "Discharge pressure transmitter", "field"))
+    b.append(instrument(lc, 1150, 130, "PIC-2101", "Discharge pressure indicating controller", "panel"))
+    b.append(signal_v(lc, 1150, 130, 200))
+    b.append(tap(lc, 1250, 250, 190))
+    b.append(valve(lc, 1250, 190, "PSV-108", "Relief valve, CW discharge header", "relief", label_side="side"))
+    b.append(vent(1250, 150))
+    b.append(reducer(lc, 1320, 250, '8"x6"'))
+    b.append(specbreak(lc, 1380, 250, "SB-1"))
+    b.append(line_no(lc, 900, 288, '8"-CW-1024-A1A'))
+    b.append(line_no(lc, 1300, 288, '6"-CW-1024-B1A'))
+    b.append(run(lc, "M1430 250 V190"))
+    b.append(offpage(lc, 1460, 190, "TO E-301 COOLING WATER USER, SHEET PID-CW-004"))
+    b.append(run(lc, "M1430 250 V330"))
+    b.append(offpage(lc, 1460, 330, "TO E-302 COOLING WATER USER, SHEET PID-CW-005"))
+    b.append(line_no(lc, 1435, 375, '6"-CW-1026-B1A'))
+    b.append(arrow(200, 180, "e"))
+    b.append(arrow(1100, 250, "e"))
+    # Minimum-flow recirculation, tapped after GV-1085, back to the suction riser.
+    b.append(run(lc, "M870 250 V750"))
+    b.append(run(lc, "M870 750 H60"))
+    b.append(valve(lc, 700, 750, "FCV-109", "Minimum-flow recirculation control valve", "control"))
+    b.append(valve(lc, 550, 750, "GV-1087", "Minimum-flow recirculation isolation valve", "gate"))
+    b.append(line_no(lc, 380, 786, '3"-CW-1040-B1A'))
+    b.append(run(lc, "M60 750 V460"))
+    b.append(drain(300, 780))
+    # Return header, with the chlorine dosing point on the way back to the cooling tower.
+    b.append(offpage(lc, 700, 550, "FROM E-301 COOLING WATER USER, SHEET PID-CW-004", "left"))
+    b.append(run(lc, "M700 550 H40"))
+    b.append(tap(lc, 450, 550, 500))
+    b.append(instrument(lc, 450, 500, "AT-108", "Chlorine residual analyser", "field"))
+    b.append(valve(lc, 320, 550, "GV-1088", "Chlorine injection isolation valve", "gate"))
+    b.append(line_no(lc, 150, 586, '8"-CW-1032-A1A'))
+    b.append(arrow(200, 550, "w"))
+    strip = [
+        ("P-108A", "CW booster pump, duty", "850 m3/h", "10 barg / 65 degC"),
+        ("P-108B", "CW booster pump, standby", "850 m3/h", "10 barg / 65 degC"),
+        ("P-108C", "CW booster pump, future spare", "850 m3/h", "10 barg / 65 degC"),
     ]
-    for sheet, title, revision, marking, body in sheets:
-        svg = PID_TEMPLATE.format(sheet=sheet, title=title, revision=revision, marking=marking.upper(),
-                                  body=body, ink=PID_INK, paper=PID_PAPER)
+    b.append(notes_box(lc, 40, 828, 780, 156, [
+        "1. All line numbers per the Piping Line List; size-service-sequence-spec.",
+        "2. Instruments per ISA-5.1. A bar means panel-mounted; a bare circle is field-mounted.",
+        "3. This is a SYNTHETIC drawing for demonstration; it shows no real MRPL asset.",
+        "4. XV-108 closes on PSHH-108 high-high pressure; interlock tested every 6 months.",
+        "5. Minimum flow recirculation opens automatically below 250 m3/h header flow.",
+    ]))
+    b.append(revision_table(830, 828, 340, 156, [
+        ("A", "2018-11-02", "Issued for construction", "S.RAO"),
+        ("B", "2019-03-14", "Added FIC-108 control loop", "S.RAO"),
+        ("C", "2019-07-01", "Added PT-2101 and PSV-108", "A.MENON"),
+        ("D", "2026-02-04", "Added XV-108, min-flow loop", "A.MENON"),
+    ]))
+    return "PID-CW-003", "D", "Restricted", "2026-02-04", strip, "".join(b), lc
+
+
+def _sheet_pw001() -> tuple[str, str, str, str, list, str, Layout]:
+    lc = Layout("PID-PW-001")
+    b = []
+    b.append(run(lc, "M40 180 H60", '8"-PW-1101-A1A', 44, 164))
+    b.append(run(lc, "M60 180 V320"))
+    b.append(pump_bank(lc, 300, 180, 140, [
+        ("P-101A", "Process water pump A", "duty", False),
+        ("P-101B", "Process water pump B", "standby", False),
+    ]))
+    b.append(run(lc, "M500 180 V250"))
+    b.append(run(lc, "M500 320 V250"))
+    b.append(run(lc, "M500 250 H1430"))
+    b.append(tap(lc, 540, 250, 200))
+    b.append(instrument(lc, 540, 200, "PSHH-101", "Discharge pressure switch high-high, trips XV-101", "field"))
+    b.append(valve(lc, 600, 250, "XV-101", "Emergency shutdown valve, process water discharge", "shutdown"))
+    b.append(valve(lc, 680, 250, "GV-1014", "Block valve, before FCV-101", "gate"))
+    b.append(run(lc, "M680 190 H830"))
+    b.append(run(lc, "M680 250 V190"))
+    b.append(run(lc, "M830 190 V250"))
+    b.append(valve(lc, 795, 190, "GV-1016", "Bypass valve around FCV-101", "gate"))
+    b.append(valve(lc, 755, 250, "FCV-101", "Flow control valve, common discharge", "control"))
+    b.append(valve(lc, 830, 250, "GV-1015", "Block valve, after FCV-101", "gate"))
+    b.append(tap(lc, 1000, 250, 200))
+    b.append(instrument(lc, 1000, 200, "FT-101", "Flow transmitter, common discharge", "field"))
+    b.append(instrument(lc, 1000, 130, "FIC-101", "Flow indicating controller", "panel"))
+    b.append(signal_v(lc, 1000, 130, 200))
+    b.append(signal_hv(lc, 1000, 130, 755, 210))
+    b.append(tap(lc, 1150, 250, 200))
+    b.append(instrument(lc, 1150, 200, "LT-1102", "Suction break-tank level transmitter", "field"))
+    b.append(instrument(lc, 1150, 130, "LIC-1102", "Level indicating controller", "panel"))
+    b.append(signal_v(lc, 1150, 130, 200))
+    b.append(tap(lc, 1250, 250, 190))
+    b.append(valve(lc, 1250, 190, "PSV-101", "Relief valve, process water discharge header", "relief", label_side="side"))
+    b.append(vent(1250, 150))
+    b.append(reducer(lc, 1320, 250, '6"x4"'))
+    b.append(specbreak(lc, 1380, 250, "SB-2"))
+    b.append(line_no(lc, 900, 288, '6"-PW-1104-B1A'))
+    b.append(line_no(lc, 1300, 288, '4"-PW-1106-B1A'))
+    b.append(run(lc, "M1430 250 V190"))
+    b.append(offpage(lc, 1460, 190, "TO UNIT BATTERY LIMIT, SHEET PID-PW-002"))
+    b.append(run(lc, "M1430 250 V330"))
+    b.append(valve(lc, 1360, 330, "GV-1018", "Block valve, second user branch", "gate"))
+    b.append(run(lc, "M1374 330 H1430"))
+    b.append(line_no(lc, 1250, 372, '4"-PW-1107-B1A'))
+    b.append(offpage(lc, 1460, 330, "TO SECOND UNIT BATTERY LIMIT, SHEET PID-PW-003"))
+    b.append(arrow(200, 180, "e"))
+    b.append(arrow(1100, 250, "e"))
+    b.append(run(lc, "M870 250 V550"))
+    b.append(run(lc, "M870 550 H60"))
+    b.append(valve(lc, 700, 550, "FCV-102", "Minimum-flow recirculation control valve", "control"))
+    b.append(valve(lc, 550, 550, "GV-1017", "Minimum-flow recirculation isolation valve", "gate"))
+    b.append(line_no(lc, 380, 586, '3"-PW-1108-B1A'))
+    b.append(run(lc, "M60 550 V320"))
+    b.append(drain(300, 580))
+    b.append(tap(lc, 300, 550, 460))
+    b.append(instrument(lc, 300, 460, "TT-1109", "Suction header temperature transmitter", "field"))
+    b.append(tap(lc, 200, 180, 130))
+    b.append(instrument(lc, 200, 130, "PG-1103", "Suction header local pressure gauge", "field"))
+    strip = [
+        ("P-101A", "Process water pump, duty", "600 m3/h", "8 barg / 45 degC"),
+        ("P-101B", "Process water pump, standby", "600 m3/h", "8 barg / 45 degC"),
+    ]
+    b.append(notes_box(lc, 40, 828, 780, 156, [
+        "1. All line numbers per the Piping Line List; size-service-sequence-spec.",
+        "2. Instruments per ISA-5.1. A bar means panel-mounted; a bare circle is field-mounted.",
+        "3. This is a SYNTHETIC drawing for demonstration; it shows no real MRPL asset.",
+        "4. XV-101 closes on PSHH-101 high-high pressure; interlock tested every 6 months.",
+        "5. Minimum flow recirculation opens automatically below 180 m3/h header flow.",
+    ]))
+    b.append(revision_table(830, 828, 340, 156, [
+        ("A", "2017-08-04", "Issued for construction", "K.IYER"),
+        ("B", "2018-05-20", "Added FIC-101 loop, PSV-101", "K.IYER"),
+        ("C", "2026-02-04", "Added XV-101, min-flow loop", "K.IYER"),
+    ]))
+    return "PID-PW-001", "C", "Restricted", "2026-02-04", strip, "".join(b), lc
+def _sheet_am002() -> tuple[str, str, str, str, list, str, Layout]:
+    lc = Layout("PID-AM-002")
+    b = []
+    # Regenerator column: overhead to the condenser and reflux drum, feed on the left, bottoms
+    # on the right into the reboiler/cooler train below.
+    b.append(vessel(lc, 200, 480, "V-202", "Lean amine regenerator", height=260))
+    b.append(run(lc, "M200 190 V150 H354"))
+    b.append(exchanger(lc, 450, 150, "E-205", "Regenerator overhead condenser", terse=True))
+    b.append(run(lc, "M546 150 H604"))
+    b.append(vessel(lc, 650, 150, "V-203", "Reflux drum", height=70, terse=True))
+    b.append(tap(lc, 200, 190, 126))
+    b.append(valve(lc, 200, 126, "PSV-201", "Regenerator overhead relief valve", "relief", label_side="side"))
+    b.append(vent(200, 76))
+    b.append(run(lc, "M696 170 H680 V150"))
+    b.append(pump_bank(lc, 920, 150, 110, [
+        ("P-204A", "Regenerator reflux pump A", "duty", False),
+        ("P-204B", "Regenerator reflux pump B", "standby", False),
+    ]))
+    b.append(run(lc, "M1120 150 V70 H200 V126"))
+    b.append(line_no(lc, 800, 134, '3"-AM-2103-C1A'))
+    b.append(line_no(lc, 300, 60, '3"-AM-2107-C1A'))
+    b.append(offpage(lc, 1160, 150, "SOUR GAS AND REFLUX DRUM BOOT WATER, SHEET PID-AM-001"))
+    # A surge drum for the circulation loop, tapped off the reflux-pump discharge header, sits
+    # in the open area to the right, with its own level loop.
+    b.append(run(lc, "M1238 150 H1350 V233"))
+    b.append(vessel(lc, 1350, 300, "V-204", "Lean amine surge drum", height=90, terse=True))
+    b.append(tap(lc, 1350, 400, 440))
+    b.append(instrument(lc, 1350, 440, "LT-2041", "Surge drum level transmitter", "field"))
+    b.append(instrument(lc, 1350, 510, "LIC-2041", "Surge drum level indicating controller", "panel"))
+    b.append(signal_v(lc, 1350, 440, 510))
+    # Feed: rich amine from the absorber, entering the column's mid-height nozzle.
+    b.append(offpage(lc, 40, 250, "RICH AMINE FROM ABSORBER, SHEET PID-AM-004", "left"))
+    b.append(run(lc, "M118 250 H150"))
+    b.append(valve(lc, 180, 250, "GV-2012", "Rich amine feed inlet valve", "gate"))
+    b.append(reducer(lc, 260, 250, '4"x3"'))
+    b.append(run(lc, "M300 250 H340 V380 H114"))
+    b.append(line_no(lc, 220, 234, '4"-AM-2101-C1A'))
+    # Bottoms: reboiler, lean-rich exchanger, trim cooler (with its own temperature loop),
+    # filter, then the circulation pumps and the shutdown valve to the absorber.
+    b.append(run(lc, "M286 590 H340"))
+    b.append(exchanger(lc, 420, 590, "E-204", "Regenerator reboiler", terse=True))
+    b.append(run(lc, "M484 590 H560"))
+    b.append(exchanger(lc, 640, 590, "E-206", "Lean-rich amine exchanger", terse=True))
+    b.append(run(lc, "M704 590 H740"))
+    b.append(exchanger(lc, 820, 590, "E-201", "Lean amine cooler", terse=True))
+    b.append(run(lc, "M884 590 H960"))
+    b.append(tap(lc, 920, 590, 720))
+    b.append(instrument(lc, 920, 720, "TE-201", "Lean amine cooler outlet temperature element", "field"))
+    b.append(instrument(lc, 920, 790, "TIC-201", "Lean amine outlet temperature controller", "panel"))
+    b.append(signal_v(lc, 920, 720, 790))
+    b.append(valve(lc, 1060, 790, "TCV-201", "Cooling water temperature control valve", "control", label_side="side"))
+    b.append(signal(lc, "M946 790 H1030"))
+    b.append(line_no(lc, 1040, 824, '3"-CW-2210-C1A'))
+    b.append(strainer(lc, 1000, 590, "STR-205"))
+    b.append(run(lc, "M1016 590 H1060"))
+    b.append(valve(lc, 1100, 590, "GV-2013", "Filter outlet isolation valve", "gate"))
+    b.append(run(lc, "M1130 590 H1160"))
+    b.append(specbreak(lc, 1200, 590, "SB-3"))
+    b.append(line_no(lc, 400, 574, '4"-AM-2202-C1A'))
+    b.append(line_no(lc, 700, 624, '2"-AM-2206-C1A'))
+    b.append(run(lc, "M1218 590 H1260"))
+    b.append(pump_bank(lc, 1300, 590, 130, [
+        ("P-202A", "Lean amine circulation pump A", "duty", False),
+        ("P-202B", "Lean amine circulation pump B", "standby", False),
+    ]))
+    b.append(run(lc, "M1500 590 V800"))
+    b.append(tap(lc, 1500, 590, 520))
+    b.append(instrument(lc, 1500, 520, "PSHH-201", "Circulation discharge pressure switch high-high", "field"))
+    b.append(valve(lc, 1500, 680, "XV-201", "Emergency shutdown valve, lean amine to absorber", "shutdown",
+                   label_side="side"))
+    b.append(offpage(lc, 1420, 800, "LEAN AMINE TO ABSORBER, SHEET PID-AM-004", "left"))
+    b.append(line_no(lc, 1230, 680, '3"-AM-2210-C1A'))
+    b.append(arrow(300, 590, "e"))
+    b.append(arrow(1200, 590, "e"))
+    b.append(drain(420, 630))
+    strip = [
+        ("V-202", "Amine regenerator column", "45 m3/h reflux", "3.5 barg / 125 degC"),
+        ("E-201", "Lean amine cooler", "38 m3/h", "10 barg / 65 degC"),
+        ("P-202A/B", "Lean amine circulation, duty/standby", "38 m3/h", "12 barg / 60 degC"),
+    ]
+    b.append(notes_box(lc, 40, 828, 780, 156, [
+        "1. All line numbers per the Piping Line List; size-service-sequence-spec.",
+        "2. Instruments per ISA-5.1. A bar means panel-mounted; a bare circle is field-mounted.",
+        "3. This is a SYNTHETIC drawing for demonstration; it shows no real MRPL asset.",
+        "4. Overhead condenser duty and reflux drum boot water routing per PID-AM-001.",
+        "5. XV-201 closes on PSHH-201 high-high discharge pressure to the absorber.",
+    ]))
+    b.append(revision_table(830, 828, 340, 156, [
+        ("A", "2017-09-10", "Issued for construction", "R.DESAI"),
+        ("B", "2026-02-04", "Added V-204 LT loop, XV-201", "R.DESAI"),
+    ]))
+    return "PID-AM-002", "B", "Restricted", "2026-02-04", strip, "".join(b), lc
+def _sheet_fl001() -> tuple[str, str, str, str, list, str, Layout]:
+    lc = Layout("PID-FL-001")
+    b = []
+    # Flare header, with PSV tie-ins from three other units feeding in from the left.
+    b.append(offpage(lc, 40, 150, "FROM CW-003 PSV-108 TIE-IN, SHEET PID-CW-003", "left"))
+    b.append(run(lc, "M118 150 H220"))
+    b.append(line_no(lc, 130, 134, '6"-FL-3001-B1A'))
+    b.append(offpage(lc, 260, 150, "FROM PW-001 PSV-101 TIE-IN, SHEET PID-PW-001", "left"))
+    b.append(run(lc, "M338 150 H440"))
+    b.append(offpage(lc, 480, 150, "FROM AM-002 PSV-201 TIE-IN, SHEET PID-AM-002", "left"))
+    b.append(run(lc, "M558 150 H700"))
+    b.append(run(lc, "M700 150 V284"))
+    b.append(vessel(lc, 700, 480, "V-301", "Flare knock-out drum", height=180))
+    b.append(valve(lc, 700, 220, "PSV-301", "Knock-out drum relief valve", "relief", label_side="side"))
+    b.append(vent(700, 180))
+    b.append(run(lc, "M786 390 H900"))
+    b.append(vessel(lc, 1120, 390, "V-303", "Flare water seal drum", height=70, terse=True))
+    b.append(run(lc, "M1166 390 H1200 V150"))
+    b.append(run(lc, "M1200 150 H1300"))
+    b.append(offpage(lc, 1300, 150, "TO FLARE STACK, SHEET PID-FL-002"))
+    b.append(line_no(lc, 460, 134, '8"-FL-3005-B1A'))
+    b.append(line_no(lc, 800, 334, '6"-FL-3008-B1A'))
+    b.append(line_no(lc, 1220, 134, '6"-FL-3009-B1A'))
+    b.append(arrow(900, 150, "e"))
+    # A fourth PSV tie-in, with its own isolation valve, and a local pressure gauge on the header.
+    b.append(offpage(lc, 40, 300, "FROM CDU-101 PSV TIE-IN, SHEET PID-CDU-101", "left"))
+    b.append(run(lc, "M118 300 H180"))
+    b.append(valve(lc, 220, 300, "GV-3014", "Flare tie-in isolation valve, CDU unit", "gate"))
+    b.append(run(lc, "M250 300 H320 V150 H338"))
+    b.append(line_no(lc, 130, 284, '4"-FL-3003-B1A'))
+    b.append(tap(lc, 620, 150, 220))
+    b.append(instrument(lc, 620, 220, "PG-3001", "Flare header local pressure gauge", "field"))
+    # Liquid draw-off, level loop and alarm interlock, dropping to the bottoms pumps below.
+    b.append(run(lc, "M786 590 H860"))
+    b.append(valve(lc, 900, 590, "GV-3011", "Liquid outlet block valve", "gate"))
+    b.append(run(lc, "M914 590 H1010"))
+    b.append(tap(lc, 950, 590, 460))
+    b.append(instrument(lc, 950, 460, "LT-301", "Flare drum level transmitter", "field"))
+    b.append(instrument(lc, 950, 390, "LIC-301", "Flare drum level indicating controller", "panel"))
+    b.append(signal_v(lc, 950, 390, 460))
+    b.append(tap(lc, 950, 590, 660))
+    b.append(instrument(lc, 950, 660, "LAHH-301", "Flare drum level alarm high-high, trips XV-301", "field"))
+    b.append(valve(lc, 1050, 590, "LCV-301", "Level control valve, liquid outlet", "control"))
+    b.append(signal_hv(lc, 950, 390, 1050, 544))
+    b.append(run(lc, "M1090 590 H1150"))
+    b.append(valve(lc, 1150, 590, "XV-301", "Emergency shutdown valve, liquid outlet", "shutdown"))
+    b.append(run(lc, "M1180 590 H1240"))
+    b.append(reducer(lc, 1280, 590, '4"x3"'))
+    b.append(specbreak(lc, 1340, 590, "SB-4"))
+    b.append(run(lc, "M1358 590 H1400 V750 H340 V780"))
+    b.append(line_no(lc, 1000, 574, '4"-FL-3011-B1A'))
+    b.append(pump(lc, 480, 780, "P-301A", "Flare drum bottoms pump A", "duty", terse=True))
+    b.append(pump(lc, 660, 780, "P-301B", "Flare drum bottoms pump B", "standby", terse=True))
+    b.append(run(lc, "M310 780 H428"))
+    b.append(run(lc, "M532 780 H608"))
+    b.append(run(lc, "M712 780 H900"))
+    b.append(offpage(lc, 940, 780, "TO SLOP OIL TANK, SHEET PID-FL-003"))
+    b.append(line_no(lc, 380, 764, '4"-FL-3015-B1A'))
+    b.append(drain(900, 630))
+    b.append(arrow(1000, 590, "e"))
+    strip = [
+        ("V-301", "Flare knock-out drum", "PSV relief service", "1.5 barg / 90 degC"),
+        ("V-303", "Flare water seal drum", "seal loop", "0.3 barg / 60 degC"),
+        ("P-301A/B", "Flare drum bottoms, duty/standby", "12 m3/h", "6 barg / 90 degC"),
+    ]
+    b.append(notes_box(lc, 40, 828, 780, 156, [
+        "1. All line numbers per the Piping Line List; size-service-sequence-spec.",
+        "2. Instruments per ISA-5.1. A bar means panel-mounted; a bare circle is field-mounted.",
+        "3. This is a SYNTHETIC drawing for demonstration; it shows no real MRPL asset.",
+        "4. XV-301 closes on LAHH-301 high-high level; interlock tested every 6 months.",
+        "5. Flare header sizing is covered by the relief system design basis, not this sheet.",
+    ]))
+    b.append(revision_table(830, 828, 340, 156, [
+        ("A", "2020-02-11", "Issued for construction", "N.PILLAI"),
+        ("B", "2026-02-04", "Added V-303, LAHH-301, XV-301", "N.PILLAI"),
+    ]))
+    return "PID-FL-001", "B", "Restricted", "2026-02-04", strip, "".join(b), lc
+def _sheet_cdu101() -> tuple[str, str, str, str, list, str, Layout]:
+    lc = Layout("PID-CDU-101")
+    b = []
+    # Row 1: charge pumps, a pressure control loop, and the first two preheat exchangers,
+    # each with a bypass valve.
+    b.append(offpage(lc, 40, 490, "CRUDE FROM STORAGE TANKS, SHEET PID-CDU-100", "left"))
+    b.append(run(lc, "M118 490 H160"))
+    b.append(pump_bank(lc, 300, 420, 140, [
+        ("P-401A", "Crude charge pump A", "duty", False),
+        ("P-401B", "Crude charge pump B", "standby", False),
+    ]))
+    b.append(line_no(lc, 130, 474, '10"-CR-4001-A1A'))
+    b.append(run(lc, "M500 420 V490"))
+    b.append(run(lc, "M500 560 V490"))
+    b.append(run(lc, "M500 490 H1150"))
+    b.append(tap(lc, 560, 490, 420))
+    b.append(instrument(lc, 560, 420, "PT-4101", "Charge header pressure transmitter", "field"))
+    b.append(instrument(lc, 560, 350, "PIC-4101", "Charge header pressure indicating controller", "panel"))
+    b.append(signal_v(lc, 560, 350, 420))
+    b.append(valve(lc, 660, 350, "PCV-4101", "Charge header pressure control valve", "control"))
+    b.append(signal(lc, "M586 350 H630"))
+    b.append(run(lc, "M660 420 V386"))
+    b.append(run(lc, "M630 490 H690"))
+    b.append(valve(lc, 730, 490, "GV-4011", "Block valve, before preheat train", "gate"))
+    b.append(run(lc, "M760 490 H800"))
+    b.append(exchanger(lc, 880, 490, "E-101", "Crude preheat exchanger 1", terse=True))
+    b.append(run(lc, "M784 410 H976 V450"))
+    b.append(valve(lc, 880, 410, "GV-4012", "Bypass valve around E-101", "gate"))
+    b.append(run(lc, "M944 490 H1000"))
+    b.append(exchanger(lc, 1080, 490, "E-102", "Crude preheat exchanger 2", terse=True))
+    b.append(run(lc, "M984 410 H1176 V450"))
+    b.append(valve(lc, 1080, 410, "GV-4013", "Bypass valve around E-102", "gate"))
+    b.append(line_no(lc, 800, 474, '8"-CR-4102-A1A'))
+    b.append(line_no(lc, 1000, 474, '8"-CR-4104-A1A'))
+    b.append(arrow(1000, 490, "e"))
+    # Row 2, flowing back leftward: wash water injection, the desalter with its level and
+    # relief interlocks, a third preheat exchanger, and the outlet to the crude heater.
+    b.append(run(lc, "M1176 490 V680 H1240"))
+    b.append(offpage(lc, 1240, 680, "WASH WATER SUPPLY, SHEET PID-CDU-103"))
+    b.append(run(lc, "M1176 680 H1130"))
+    b.append(instrument(lc, 1090, 680, "FT-4103", "Wash water flow transmitter", "field"))
+    b.append(instrument(lc, 1090, 610, "FIC-4103", "Wash water flow indicating controller", "panel"))
+    b.append(signal_v(lc, 1090, 610, 680))
+    b.append(valve(lc, 1000, 680, "FCV-4103", "Wash water flow control valve", "control"))
+    b.append(signal(lc, "M1064 610 H1020"))
+    b.append(run(lc, "M960 680 H900"))
+    b.append(valve(lc, 860, 680, "GV-4020", "Wash water injection isolation valve", "gate"))
+    b.append(run(lc, "M830 680 H700"))
+    b.append(vessel(lc, 600, 680, "V-101", "Desalter", height=140, terse=True))
+    b.append(valve(lc, 600, 555, "PSV-4101", "Desalter relief valve", "relief", label_side="side"))
+    b.append(tap(lc, 600, 588, 555))
+    b.append(vent(600, 510))
+    b.append(tap(lc, 640, 680, 745))
+    b.append(instrument(lc, 640, 745, "LT-101", "Desalter interface level transmitter", "field"))
+    b.append(instrument(lc, 550, 745, "LAHH-101", "Desalter interface level alarm high-high, trips XV-4101", "field"))
+    b.append(valve(lc, 490, 680, "LCV-101", "Level control valve, water draw-off", "control", label_side="side"))
+    b.append(run(lc, "M514 680 H460"))
+    b.append(offpage(lc, 380, 680, "EFFLUENT WATER TO TREATMENT, SHEET PID-CDU-105", "left"))
+    b.append(line_no(lc, 950, 664, '3"-WW-4108-B1A'))
+    b.append(line_no(lc, 420, 664, '4"-WW-4110-B1A'))
+    # The desalted crude outlet drops clear of the charge-pump row above it before heading back
+    # left to the crude heater, so it never shares the pump bank's own space.
+    b.append(run(lc, "M686 730 V800 H170"))
+    b.append(valve(lc, 550, 800, "XV-4101", "Emergency shutdown valve, desalted crude outlet", "shutdown"))
+    b.append(reducer(lc, 400, 800, '10"x8"'))
+    b.append(specbreak(lc, 340, 800, "SB-6"))
+    b.append(offpage(lc, 150, 800, "TO CRUDE HEATER, SHEET PID-CDU-102", "left"))
+    b.append(arrow(700, 680, "w"))
+    b.append(drain(600, 800))
+    strip = [
+        ("P-401A/B", "Crude charge, duty/standby", "1100 m3/h", "12 barg / 40 degC"),
+        ("V-101", "Desalter", "1100 m3/h", "10 barg / 130 degC"),
+        ("E-101/102/103", "Crude preheat train", "1100 m3/h", "12 barg / 150 degC"),
+    ]
+    b.append(notes_box(lc, 40, 828, 780, 156, [
+        "1. All line numbers per the Piping Line List; size-service-sequence-spec.",
+        "2. Instruments per ISA-5.1. A bar means panel-mounted; a bare circle is field-mounted.",
+        "3. This is a SYNTHETIC drawing for demonstration; it shows no real MRPL asset.",
+        "4. XV-4101 closes on LAHH-101 high-high interface level in the desalter.",
+        "5. Wash water rate is set from the crude charge rate per the desalter control curve.",
+    ]))
+    b.append(revision_table(830, 828, 340, 156, [
+        ("A", "2026-02-04", "Issued for construction", "V.NAIR"),
+    ]))
+    return "PID-CDU-101", "A", "Restricted", "2026-02-04", strip, "".join(b), lc
+
+
+SHEET_TITLES = {
+    "PID-CW-003": "Cooling water booster pumps",
+    "PID-PW-001": "Process water pumps",
+    "PID-AM-002": "Lean amine regenerator and cooler",
+    "PID-FL-001": "Flare header and knock-out drum",
+    "PID-CDU-101": "Crude preheat train and desalter",
+}
+
+
+def build_pid_sheets(ws_inputs: Path) -> dict[str, Layout]:
+    """Synthetic P&ID sheets for the tags in the asset register, drawn as SVG so tags stay
+    clickable. Each sheet is checked for overlapping labels and labels crossing lines before it
+    is written (see ``workbench.documents.pid_layout``), and each sheet's manifest of every tag
+    it declares becomes both the source for the asset register and the ground truth the tag
+    detector is measured against.
+    """
+    builders = [_sheet_cw003, _sheet_pw001, _sheet_am002, _sheet_fl001, _sheet_cdu101]
+    layouts: dict[str, Layout] = {}
+    for builder in builders:
+        sheet, revision, marking, date, strip, body, lc = builder()
+        lc.check()
+        svg = PID_TEMPLATE.format(sheet=sheet, title=SHEET_TITLES[sheet], revision=revision,
+                                  marking=marking.upper(), date=date, body=body, grid=GRID_MARKS,
+                                  strip=equipment_strip(strip), ink=PID_INK, paper=PID_PAPER)
         path = ws_inputs / f"{sheet}.svg"
         path.write_text(svg, encoding="utf-8")
         (ws_inputs / f"{sheet}.svg.label.json").write_text(
             json.dumps({"label": {"level": marking, "compartments": []}}, indent=2), encoding="utf-8")
+        (ws_inputs / f"{sheet}.manifest.json").write_text(
+            json.dumps({"sheet": sheet, "tags": lc.manifest}, indent=2), encoding="utf-8")
+        layouts[sheet] = lc
+    return layouts
 
 
 def copy_public_samples(fixtures: Path, ws_inputs: Path) -> int:
@@ -602,16 +1321,54 @@ def copy_public_samples(fixtures: Path, ws_inputs: Path) -> int:
     return copied
 
 
-def build_asset_register(root: Path) -> None:
-    rows = [
-        ["P-101A", "centrifugal_pump", "Process water pump A", "Deccan Hydraulics Pvt Ltd", "PO-4500118820", "PID-PW-001"],
-        ["P-101B", "centrifugal_pump", "Process water pump B", "Deccan Hydraulics Pvt Ltd", "PO-4500118820", "PID-PW-001"],
-        ["P-108A", "centrifugal_pump", "Cooling water booster pump A", "Narmada Pumps Ltd", "PO-4500123456", "PID-CW-003"],
-        ["P-108B", "centrifugal_pump", "Cooling water booster pump B", "Narmada Pumps Ltd", "PO-4500123456", "PID-CW-003"],
-        ["E-201", "heat_exchanger", "Lean amine cooler", "Sahyadri Thermal Ltd", "PO-4500109911", "PID-AM-002"],
-        ["V-301", "pressure_vessel", "Flash drum", "Konkan Fabricators Pvt Ltd", "PO-4500099102", "PID-FL-001"],
-        ["FT-108", "instrument", "Cooling water flow transmitter", "Aravali Instruments Ltd", "PO-4500123999", "PID-CW-003"],
-    ]
+# Tags drawn on a sheet but deliberately left out of the register: a spare pump position that is
+# not yet installed (P-108C) and a tie-in mentioned only in a scanned sheet's markup (V-302, which
+# never reaches this list at all, since it is never drawn on any SVG sheet). Leaving these out is
+# what gives the tag detector a genuine "not in the asset register" case to flag.
+EXCLUDE_FROM_REGISTER = frozenset({"P-108C"})
+
+# One vendor per detected class, in the same Indian-registered-company style as the rest of the
+# fixtures, plus the asset-register class each one's tags fall under by default.
+VENDOR_BY_CLASS = {
+    "pump": ("Narmada Pumps Ltd", "centrifugal_pump"),
+    "vessel": ("Konkan Fabricators Pvt Ltd", "pressure_vessel"),
+    "exchanger": ("Sahyadri Thermal Ltd", "heat_exchanger"),
+    "instrument": ("Aravali Instruments Ltd", "instrument"),
+    "valve": ("Vindhya Valves Pvt Ltd", "gate_valve"),
+    "control_valve": ("Godavari Controls Ltd", "control_valve"),
+    "relief_valve": ("Vindhya Valves Pvt Ltd", "relief_valve"),
+    "strainer": ("Vindhya Valves Pvt Ltd", "strainer"),
+}
+
+
+def build_asset_register(root: Path, layouts: dict[str, Layout]) -> None:
+    """The asset register, built from exactly the tags the sheets themselves declare (each
+    sheet's ``Layout.manifest``), so the register and the drawings can never drift apart. A
+    purchase order is shared by every tag from the same vendor on the same sheet, the way one
+    order usually covers a whole package of valves or instruments for one job.
+    """
+    po_seq = [4500130001]
+    po_cache: dict[tuple[str, str], str] = {}
+
+    def po_for(vendor: str, sheet: str) -> str:
+        key = (vendor, sheet)
+        if key not in po_cache:
+            po_cache[key] = f"PO-{po_seq[0]}"
+            po_seq[0] += 1
+        return po_cache[key]
+
+    rows = []
+    seen: set[str] = set()
+    for sheet, lc in layouts.items():
+        for entry in lc.manifest:
+            tag, cls = entry["tag"], entry["cls"]
+            if tag in EXCLUDE_FROM_REGISTER or cls not in VENDOR_BY_CLASS or tag in seen:
+                continue
+            seen.add(tag)
+            vendor, default_sub = VENDOR_BY_CLASS[cls]
+            sub = entry.get("subclass") or default_sub
+            description = entry.get("description") or f"{sub.replace('_', ' ')} {tag}"
+            rows.append([tag, sub, description, vendor, po_for(vendor, sheet), sheet])
     with (root / "asset_register.csv").open("w", newline="", encoding="utf-8") as fh:
         w = csv.writer(fh)
         w.writerow(["tag", "class", "description", "vendor", "po_number", "pid_sheet"])
@@ -906,10 +1663,10 @@ def main() -> None:
     build_board_notes(plant / "board_notes.md")
     build_offers(proc)
     build_kb(fixtures / "kb")
-    build_pid_sheets(plant)
-    build_images(plant)
+    layouts = build_pid_sheets(plant)
+    build_images(plant, layouts)
     copy_public_samples(fixtures, plant)
-    build_asset_register(fixtures)
+    build_asset_register(fixtures, layouts)
     build_org_templates(root / "org_templates")
     print(f"fixtures written under {fixtures}")
 

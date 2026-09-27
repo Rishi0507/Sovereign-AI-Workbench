@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" fill="none">
+  <defs>
+    <radialGradient id="c" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#F2A65A" stop-opacity=".45"/><stop offset="1" stop-color="#F2A65A" stop-opacity="0"/></radialGradient>
+  </defs>
+  <circle cx="120" cy="120" r="110" fill="url(#c)"/>
+  <g stroke-linecap="round">
+    <path d="M40 120a80 80 0 0 1 80-80" stroke="#D9772B" stroke-width="3"/>
+    <path d="M200 120a80 80 0 0 1-80 80" stroke="#D9772B" stroke-width="3" opacity=".35"/>
+    <path d="M120 62a58 58 0 0 1 58 58" stroke="#4F7625" stroke-width="3"/>
+    <path d="M120 178a58 58 0 0 1-58-58" stroke="#4F7625" stroke-width="3" opacity=".35"/>
+    <path d="M86 120a34 34 0 0 1 34-34" stroke="#2F6FB0" stroke-width="3"/>
+    <path d="M154 120a34 34 0 0 1-34 34" stroke="#2F6FB0" stroke-width="3" opacity=".35"/>
+  </g>
+  <circle cx="120" cy="120" r="9" fill="#fff" stroke="#1F1D1A" stroke-width="2"/>
+  <circle cx="40" cy="120" r="5" fill="#D9772B"/>
+  <circle cx="178" cy="120" r="5" fill="#4F7625"/>
+  <circle cx="120" cy="86" r="5" fill="#2F6FB0"/>
+</svg>

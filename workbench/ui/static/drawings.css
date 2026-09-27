@@ -1,0 +1,163 @@
+/* Drawings tab: the tag-detector overlay, its summary bar and its class filters.
+   Scoped entirely to drawing-viewer markup (.sheet-holder, .det-bar, .pid-*), so it can sit
+   alongside app.css without touching it. Colours are declared as --det-* tokens here, built
+   from the shared theme variables so light and dark both work without hardcoded hex values. */
+
+:root {
+  --det-pump: #2f7dd1;
+  --det-vessel: #2f9e6b;
+  --det-exchanger: #b8862f;
+  --det-instrument: #7a4fd1;
+  --det-valve: #c4562f;
+  --det-control-valve: #d13f7a;
+  --det-relief-valve: #c92c2c;
+  --det-line: #6b7280;
+  --det-connector: #3f8fbf;
+  --det-stamp: #a6272c;
+  --det-unknown: #8a8f98;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --det-pump: #6fa8e8;
+    --det-vessel: #5cc596;
+    --det-exchanger: #d9a94e;
+    --det-instrument: #a985ec;
+    --det-valve: #e08758;
+    --det-control-valve: #e879aa;
+    --det-relief-valve: #ea6b6b;
+    --det-line: #9aa1ac;
+    --det-connector: #6fbbe0;
+    --det-stamp: #e3777b;
+    --det-unknown: #a7acb5;
+  }
+}
+
+:root[data-theme="dark"] {
+  --det-pump: #6fa8e8;
+  --det-vessel: #5cc596;
+  --det-exchanger: #d9a94e;
+  --det-instrument: #a985ec;
+  --det-valve: #e08758;
+  --det-control-valve: #e879aa;
+  --det-relief-valve: #ea6b6b;
+  --det-line: #9aa1ac;
+  --det-connector: #6fbbe0;
+  --det-stamp: #e3777b;
+  --det-unknown: #a7acb5;
+}
+
+:root[data-theme="light"] {
+  --det-pump: #2f7dd1;
+  --det-vessel: #2f9e6b;
+  --det-exchanger: #b8862f;
+  --det-instrument: #7a4fd1;
+  --det-valve: #c4562f;
+  --det-control-valve: #d13f7a;
+  --det-relief-valve: #c92c2c;
+  --det-line: #6b7280;
+  --det-connector: #3f8fbf;
+  --det-stamp: #a6272c;
+  --det-unknown: #8a8f98;
+}
+
+/* The sheet holder needs a positioning context for the overlay to line up with the SVG or the
+   scanned image inside it; app.css does not set one, so it is added here rather than there. */
+.sheet-holder { position: relative; }
+
+.pid-overlay {
+  position: absolute;
+  inset: 12px;
+  width: calc(100% - 24px);
+  height: calc(100% - 24px);
+  overflow: visible;
+  pointer-events: none;
+}
+
+.pid-det {
+  fill: var(--det-color, var(--accent));
+  fill-opacity: .16;
+  stroke: var(--det-color, var(--accent));
+  stroke-width: .0035;
+  pointer-events: auto;
+  cursor: pointer;
+  opacity: 0;
+  transform: scale(0.94);
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: opacity .28s ease, transform .28s ease, fill-opacity .15s ease, stroke-width .15s ease;
+}
+
+.pid-overlay.pid-overlay-live .pid-det { opacity: 1; transform: scale(1); }
+
+.pid-det:hover, .pid-det.pid-det-hover {
+  fill-opacity: .32;
+  stroke-width: .006;
+}
+
+.pid-det.pid-det-unknown {
+  stroke: var(--bad);
+  stroke-dasharray: .012 .01;
+  stroke-width: .006;
+}
+
+.pid-det.pid-det-hidden { display: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pid-det { transition: none; opacity: 1; transform: none; }
+}
+
+/* The summary and filter bar above the sheet stage. */
+.det-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  padding: 10px 14px;
+  margin: 4px 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--soft);
+}
+
+.det-summary {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text);
+  flex: 1 1 auto;
+  min-width: 220px;
+}
+
+.det-filters {
+  gap: 6px;
+}
+
+.det-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.det-chip:hover { color: var(--text); border-color: var(--accent); }
+
+.det-chip.active {
+  color: var(--text);
+  border-color: var(--accent);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.det-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+}
