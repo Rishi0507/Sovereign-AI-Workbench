@@ -2,7 +2,7 @@
 
 **The agentic layer of an air-gapped engineering workbench.** Engineers drop in scanned inspection reports, contracts, vendor offers and data files, and the workbench plans the work, runs the tools, checks every figure against its source, and hands back a reviewable draft: an approval note, a verified script, a contract summary, a calculation sheet or an offer comparison. Nothing leaves the premises, and every number in a deliverable can be traced back to the page it came from.
 
-![Workspace home](docs/images/home.png)
+<p align="center"><img src="docs/images/home.png" width="49%" alt="Workspace home, light theme"> <img src="docs/images/home-dark.png" width="49%" alt="Workspace home, dark theme"></p>
 
 This repository implements the **agentic layer** described in [`docs/design/SYSTEM_DESIGN.md`](docs/design/SYSTEM_DESIGN.md) section 4, following the build plan in [`docs/design/IMPLEMENTATION_PRD.md`](docs/design/IMPLEMENTATION_PRD.md). The inference servers (vLLM), the GPU and the network hardening are outside its scope; the layer talks to them through narrow, testable interfaces and ships deterministic stand-ins so the whole system runs and is tested on a laptop.
 
@@ -147,11 +147,11 @@ In every run the egress test passed and the external connection counter stayed a
 
 A task reads like a conversation: the request, the plan to approve, the steps as they finish, the issues found and the files produced.
 
-![Task view](docs/images/task.png)
+<p align="center"><img src="docs/images/task.png" width="49%" alt="Task view, light theme"> <img src="docs/images/task-dark.png" width="49%" alt="Task view, dark theme"></p>
 
 The review screen shows the draft as paper and underlines every figure by where it came from (a source, a calculation, or no source). The issues must be marked as reviewed before **Approve** unlocks, and each citation is checked against the record it cites.
 
-![Review view](docs/images/review.png)
+<p align="center"><img src="docs/images/review.png" width="49%" alt="Review view, light theme"> <img src="docs/images/review-dark.png" width="49%" alt="Review view, dark theme"></p>
 
 ## Quick start
 
@@ -242,11 +242,11 @@ The interface is deliberately plain: a sidebar with your recent tasks, one box t
 
 The account menu (bottom left) switches the signed-in user in development and links to Models and Security. Classification travels with the document rather than the page: it is shown on every file, in the preview and on the review sheet, and stamped into each exported file. The top bar carries the workspace on the home page and is otherwise empty; a network chip appears only if data has left the server or the monitor has stopped. The interface follows the system light or dark theme, works on phone screens, and animates every change (tabs slide, panels glide, lists update in place) so nothing jumps.
 
-![Library](docs/images/library.png)
+<p align="center"><img src="docs/images/library.png" width="49%" alt="Library, light theme"> <img src="docs/images/library-dark.png" width="49%" alt="Library, dark theme"></p>
 
-![Dark theme](docs/images/home-dark.png)
+<p align="center"><img src="docs/images/models.png" width="49%" alt="Models, light theme"> <img src="docs/images/models-dark.png" width="49%" alt="Models, dark theme"></p>
 
-<p align="center"><img src="docs/images/models.png" width="49%" alt="Models"> <img src="docs/images/security.png" width="49%" alt="Security"></p>
+<p align="center"><img src="docs/images/security.png" width="49%" alt="Security, light theme"> <img src="docs/images/security-dark.png" width="49%" alt="Security, dark theme"></p>
 
 ## Command line
 
