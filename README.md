@@ -1,3 +1,9 @@
+<h1 align="center"><a href="https://www.youtube.com/watch?v=eeYbNc-weyU">Check out the demo video here</a></h1>
+
+<p align="center"><a href="https://www.youtube.com/watch?v=eeYbNc-weyU"><img src="https://img.shields.io/badge/%E2%96%B6%20WATCH%20THE%20VIDEO-YOUTUBE-FF0000?style=for-the-badge&logo=youtube&logoColor=white&labelColor=0d1117" alt="Watch the video on YouTube"></a></p>
+
+---
+
 # Sovereign AI Workbench
 
 **The agentic layer of an air-gapped engineering workbench.** Engineers drop in scanned inspection reports, contracts, vendor offers and data files, and the workbench plans the work, runs the tools, checks every figure against its source, and hands back a reviewable draft: an approval note, a verified script, a contract summary, a calculation sheet or an offer comparison. Nothing leaves the premises, and every number in a deliverable can be traced back to the page it came from.
