@@ -1,6 +1,6 @@
-<h1 align="center"><a href="https://www.youtube.com/watch?v=eeYbNc-weyU">Check out the demo video here</a></h1>
+<h1 align="center"><a href="https://youtu.be/eeYbNc-weyU?t=4">Check out the demo video here</a></h1>
 
-<p align="center"><a href="https://www.youtube.com/watch?v=eeYbNc-weyU"><img src="https://img.shields.io/badge/%E2%96%B6%20WATCH%20THE%20VIDEO-YOUTUBE-FF0000?style=for-the-badge&logo=youtube&logoColor=white&labelColor=0d1117" alt="Watch the video on YouTube"></a></p>
+<p align="center"><a href="https://youtu.be/eeYbNc-weyU?t=4"><img src="https://img.shields.io/badge/%E2%96%B6%20WATCH%20THE%20VIDEO-YOUTUBE-FF0000?style=for-the-badge&logo=youtube&logoColor=white&labelColor=0d1117" alt="Watch the video on YouTube"></a></p>
 
 ---
 
